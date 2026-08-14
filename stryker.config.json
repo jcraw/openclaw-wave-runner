@@ -18,11 +18,13 @@
   "timeoutMS": 60000,
   "concurrency": 2,
   "reporters": ["clear-text", "progress", "json"],
-  "jsonReportFile": "tmp/mutation-report.json",
+  "jsonReporter": {
+    "fileName": "tmp/mutation-report.json"
+  },
   "thresholds": {
     "high": 80,
     "low": 60,
-    "break": 60
+    "break": 80
   },
   "disableTypeChecks": true,
   "ignoreStatic": true,
