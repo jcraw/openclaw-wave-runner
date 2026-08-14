@@ -16,11 +16,8 @@ const FORBIDDEN = {
   "src/store": [/\/adapters\//, /\/cli\//, /\/runtime\.js/, /\/index\.js/, /\/controller\.js/],
 };
 
-/** Composition-root leak: split before expanding the mutation surface. */
-const ALLOW = new Set([
-  "src/core/controller.ts -> src/adapters/stage-artifacts",
-  "src/core/controller.ts -> src/adapters/ports",
-]);
+/** Composition-root leak removed in WR-001: ports and stage paths live in core. */
+const ALLOW = new Set();
 
 
 function walk(dir, out = []) {

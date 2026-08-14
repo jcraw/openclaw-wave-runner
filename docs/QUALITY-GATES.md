@@ -55,7 +55,7 @@ Never mark done on coverage alone. Never weaken tests to pass mutation.
 
 ## Oversized files (token baseline)
 
-`core/controller.ts` and `store/database.ts` already exceed the 2500-token error ceiling. They are **baselined**, not waived forever. New files and non-baselined growth hard-fail. Split those two before raising the mutation surface to the whole core.
+`core/controller.ts` was split in WR-001 and is no longer waived. **Only** `store/database.ts` remains baselined. New files and non-baselined growth still hard-fail. Mutation surface stays on the current pure modules until a later ticket.
 
 ## DIGEST-032 / PLAN.md matrix
 

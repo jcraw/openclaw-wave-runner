@@ -4,7 +4,6 @@
   "errorTokens": 2500,
   "notes": "DIGEST-007 file ceilings. Existing oversize is frozen; growth or new files hard-fail.",
   "allow": {
-    "src/core/controller.ts": 12000,
     "src/store/database.ts": 5200,
     "src/index.ts": 2600,
     "src/controller.ts": 2500,
