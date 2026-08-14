@@ -1,7 +1,7 @@
 ---
 id: WR-004
 title: Fail the wave when a mid-chain ticket dies
-status: open
+status: done
 priority: high
 created: 2026-08-14
 updated: 2026-08-14
@@ -48,3 +48,7 @@ Out:
 
 ## Agent notes
 Keep it dumb. Do not invent BLOCKED-for-deps unless a test already requires it. Public package only.
+
+## Resolution
+
+**Done 2026-08-14**. Mid-chain cancel/fail cascades dependents to FAILED; wave FAILED. Operator cancel-all stays CANCELLED. npm test 102 passed.

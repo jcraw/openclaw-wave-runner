@@ -146,3 +146,118 @@ test("budget admission refuses the next candidate atomically", async () => {
   const after = controller.inspect("wave-budget");
   assert.equal(after.wave.counters.launches, view.wave.counters.launches);
 });
+
+const CHAIN_LIMITS = {
+  maxTokens: 80_000,
+  perStageReservationTokens: 8_000,
+  maxLaunches: 8,
+};
+
+async function driveFx001ToDone(controller: Awaited<ReturnType<typeof seedWave>>, waveId: string) {
+  await controller.start(waveId);
+  await controller.runUntilIdle(waveId);
+  const waiting = controller.inspect(waveId);
+  assert.equal(waiting.wave.status, "WAITING_APPROVAL");
+  const first = waiting.tickets.find((t) => t.ticketId === "FX-001");
+  assert.ok(first);
+  controller.approve(waveId, first.ticketId, first.revision);
+  for (let i = 0; i < 8; i += 1) {
+    if (controller.inspect(waveId).tickets.find((t) => t.ticketId === "FX-001")?.status === "DONE") {
+      return;
+    }
+    await controller.tick(waveId);
+  }
+  assert.equal(controller.inspect(waveId).tickets.find((t) => t.ticketId === "FX-001")?.status, "DONE");
+}
+
+async function killFx002Plan(
+  sim: ReturnType<typeof createSimulator>,
+  controller: Awaited<ReturnType<typeof seedWave>>,
+  waveId: string,
+  status: "cancelled" | "failed",
+) {
+  await driveFx001ToDone(controller, waveId);
+  sim.worker.completeOnInspect = false;
+  const key = `${waveId}:FX-002:PLAN:1`;
+  if (!sim.worker.byKey.has(key)) {
+    await controller.tick(waveId);
+  }
+  const row = sim.worker.byKey.get(key);
+  assert.ok(row, "FX-002 PLAN must have launched");
+  row.status = status;
+  await controller.runUntilIdle(waveId);
+}
+
+test("mid-chain PLAN cancel fails dependents and the wave", async () => {
+  const sim = createSimulator("p1-mid-cancel");
+  const controller = await seedWave(sim, "wave-mid-cancel", ["FX-001", "FX-002", "FX-003"], CHAIN_LIMITS);
+  await killFx002Plan(sim, controller, "wave-mid-cancel", "cancelled");
+  const view = controller.inspect("wave-mid-cancel");
+  assert.equal(view.tickets.find((t) => t.ticketId === "FX-001")?.status, "DONE");
+  assert.equal(view.tickets.find((t) => t.ticketId === "FX-002")?.status, "CANCELLED");
+  const tail = view.tickets.find((t) => t.ticketId === "FX-003");
+  assert.equal(tail?.status, "FAILED");
+  assert.equal(tail?.result, "dependency FX-002 cancelled");
+  assert.equal(view.wave.status, "FAILED");
+  assert.equal(view.wave.cancelRequested, false);
+  assert.ok(!view.outbox.some((item) => item.ticketId === "FX-003"));
+  assert.ok(!sim.worker.intents.some((intent) => intent.ticketId === "FX-003"));
+  const launches = view.wave.counters.launches;
+  const workerLaunches = sim.worker.launches;
+  await controller.tick("wave-mid-cancel");
+  const again = controller.inspect("wave-mid-cancel");
+  assert.equal(again.wave.status, "FAILED");
+  assert.equal(again.wave.counters.launches, launches);
+  assert.equal(sim.worker.launches, workerLaunches);
+});
+
+test("mid-chain PLAN fail fails dependents and the wave", async () => {
+  const sim = createSimulator("p1-mid-fail");
+  const controller = await seedWave(sim, "wave-mid-fail", ["FX-001", "FX-002", "FX-003"], CHAIN_LIMITS);
+  await killFx002Plan(sim, controller, "wave-mid-fail", "failed");
+  const view = controller.inspect("wave-mid-fail");
+  assert.equal(view.tickets.find((t) => t.ticketId === "FX-001")?.status, "DONE");
+  assert.equal(view.tickets.find((t) => t.ticketId === "FX-002")?.status, "FAILED");
+  const tail = view.tickets.find((t) => t.ticketId === "FX-003");
+  assert.equal(tail?.status, "FAILED");
+  assert.equal(tail?.result, "dependency FX-002 failed");
+  assert.equal(view.wave.status, "FAILED");
+  assert.ok(!view.outbox.some((item) => item.ticketId === "FX-003"));
+  assert.ok(!sim.worker.intents.some((intent) => intent.ticketId === "FX-003"));
+  const launches = view.wave.counters.launches;
+  await controller.tick("wave-mid-fail");
+  assert.equal(controller.inspect("wave-mid-fail").wave.status, "FAILED");
+  assert.equal(controller.inspect("wave-mid-fail").wave.counters.launches, launches);
+});
+
+test("operator cancel-all stays CANCELLED before any ticket is DONE", async () => {
+  const sim = createSimulator("p1-op-cancel");
+  const controller = await seedWave(sim, "wave-op-cancel", ["FX-001", "FX-002", "FX-003"], CHAIN_LIMITS);
+  await controller.start("wave-op-cancel");
+  controller.cancel("wave-op-cancel");
+  const view = controller.inspect("wave-op-cancel");
+  assert.equal(view.wave.status, "CANCELLED");
+  assert.equal(view.wave.cancelRequested, true);
+  assert.ok(view.tickets.every((t) => t.status === "CANCELLED"));
+  assert.ok(!view.tickets.some((t) => t.status === "FAILED"));
+  assert.ok(!view.tickets.some((t) => t.result?.startsWith("dependency ")));
+  await controller.tick("wave-op-cancel");
+  assert.equal(controller.inspect("wave-op-cancel").wave.status, "CANCELLED");
+});
+
+test("operator cancel after a DONE ticket stays CANCELLED", async () => {
+  const sim = createSimulator("p1-op-cancel-done");
+  const controller = await seedWave(sim, "wave-op-cancel-done", ["FX-001", "FX-002", "FX-003"], CHAIN_LIMITS);
+  await driveFx001ToDone(controller, "wave-op-cancel-done");
+  controller.cancel("wave-op-cancel-done");
+  const view = controller.inspect("wave-op-cancel-done");
+  assert.equal(view.wave.status, "CANCELLED");
+  assert.equal(view.wave.cancelRequested, true);
+  assert.equal(view.tickets.find((t) => t.ticketId === "FX-001")?.status, "DONE");
+  assert.equal(view.tickets.find((t) => t.ticketId === "FX-002")?.status, "CANCELLED");
+  assert.equal(view.tickets.find((t) => t.ticketId === "FX-003")?.status, "CANCELLED");
+  assert.ok(!view.tickets.some((t) => t.status === "FAILED"));
+  assert.ok(!view.tickets.some((t) => t.result?.startsWith("dependency ")));
+  await controller.tick("wave-op-cancel-done");
+  assert.equal(controller.inspect("wave-op-cancel-done").wave.status, "CANCELLED");
+});

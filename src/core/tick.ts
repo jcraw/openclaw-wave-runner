@@ -13,6 +13,8 @@ import {
 import {
   isTerminalTicket,
   isTerminalWave,
+  TICKET_NEXT,
+  TICKET_OWNERS,
   WAVE_NEXT,
   WAVE_OWNERS,
 } from "./state-machine.js";
@@ -57,12 +59,53 @@ export function stopForBudget(ctrl: ControllerContext, waveId: string, reason: s
 
 export function nextEligibleTicket(ctrl: ControllerContext, waveId: string): TicketRun | undefined {
   const tickets = ctrl.db.listTickets(waveId);
+  // Only DONE satisfies a dep; FAILED/CANCELLED deps block launch, they do not complete the wave.
   const done = new Set(tickets.filter((t) => t.status === "DONE").map((t) => t.ticketId));
   return tickets.find(
     (ticket) =>
       (ticket.status === "PENDING" || ticket.status === "REVISING") &&
       ticket.dependsOn.every((dep) => done.has(dep)),
   );
+}
+
+function nearestDeadAncestor(
+  ticket: TicketRun,
+  byId: Map<string, TicketRun>,
+  seen = new Set<string>(),
+): TicketRun | undefined {
+  if (seen.has(ticket.ticketId)) return undefined;
+  seen.add(ticket.ticketId);
+  for (const depId of ticket.dependsOn) {
+    const dep = byId.get(depId);
+    if (!dep) continue;
+    if (dep.status === "CANCELLED" || dep.status === "FAILED") return dep;
+    const upstream = nearestDeadAncestor(dep, byId, seen);
+    if (upstream) return upstream;
+  }
+  return undefined;
+}
+
+function failDependentsOfDeadTickets(ctrl: ControllerContext, waveId: string): void {
+  const wave = requireWave(ctrl, waveId);
+  if (wave.cancelRequested || isTerminalWave(wave.status)) return;
+  const tickets = ctrl.db.listTickets(waveId);
+  const byId = new Map(tickets.map((ticket) => [ticket.ticketId, ticket]));
+  const marks: Array<{ ticket: TicketRun; dead: TicketRun }> = [];
+  for (const ticket of tickets) {
+    if (isTerminalTicket(ticket.status)) continue;
+    const dead = nearestDeadAncestor(ticket, byId);
+    if (dead) marks.push({ ticket, dead });
+  }
+  for (const { ticket, dead } of marks) {
+    ticket.status = "FAILED";
+    ticket.result = dead.status === "CANCELLED"
+      ? `dependency ${dead.ticketId} cancelled`
+      : `dependency ${dead.ticketId} failed`;
+    ticket.owner = TICKET_OWNERS.FAILED;
+    ticket.nextAction = TICKET_NEXT.FAILED;
+    ticket.revision += 1;
+    ctrl.db.putTicket(ticket);
+  }
 }
 
 export async function advanceReadyTickets(ctrl: ControllerContext, waveId: string): Promise<void> {
@@ -94,6 +137,7 @@ export function maybeCompleteWave(ctrl: ControllerContext, waveId: string): void
   ctrl.db.transaction(() => {
     const wave = requireWave(ctrl, waveId);
     if (isTerminalWave(wave.status)) return;
+    failDependentsOfDeadTickets(ctrl, waveId);
     const tickets = ctrl.db.listTickets(waveId);
     if (tickets.length === 0) return;
     if (!tickets.every((t) => isTerminalTicket(t.status))) return;
