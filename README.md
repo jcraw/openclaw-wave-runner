@@ -98,27 +98,26 @@ If you want unbounded autonomous drain, this package will refuse you. That’s t
 
 Requires **OpenClaw ≥ 2026.7.1** and Node **≥ 22**.
 
+**ClawHub / npm** (when listed):
+
+```bash
+openclaw plugins install clawhub:@jcraw/openclaw-wave-runner
+# or during npm cutover:
+openclaw plugins install npm:@jcraw/openclaw-wave-runner
+```
+
+**From source:**
+
 ```bash
 git clone https://github.com/jcraw/openclaw-wave-runner.git
 cd openclaw-wave-runner
 npm install
-npm test
-```
-
-Load the plugin (path install):
-
-```bash
-# point OpenClaw at this checkout, e.g. in openclaw.json:
-# plugins.load.paths: ["/absolute/path/to/openclaw-wave-runner"]
-# plugins.entries.wave-runner-m0.enabled: true
-
-openclaw plugins install -l /absolute/path/to/openclaw-wave-runner
+npm run quality   # hygiene + types + coverage + proof + pack shape
+openclaw plugins install -l "$PWD"
 openclaw gateway restart
 ```
 
-Exact install flags follow your OpenClaw version — see [Building plugins](https://docs.openclaw.ai/plugins/building-plugins) and [Manage plugins](https://docs.openclaw.ai/plugins/manage-plugins).
-
-ClawHub / npm publish may follow once the package API stabilizes.
+Plugin id: `wave-runner-m0`. Exact install flags follow your OpenClaw version — see [Building plugins](https://docs.openclaw.ai/plugins/building-plugins).
 
 ---
 
@@ -225,13 +224,20 @@ Emergency stop cancels non-terminal waves and fail-closes reserved spend.
 
 ---
 
-## Development
+## Development / quality gates
 
 ```bash
-npm run typecheck
-npm test          # build + node:test suite (core, fault, property, supervised)
-npm run proof     # deterministic harness
+npm run quality
+# = hygiene (no host paths/secrets)
+# + typecheck (strict TS)
+# + test:coverage (c8 thresholds: lines/statements ≥80, branches ≥60, funcs ≥75)
+# + proof harness
+# + npm pack shape check (JS entrypoints, no src/tests in tarball)
 ```
+
+Individual targets: `test`, `test:coverage`, `proof`, `hygiene`, `pack:check`.
+
+CI runs `npm run quality` on every push/PR (`.github/workflows/ci.yml`).
 
 ---
 

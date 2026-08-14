@@ -1,11 +1,60 @@
 import { definePluginEntry, type OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 
 import { OWNER_SESSION_KEY, WaveRunnerM0Controller } from "./controller.js";
-import type { WaveRunnerPorts } from "./contracts.js";
+import type {
+  BoundManagedFlows,
+  NativeSubagent,
+  ReadOnlyTasks,
+  TaskStatus,
+  WaveRunnerPorts,
+} from "./contracts.js";
 import { DEFAULT_LIMITS, SUPERVISED_PILOT_LIMITS } from "./domain/types.js";
 import { SAFETY } from "./domain/safety.js";
 import { openWaveController } from "./runtime.js";
 import { OpenClawGatewayAcpSpawn } from "./adapters/openclaw-acp.js";
+
+/** Map host runtime surfaces onto Wave Runner's owned port types. */
+function bindHostPorts(api: OpenClawPluginApi): WaveRunnerPorts {
+  const managed = api.runtime.tasks.managedFlows.bindSession({
+    sessionKey: OWNER_SESSION_KEY,
+  }) as unknown as BoundManagedFlows;
+  const tasks = api.runtime.tasks.runs.bindSession({ sessionKey: OWNER_SESSION_KEY });
+  const readTasks: ReadOnlyTasks = {
+    get(taskId) {
+      const task = tasks.get(taskId);
+      if (!task) return undefined;
+      return {
+        taskId: task.id,
+        status: task.status as TaskStatus,
+        ...(task.runId ? { runId: task.runId } : {}),
+        ...(task.childSessionKey ? { childSessionKey: task.childSessionKey } : {}),
+        ...(task.terminalSummary ? { terminalSummary: task.terminalSummary } : {}),
+        ...(task.error ? { error: task.error } : {}),
+      };
+    },
+  };
+  const gatewayRequest = ((method: string, params?: Record<string, unknown>, options?: { timeoutMs?: number }) =>
+    Promise.resolve(
+      (api.runtime as { gateway?: { request?: (...args: unknown[]) => unknown } }).gateway?.request?.(
+        method,
+        params,
+        options,
+      ),
+    )) as <T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+    options?: { timeoutMs?: number },
+  ) => Promise<T>;
+
+  return {
+    config: api.config,
+    now: Date.now,
+    flows: managed,
+    tasks: readTasks,
+    subagent: api.runtime.subagent as unknown as NativeSubagent,
+    acp: new OpenClawGatewayAcpSpawn(gatewayRequest, OWNER_SESSION_KEY),
+  };
+}
 
 function readString(params: Record<string, unknown>, key: string): string {
   const value = params[key];
@@ -24,30 +73,8 @@ function readInteger(params: Record<string, unknown>, key: string): number {
 }
 
 function register(api: OpenClawPluginApi): void {
-  const managed = api.runtime.tasks.managedFlows.bindSession({
-    sessionKey: OWNER_SESSION_KEY,
-  });
-  const tasks = api.runtime.tasks.runs.bindSession({ sessionKey: OWNER_SESSION_KEY });
-  const controller = new WaveRunnerM0Controller({
-    config: api.config,
-    now: Date.now,
-    flows: managed,
-    tasks: {
-      get(taskId) {
-        const task = tasks.get(taskId);
-        if (!task) return undefined;
-        return {
-          taskId: task.id,
-          status: task.status,
-          ...(task.runId ? { runId: task.runId } : {}),
-          ...(task.childSessionKey ? { childSessionKey: task.childSessionKey } : {}),
-          ...(task.terminalSummary ? { terminalSummary: task.terminalSummary } : {}),
-          ...(task.error ? { error: task.error } : {}),
-        };
-      },
-    },
-    subagent: api.runtime.subagent,
-  } satisfies WaveRunnerPorts);
+  const ports = bindHostPorts(api);
+  const controller = new WaveRunnerM0Controller(ports);
 
   const handler =
     (run: (params: Record<string, unknown>) => unknown | Promise<unknown>) =>
@@ -112,30 +139,6 @@ function register(api: OpenClawPluginApi): void {
     { scope: "operator.read" },
   );
 
-  const ports: WaveRunnerPorts = {
-    config: api.config,
-    now: Date.now,
-    flows: managed,
-    tasks: {
-      get(taskId) {
-        const task = tasks.get(taskId);
-        if (!task) return undefined;
-        return {
-          taskId: task.id,
-          status: task.status,
-          ...(task.runId ? { runId: task.runId } : {}),
-          ...(task.childSessionKey ? { childSessionKey: task.childSessionKey } : {}),
-          ...(task.terminalSummary ? { terminalSummary: task.terminalSummary } : {}),
-          ...(task.error ? { error: task.error } : {}),
-        };
-      },
-    },
-    subagent: api.runtime.subagent,
-    acp: new OpenClawGatewayAcpSpawn(
-      api.runtime.gateway.request.bind(api.runtime.gateway),
-      OWNER_SESSION_KEY,
-    ),
-  };
   const stateDir = process.env.OPENCLAW_STATE_DIR ?? "/tmp/wave-runner-fallback";
 
   const v0 =

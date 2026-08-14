@@ -1,5 +1,5 @@
 {
-  "name": "openclaw-wave-runner",
+  "name": "@jcraw/openclaw-wave-runner",
   "version": "0.1.0",
   "private": false,
   "description": "Bounded backlog wave runner for OpenClaw — freeze a ticket set, admit under budgets, plan → approve → fresh impl, terminate with proof. Not another unbounded agent drain.",
@@ -36,19 +36,32 @@
   "bin": {
     "wave-runner": "./dist/scripts/wave-cli.js"
   },
+  "exports": {
+    ".": "./dist/src/index.js",
+    "./package.json": "./package.json",
+    "./openclaw.plugin.json": "./openclaw.plugin.json"
+  },
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "scripts": {
     "clean": "node ./scripts/clean.mjs",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "hygiene": "node ./scripts/check-hygiene.mjs",
     "test": "npm run build && node --test dist/test/*.test.js",
+    "test:coverage": "npm run build && c8 --config c8.config.json node --test dist/test/*.test.js",
     "proof": "npm run build && node dist/scripts/proof-harness.js",
+    "pack:check": "npm run build && node ./scripts/check-pack.mjs",
     "validate": "npm run build && node ./scripts/validate-runtime.mjs",
-    "pack:check": "npm pack --dry-run",
+    "quality": "npm run hygiene && npm run typecheck && npm run test:coverage && npm run proof && npm run pack:check",
     "cli": "npm run build && node dist/scripts/wave-cli.js",
-    "prepublishOnly": "npm test"
+    "prepublishOnly": "npm run quality"
   },
   "engines": {
     "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "peerDependencies": {
     "openclaw": ">=2026.7.1"
@@ -60,6 +73,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "c8": "^10.1.3",
     "typescript": "^5.9.0"
   },
   "openclaw": {
@@ -69,6 +83,10 @@
     "compat": {
       "pluginApi": ">=2026.7.1",
       "minGatewayVersion": ">=2026.7.1"
+    },
+    "build": {
+      "openclawVersion": "2026.7.1",
+      "pluginSdkVersion": "2026.7.1"
     }
   }
 }

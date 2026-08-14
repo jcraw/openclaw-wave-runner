@@ -11,3 +11,4 @@ coverage/
 .npm-cache/
 pack/
 *.tgz
+.nyc_output/
