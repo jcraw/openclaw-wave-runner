@@ -2,6 +2,6 @@
 
 Git-native board for this repo. **Waves freeze an explicit ticket list**; this folder is not a drain queue.
 
-Canonical v0 shape is YAML frontmatter + markdown body (`WR-NNN-slug.md`). That is a **convention** (Jekyll/Hugo/Obsidian-style), not a formal standard. GitHub Issues / Linear stay future `TrackerAdapter`s.
+**Interop contract is `FrozenTicket`**, not this folder’s YAML. Markdown here is the starter adapter (Jekyll/Hugo/Obsidian-style convention). Other trackers should emit JSON or implement `TrackerAdapter` — see **WR-003**.
 
-See `WR-003` for alias + filename/H1 fallback work so other boards can map in without renaming every field.
+GitHub Issues / Linear stay future adapters, not v0 clients.
