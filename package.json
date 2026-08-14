@@ -58,7 +58,8 @@
     "validate": "npm run build && node ./scripts/validate-runtime.mjs",
     "mutation": "npm run build && stryker run",
     "quality:fast": "npm run typecheck && npm test",
-    "quality": "npm run hygiene && npm run arch && npm run tokens && npm run typecheck && npm run test:coverage && npm run proof && npm run pack:check && npm run dod",
+    "identity": "node ./scripts/check-git-identity.mjs",
+    "quality": "npm run hygiene && npm run identity && npm run arch && npm run tokens && npm run typecheck && npm run test:coverage && npm run proof && npm run pack:check && npm run dod",
     "quality:full": "npm run quality && npm run mutation",
     "cli": "npm run build && node dist/scripts/wave-cli.js",
     "prepublishOnly": "npm run quality"
