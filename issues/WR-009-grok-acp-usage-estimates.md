@@ -36,7 +36,7 @@ What is the best **honest** way to report Grok ACP stage cost, ranked by truthfu
   - Launch receipts / `terminal.json` / stage artifacts
   - OpenClaw Task Run public DTO / gateway inspect
   - Grok ACP agent session jsonl (`usage` blocks)
-  - Grok CLI (`/home/j/.local/bin/grok`) flags/logs for any token printout
+  - Grok CLI (`grok` on PATH, typically `~/.local/bin/grok`) flags/logs for any token printout
   - xAI console / account aggregates (note only; no scraping secrets)
 - Document each signal: available? authoritative? stage-attributable? how to read it
 - Recommend one of:
