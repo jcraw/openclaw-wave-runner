@@ -1,7 +1,7 @@
 ---
 id: WR-001
 title: Split core/controller.ts under token ceiling
-status: open
+status: done
 priority: high
 created: 2026-08-14
 updated: 2026-08-14
@@ -35,3 +35,4 @@ labels: [quality, cohesion]
 Do not enable overnight/drain. Do not weaken tests. Do not rewrite adapters. Public package only.
 
 ## Resolution
+Landed 2026-08-14 as `0a04942`. `controller.ts` facade **1063** tokens; extracted admission/launch/tick/settlement/wave-*. Verify: `npm run quality:fast && npm run tokens`.
