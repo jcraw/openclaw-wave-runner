@@ -9,8 +9,8 @@ Trust note: 007/025 are still draft pending citation audit. Principles are adopt
 | Area | Selected | Rejected | Why |
 |------|----------|----------|-----|
 | Primary metric | Behavior contracts + mutation on **pure core** | Coverage % as DoD | DIGEST-007/025: coverage theater + weak asserts |
-| Mutation tool | Stryker on `src/core/{budget,lease,state-machine}.ts` + `src/domain/safety.ts` | Mutate adapters / `controller.ts` day one | Same as PIT-on-pure-modules |
-| Start threshold | **70.03% measured** (break 60, raise toward 80) | 80% day-one hard | First Stryker run 2026-08-13; StringLiteral mutants excluded |
+| Mutation tool | Stryker on `src/core/{budget,lease}.ts` + `src/domain/safety.ts` | Mutate adapters / `controller.ts` / `state-machine.ts` in this gate | Same as PIT-on-pure-modules; mutate set matches `stryker.config.json` |
+| Start threshold | **92.72% measured** (break 80) | Leaving break at 60 | Clean Stryker run 2026-08-14; StringLiteral mutants excluded |
 | Coverage | Supporting floor only (c8) | Coverage-only green | Catches untested files, not assertion strength |
 | Lanes | `quality:fast` / `quality` / `quality:full` | One giant gate every edit | Token + wall-time |
 | Feedback | Compact `tmp/dod-summary.json` | Full tsc/c8 dumps in agent context | DIGEST-007 token fit |

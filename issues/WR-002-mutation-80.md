@@ -1,7 +1,7 @@
 ---
 id: WR-002
 title: Raise pure-core mutation score to 80%
-status: open
+status: done
 priority: high
 created: 2026-08-14
 updated: 2026-08-14
@@ -36,3 +36,4 @@ Survivors are mostly untested branches: `summarizeBudgets` arithmetic, USD cost 
 Do not mutate `controller.ts` or adapters in this ticket. Do not lower coverage floors. Public package only.
 
 ## Resolution
+Landed 2026-08-14 on `wave/WR-Q-202608140012/WR-002`. Pure-core mutation **92.72%**; `thresholds.break` 80. Verify: `npm run mutation`.
