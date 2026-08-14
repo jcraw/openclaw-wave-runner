@@ -8,6 +8,7 @@ tmp/
 .env.*
 *.log
 coverage/
+reports/
 .npm-cache/
 pack/
 *.tgz

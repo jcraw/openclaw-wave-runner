@@ -74,10 +74,13 @@ export function eligibleForBoundedWave(raw: string, mapping: StudioMapping): {
     return { eligible: false, reason: "needs_jason" };
   }
   const flag = data[mapping.eligibilityField];
+  if (flag === true || flag === "true") {
+    return { eligible: true, reason: "explicit" };
+  }
   if (flag === false || flag === "false") {
     return { eligible: false, reason: "not agent_eligible" };
   }
-  return { eligible: true, reason: "explicit-or-open" };
+  return { eligible: false, reason: "malformed_or_implicit" };
 }
 
 export function describeReplacementPath(): {

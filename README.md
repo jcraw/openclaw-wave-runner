@@ -112,7 +112,8 @@ npm package name is the same (`@jcraw/openclaw-wave-runner`) once published to t
 git clone https://github.com/jcraw/openclaw-wave-runner.git
 cd openclaw-wave-runner
 npm install
-npm run quality   # hygiene + types + coverage + proof + pack shape
+npm run quality        # hygiene + arch + tokens + types + coverage + proof + pack + DoD
+npm run quality:full   # + Stryker mutation on pure core (budget/lease/safety)
 openclaw plugins install -l "$PWD"
 openclaw gateway restart
 ```
@@ -163,7 +164,7 @@ id: T-001
 title: Short title
 status: open
 depends_on: []          # optional
-agent_eligible: true    # optional filter
+agent_eligible: true    # required for auto-admission; missing/malformed = ineligible
 ---
 
 ## Problem
@@ -237,7 +238,7 @@ npm run quality
 
 Individual targets: `test`, `test:coverage`, `proof`, `hygiene`, `pack:check`.
 
-CI runs `npm run quality` on every push/PR (`.github/workflows/ci.yml`).
+CI runs `npm run quality` on every push/PR. Mutation (`npm run mutation`) runs on `main` / workflow_dispatch. See `docs/QUALITY-GATES.md`.
 
 ---
 

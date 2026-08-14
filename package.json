@@ -2,7 +2,7 @@
   "name": "@jcraw/openclaw-wave-runner",
   "version": "0.1.0",
   "private": false,
-  "description": "Bounded backlog wave runner for OpenClaw \u2014 freeze a ticket set, admit under budgets, plan \u2192 approve \u2192 fresh impl, terminate with proof. Not another unbounded agent drain.",
+  "description": "Bounded backlog wave runner for OpenClaw — freeze a ticket set, admit under budgets, plan → approve → fresh impl, terminate with proof. Not another unbounded agent drain.",
   "type": "module",
   "license": "Apache-2.0",
   "author": "jcraw",
@@ -48,12 +48,18 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "hygiene": "node ./scripts/check-hygiene.mjs",
+    "arch": "node ./scripts/check-architecture.mjs",
+    "tokens": "node ./scripts/check-tokens.mjs",
+    "dod": "node ./scripts/dod-summary.mjs",
     "test": "npm run build && node --test dist/test/*.test.js",
     "test:coverage": "npm run build && c8 --config c8.config.json node --test dist/test/*.test.js",
     "proof": "npm run build && node dist/scripts/proof-harness.js",
     "pack:check": "npm run build && node ./scripts/check-pack.mjs",
     "validate": "npm run build && node ./scripts/validate-runtime.mjs",
-    "quality": "npm run hygiene && npm run typecheck && npm run test:coverage && npm run proof && npm run pack:check",
+    "mutation": "npm run build && stryker run",
+    "quality:fast": "npm run typecheck && npm test",
+    "quality": "npm run hygiene && npm run arch && npm run tokens && npm run typecheck && npm run test:coverage && npm run proof && npm run pack:check && npm run dod",
+    "quality:full": "npm run quality && npm run mutation",
     "cli": "npm run build && node dist/scripts/wave-cli.js",
     "prepublishOnly": "npm run quality"
   },
@@ -72,6 +78,7 @@
     }
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^9.6.1",
     "@types/node": "^24.0.0",
     "c8": "^10.1.3",
     "typescript": "^5.9.0"

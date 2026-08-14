@@ -36,3 +36,35 @@ jobs:
           name: coverage
           path: coverage/
           if-no-files-found: ignore
+
+      - name: Upload DoD summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dod-summary
+          path: tmp/dod-summary.json
+          if-no-files-found: ignore
+
+  mutation:
+    name: mutation-pure-core
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Mutation (pure core)
+        run: npm run mutation
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: tmp/mutation-report.json
+          if-no-files-found: ignore

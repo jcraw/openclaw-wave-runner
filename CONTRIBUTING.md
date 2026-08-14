@@ -13,13 +13,18 @@ Thanks for helping make agent backlog execution safer.
 
 ```bash
 npm install
-npm test
-npm run proof
+npm run quality:fast   # typecheck + tests
+npm run quality        # PR/CI: hygiene, arch, tokens, coverage, proof, pack, DoD
+npm run quality:full   # release/nightly: + Stryker on pure core
 ```
+
+See `docs/QUALITY-GATES.md`.
 
 ## PR checklist
 
-- [ ] `npm test` green  
+- [ ] `npm run quality` green  
+- [ ] Do not treat coverage % as done — behavior tests must name the invariant  
+- [ ] Do not weaken tests to satisfy mutation/coverage  
 - [ ] No host-absolute paths (`/home/...`)  
 - [ ] No secrets, personal repos, or private board dumps  
 - [ ] Safety gates not weakened without a clear docs + test story  
