@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "openclaw/plugin-sdk/plugin-entry": [
+        "./node_modules/openclaw/dist/plugin-sdk/plugin-entry.d.ts",
+        "./stubs/openclaw-plugin-entry.d.ts"
+      ]
+    },
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"]
+}

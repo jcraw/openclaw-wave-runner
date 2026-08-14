@@ -1,0 +1,13 @@
+{
+  "id": "wave-runner-m0",
+  "name": "Wave Runner",
+  "description": "Bounded backlog wave runner: freeze tickets, budget admission, plan → approve → fresh impl, fail-closed termination. Unrestricted drain stays off.",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

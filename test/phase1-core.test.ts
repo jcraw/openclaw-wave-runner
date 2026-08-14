@@ -1,0 +1,148 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { DuplicateEventError } from "../src/domain/errors.js";
+import { SAFETY } from "../src/domain/safety.js";
+import { DEFAULT_LIMITS } from "../src/domain/types.js";
+import { hashManifest, validateTicketGraph } from "../src/core/manifest.js";
+import { createSimulator, seedWave } from "../src/sim/simulator.js";
+import { runOperator } from "../src/cli/operations.js";
+
+test("schema migrates and freeze hashes are immutable", async () => {
+  const sim = createSimulator("p1-hash");
+  const controller = await seedWave(sim, "wave-hash", ["FX-001"]);
+  assert.equal(controller.db.schemaVersion(), 1);
+  const frozen = controller.freeze("wave-hash");
+  const hash = frozen.wave.manifestHash;
+  assert.match(hash, /^[a-f0-9]{64}$/);
+  sim.tracker.seed({
+    ticketId: "FX-999",
+    title: "late ticket",
+    contentHash: "x",
+    dependsOn: [],
+    order: 9,
+    sourcePath: "issues/FX-999.md",
+    body: "late",
+  });
+  const again = controller.inspect("wave-hash");
+  assert.equal(again.wave.manifestHash, hash);
+  assert.equal(again.manifest.tickets.length, 1);
+  assert.equal(hashManifest(again.manifest), hash);
+  assert.equal(again.manifest.drainEverything, false);
+});
+
+test("missing dependency and cycles fail freeze", () => {
+  assert.throws(
+    () =>
+      validateTicketGraph([
+        {
+          ticketId: "A",
+          title: "A",
+          contentHash: "1",
+          dependsOn: ["B"],
+          order: 1,
+          sourcePath: "A.md",
+        },
+      ]),
+    /Missing dependency/,
+  );
+  assert.throws(
+    () =>
+      validateTicketGraph([
+        {
+          ticketId: "A",
+          title: "A",
+          contentHash: "1",
+          dependsOn: ["B"],
+          order: 1,
+          sourcePath: "A.md",
+        },
+        {
+          ticketId: "B",
+          title: "B",
+          contentHash: "2",
+          dependsOn: ["A"],
+          order: 2,
+          sourcePath: "B.md",
+        },
+      ]),
+    /cycle/,
+  );
+});
+
+test("duplicate events are no-op errors and stale revision is rejected", async () => {
+  const sim = createSimulator("p1-dup");
+  const controller = await seedWave(sim, "wave-dup", ["FX-001"]);
+  controller.freeze("wave-dup", "evt-freeze");
+  assert.throws(() => controller.freeze("wave-dup", "evt-freeze"), DuplicateEventError);
+  await assert.rejects(() => controller.start("wave-dup", "evt-start", 0), /Stale revision/);
+});
+
+test("operator CLI dry-run/create/inspect/pause/cancel", async () => {
+  const sim = createSimulator("p1-cli");
+  const controller = sim.open();
+  const input = {
+    waveId: "wave-cli",
+    repoPath: "/tmp/wave-fixture-repo",
+    ticketIds: ["FX-001"],
+    limits: DEFAULT_LIMITS,
+  };
+  const dry = await runOperator(controller, { op: "dry-run", input });
+  assert.equal((dry as { ok: boolean }).ok, true);
+  await runOperator(controller, { op: "create", input });
+  const inspected = await runOperator(controller, { op: "inspect", waveId: "wave-cli" });
+  assert.equal((inspected as { wave: { status: string } }).wave.status, "DRAFT");
+  await runOperator(controller, { op: "freeze", waveId: "wave-cli" });
+  await runOperator(controller, { op: "start", waveId: "wave-cli" });
+  await runOperator(controller, { op: "pause", waveId: "wave-cli" });
+  const paused = controller.inspect("wave-cli");
+  assert.equal(paused.wave.status, "PAUSED");
+  await runOperator(controller, { op: "cancel", waveId: "wave-cli" });
+  assert.equal(controller.inspect("wave-cli").wave.status, "CANCELLED");
+  const caps = await runOperator(controller, { op: "capabilities" });
+  assert.equal((caps as { productionDrainEnabled: boolean }).productionDrainEnabled, false);
+  assert.equal(SAFETY.productionDrainEnabled, false);
+});
+
+test("INDETERMINATE fail-closed usage keeps full reservation", async () => {
+  const sim = createSimulator("p1-indet");
+  sim.usage.mode = "indeterminate";
+  const controller = await seedWave(sim, "wave-indet", ["FX-001"], {
+    maxTokens: 8_000,
+    perStageReservationTokens: 8_000,
+    maxLaunches: 2,
+  });
+  await controller.start("wave-indet");
+  await controller.runUntilIdle("wave-indet");
+  const waiting = controller.inspect("wave-indet");
+  assert.equal(waiting.wave.status, "WAITING_APPROVAL");
+  const budget = waiting.budgets[0];
+  assert.ok(budget);
+  assert.equal(budget.state, "INDETERMINATE");
+  assert.equal(budget.tokensReserved, 8_000);
+  assert.equal(waiting.wave.counters.indeterminateTokens, 8_000);
+  const ticket = waiting.tickets[0]!;
+  controller.approve("wave-indet", ticket.ticketId, ticket.revision);
+  await assert.rejects(() => controller.tick("wave-indet"), /Admission denied|token ceiling/);
+});
+
+test("budget admission refuses the next candidate atomically", async () => {
+  const sim = createSimulator("p1-budget");
+  const controller = await seedWave(sim, "wave-budget", ["FX-001"], {
+    maxTokens: 8_000,
+    perStageReservationTokens: 8_000,
+    maxLaunches: 1,
+  });
+  await controller.start("wave-budget");
+  await controller.runUntilIdle("wave-budget");
+  const view = controller.inspect("wave-budget");
+  assert.ok(view.outbox.length >= 1, "first stage must be admitted");
+  assert.ok(view.wave.counters.launches >= 1);
+  const ticket = view.tickets[0]!;
+  if (ticket.status === "PLAN_REVIEW") {
+    controller.approve("wave-budget", ticket.ticketId, ticket.revision);
+  }
+  await assert.rejects(() => controller.tick("wave-budget"), /Admission denied|max_launches|token ceiling/);
+  const after = controller.inspect("wave-budget");
+  assert.equal(after.wave.counters.launches, view.wave.counters.launches);
+});

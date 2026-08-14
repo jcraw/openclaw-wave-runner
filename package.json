@@ -1,0 +1,74 @@
+{
+  "name": "openclaw-wave-runner",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Bounded backlog wave runner for OpenClaw — freeze a ticket set, admit under budgets, plan → approve → fresh impl, terminate with proof. Not another unbounded agent drain.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "Jason Craw <jcraw>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jcraw/openclaw-wave-runner.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jcraw/openclaw-wave-runner/issues"
+  },
+  "homepage": "https://github.com/jcraw/openclaw-wave-runner#readme",
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "agents",
+    "orchestration",
+    "backlog",
+    "wave-runner",
+    "budget",
+    "taskflow",
+    "coding-agents"
+  ],
+  "files": [
+    "dist/src",
+    "dist/scripts",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE",
+    "docs"
+  ],
+  "bin": {
+    "wave-runner": "./dist/scripts/wave-cli.js"
+  },
+  "scripts": {
+    "clean": "node ./scripts/clean.mjs",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "proof": "npm run build && node dist/scripts/proof-harness.js",
+    "validate": "npm run build && node ./scripts/validate-runtime.mjs",
+    "pack:check": "npm pack --dry-run",
+    "cli": "npm run build && node dist/scripts/wave-cli.js",
+    "prepublishOnly": "npm test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.7.1"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/src/index.js"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.7.1",
+      "minGatewayVersion": ">=2026.7.1"
+    }
+  }
+}

@@ -1,0 +1,85 @@
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { WaveError } from "../domain/errors.js";
+import type { WorkspaceAdapter, WorktreeSpec } from "./ports.js";
+
+function git(repo: string, args: string[]): string {
+  return execFileSync("git", ["-C", repo, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+export class GitWorkspace implements WorkspaceAdapter {
+  async currentHead(repoPath: string): Promise<string> {
+    return git(repoPath, ["rev-parse", "HEAD"]);
+  }
+
+  async createImplWorktree(spec: WorktreeSpec): Promise<{ worktree: string; branch: string }> {
+    const worktree = join(spec.worktreeRoot, spec.waveId, spec.ticketId);
+    const branch = `wave/${spec.waveId}/${spec.ticketId}`;
+    mkdirSync(join(spec.worktreeRoot, spec.waveId), { recursive: true });
+    if (!existsSync(worktree)) {
+      git(spec.repoPath, ["worktree", "add", "-B", branch, worktree, spec.baseSha]);
+    }
+    return { worktree, branch };
+  }
+
+  async writePlanArtifact(input: {
+    repoPath: string;
+    waveId: string;
+    ticketId: string;
+    contents: string;
+    artifactRoot?: string;
+  }): Promise<string> {
+    const dir = join(
+      input.artifactRoot ?? input.repoPath,
+      "tmp",
+      "wave-runner",
+      input.waveId,
+      input.ticketId,
+    );
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, "PLAN.md");
+    writeFileSync(path, input.contents, "utf8");
+    return path;
+  }
+
+  async verify(input: { worktree: string; command: string }): Promise<{ ok: boolean; proof: string }> {
+    const proof = join(input.worktree, "WAVE_VERIFY.json");
+    let ok = true;
+    let output = "";
+    try {
+      output = execFileSync("bash", ["-lc", input.command], {
+        cwd: input.worktree,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      ok = false;
+      output = error instanceof Error ? error.message : String(error);
+    }
+    writeFileSync(proof, JSON.stringify({ ok, command: input.command, output }, null, 2), "utf8");
+    return { ok, proof };
+  }
+
+  async recordProof(input: { worktree: string; ticketId: string; proof: string }): Promise<string> {
+    const path = join(input.worktree, "PROOF.md");
+    writeFileSync(path, `# ${input.ticketId}\n\n${input.proof}\n`, "utf8");
+    return path;
+  }
+
+  async primaryDirty(repoPath: string): Promise<boolean> {
+    const status = git(repoPath, ["status", "--porcelain"]);
+    return status.length > 0;
+  }
+}
+
+export function assertPrimaryUntouched(beforeSha: string, repoPath: string): void {
+  const head = execFileSync("git", ["-C", repoPath, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  if (head !== beforeSha) {
+    throw new WaveError("Primary checkout HEAD moved; Wave Runner must not rewrite it.", "primary_dirty");
+  }
+}
