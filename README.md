@@ -98,13 +98,13 @@ If you want unbounded autonomous drain, this package will refuse you. That’s t
 
 Requires **OpenClaw ≥ 2026.7.1** and Node **≥ 22**.
 
-**ClawHub / npm** (when listed):
+**ClawHub:** https://clawhub.ai/jcraw/openclaw-wave-runner
 
 ```bash
 openclaw plugins install clawhub:@jcraw/openclaw-wave-runner
-# or during npm cutover:
-openclaw plugins install npm:@jcraw/openclaw-wave-runner
 ```
+
+npm package name is the same (`@jcraw/openclaw-wave-runner`) once published to the npm registry.
 
 **From source:**
 
