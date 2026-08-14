@@ -2,10 +2,10 @@
   "name": "@jcraw/openclaw-wave-runner",
   "version": "0.1.0",
   "private": false,
-  "description": "Bounded backlog wave runner for OpenClaw — freeze a ticket set, admit under budgets, plan → approve → fresh impl, terminate with proof. Not another unbounded agent drain.",
+  "description": "Bounded backlog wave runner for OpenClaw \u2014 freeze a ticket set, admit under budgets, plan \u2192 approve \u2192 fresh impl, terminate with proof. Not another unbounded agent drain.",
   "type": "module",
   "license": "Apache-2.0",
-  "author": "Jason Craw <jcraw>",
+  "author": "jcraw",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jcraw/openclaw-wave-runner.git"
