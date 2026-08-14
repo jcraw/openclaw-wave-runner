@@ -1,7 +1,7 @@
 ---
 id: WR-003
 title: Ticket interop — FrozenTicket JSON + markdown aliases
-status: open
+status: done
 priority: high
 created: 2026-08-14
 updated: 2026-08-14
@@ -75,3 +75,7 @@ Out:
 Keep `TrackerAdapter.snapshot()` as the extension point. JSON is the cheapest interop; markdown is onboarding. Do not parse spendable tickets without an id (JSON field, frontmatter, or filename).
 
 ## Resolution
+
+## Resolution
+
+**Done 2026-08-14** (Grok IMPL). JsonTracker + markdown aliases shipped. `npm test` 85 passed. Wave `WR-003-202608140856` COMPLETED.

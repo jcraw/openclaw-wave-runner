@@ -12,7 +12,7 @@ import { GrokCliWorker } from "./adapters/grok-cli.js";
 import { MarkdownTracker } from "./adapters/markdown-tracker.js";
 import { MockUsage, MockWorker, MockWorkflow, SafePolicy } from "./adapters/mocks.js";
 import { OpenClawGatewayAcpSpawn } from "./adapters/openclaw-acp.js";
-import type { AcpSpawn, WorkerAdapter } from "./adapters/ports.js";
+import type { AcpSpawn, TrackerAdapter, WorkerAdapter } from "./adapters/ports.js";
 import { ManagedTaskFlowBackend, NativeSubagentWorker } from "./adapters/taskflow.js";
 import { FailClosedUsage } from "./adapters/usage.js";
 import { GitWorkspace } from "./adapters/workspace.js";
@@ -186,6 +186,7 @@ export function openCliController(input: {
   artifactRoot?: string;
   launcherPath?: string;
   ticketSourcePath?: string;
+  tracker?: TrackerAdapter;
   acp?: AcpSpawn;
   autoAcp?: boolean;
   gateway?: GatewayRpcConfig;
@@ -198,11 +199,12 @@ export function openCliController(input: {
     input.worktreeRoot ?? join(input.repoPath, "tmp", "wave-runner", "worktrees");
   const artifactRoot =
     input.artifactRoot ?? join(input.repoPath, "tmp", "wave-runner", "artifacts");
+  const tracker = input.tracker ?? new MarkdownTracker(input.repoPath);
   if (!input.supervised) {
     return new WaveController({
       db: new WaveDatabase(input.dbPath),
       clock: new SystemClock(),
-      tracker: new MarkdownTracker(input.repoPath),
+      tracker,
       workflow: new MockWorkflow(),
       worker: new MockWorker(),
       usage: new MockUsage(),
@@ -223,7 +225,7 @@ export function openCliController(input: {
   return new WaveController({
     db: new WaveDatabase(input.dbPath),
     clock: new SystemClock(),
-    tracker: new MarkdownTracker(input.repoPath),
+    tracker,
     workflow: new MockWorkflow(),
     worker: resolveProductWorker({
       acp,

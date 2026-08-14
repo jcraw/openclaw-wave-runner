@@ -121,6 +121,25 @@ test("matrix: malformed or implicit tickets are not eligible", () => {
     GAME_JAM,
   );
   assert.equal(explicit.eligible, true);
+
+  const aliasOff = eligibleForBoundedWave(
+    "---\nid: GJ-1\nstate: open\neligible: false\n---\n",
+    GAME_JAM,
+  );
+  assert.equal(aliasOff.eligible, false);
+
+  const aliasOn = eligibleForBoundedWave(
+    "---\nid: GJ-1\nstate: open\neligible: true\n---\n",
+    GAME_JAM,
+  );
+  assert.equal(aliasOn.eligible, true);
+
+  const terminalState = eligibleForBoundedWave(
+    "---\nid: GJ-1\nstate: done\neligible: true\n---\n",
+    GAME_JAM,
+  );
+  assert.equal(terminalState.eligible, false);
+  assert.equal(terminalState.reason, "terminal");
 });
 
 test("matrix: projection failure does not roll back durable wave state", async () => {

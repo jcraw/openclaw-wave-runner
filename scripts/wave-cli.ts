@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { runOperator, type OperatorCommand } from "../src/cli/operations.js";
+import { resolveCliTicketSource } from "../src/cli/ticket-source.js";
 import { DEFAULT_LIMITS, SUPERVISED_PILOT_LIMITS } from "../src/domain/types.js";
 import { SafetyGateError } from "../src/domain/errors.js";
 import { cliControllerAcpFields, openCliController } from "../src/runtime.js";
@@ -31,6 +33,14 @@ if ((op === "start" || op === "tick") && !supervised && !simulate) {
     "CLI start/tick require --supervised (real singleton worker) or --simulate (mock only).",
   );
 }
+const ticketsJsonFlag = optional("tickets-json");
+const jsonText = ticketsJsonFlag === "-" ? readFileSync(0, "utf8") : undefined;
+const ticketSource = resolveCliTicketSource({
+  ticketsFlag: optional("tickets"),
+  ticketsJsonFlag,
+  repoPath,
+  jsonText,
+});
 const controller = openCliController({
   dbPath,
   repoPath,
@@ -39,6 +49,7 @@ const controller = openCliController({
   artifactRoot: optional("artifact-root"),
   launcherPath: optional("launcher"),
   ticketSourcePath: optional("ticket-md"),
+  tracker: ticketSource.tracker,
   ...cliControllerAcpFields({
     supervised,
     disableAcp,
@@ -61,7 +72,8 @@ const command: OperatorCommand = (() => {
   switch (op) {
     case "dry-run":
     case "create":
-      const ticketIds = arg("tickets").split(",").map((id) => id.trim()).filter(Boolean);
+      const ticketIds =
+        ticketSource.ticketIds ?? arg("tickets").split(",").map((id) => id.trim()).filter(Boolean);
       return {
         op,
         input: {

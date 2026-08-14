@@ -62,7 +62,8 @@ export function eligibleForBoundedWave(raw: string, mapping: StudioMapping): {
   reason: string;
 } {
   const { data } = parseFrontmatter(raw);
-  const status = String(data.status ?? "open").toLowerCase();
+  const statusValue = data.status ?? data.state ?? "open";
+  const status = String(statusValue).toLowerCase();
   if (["done", "wontfix"].includes(status)) {
     return { eligible: false, reason: "terminal" };
   }
@@ -73,7 +74,8 @@ export function eligibleForBoundedWave(raw: string, mapping: StudioMapping): {
   if (data.needs_jason) {
     return { eligible: false, reason: "needs_jason" };
   }
-  const flag = data[mapping.eligibilityField];
+  const flag =
+    data[mapping.eligibilityField] ?? data.agent_eligible ?? data.eligible;
   if (flag === true || flag === "true") {
     return { eligible: true, reason: "explicit" };
   }

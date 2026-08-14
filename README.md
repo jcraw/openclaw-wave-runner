@@ -52,8 +52,8 @@ explicit start
     → next admitted ticket or TERMINAL summary
 ```
 
-Markdown boards (or other trackers later) are **adapters** — intent in, status projected out.  
-They are **not** the transactional runtime. The wave ledger is.
+Markdown or JSON ticket sources are **adapters** — intent in, status projected out.  
+They are **not** the transactional runtime. The reusable product is **freeze / budget / leases / stages**. Write a mapper / `TrackerAdapter` — do not send us your board.
 
 ### Invariants (the product)
 
@@ -154,27 +154,38 @@ Gateway methods (when the plugin is loaded): `wave_runner.*` and compatibility `
 
 ---
 
-## Ticket shape (markdown adapter)
+## FrozenTicket contract
 
-Wave Runner reads YAML-frontmatter markdown tickets (git-native boards). Minimal fields:
+Interop is **`FrozenTicket`**, not a board format. Ingest these fields only:
 
-```yaml
----
-id: T-001
-title: Short title
-status: open
-depends_on: []          # optional
-agent_eligible: true    # required for auto-admission; missing/malformed = ineligible
----
-
-## Problem
-...
-
-## Acceptance
-- [ ] ...
+```ts
+{
+  ticketId: string
+  title?: string          // default ticketId
+  dependsOn?: string[]    // default []
+  sourcePath: string      // provenance; need not exist on disk
+  verifyCommand?: string
+  planClass?: string
+  provider?: string
+  model?: string
+}
 ```
 
-Boards are great for humans and agents. **Waves** are great for machines that spend money.
+`contentHash` and `order` are computed at freeze. Do not send labels, story points, or studio fields. Extra JSON keys are ignored.
+
+### JSON ingest (CLI)
+
+`--tickets-json <file>` or `--tickets-json -` (stdin). Schema `1` `{ tickets: [...] }` or a bare array. When JSON is provided, `issues/*.md` is **not** required. Without `--tickets`, the JSON array order is the explicit selection (still capped at 3 in supervised mode). Plugin Gateway stays markdown-only.
+
+```bash
+npm run cli -- dry-run --wave W1 --repo /path/to/repo --tickets-json tickets.json
+```
+
+### Markdown starter (not a standard)
+
+YAML frontmatter aliases: `id|ticket|issue`, `title|name|summary`, `status|state`, `depends_on|blocked_by|depends`, `agent_eligible|eligible`. Missing `id` may use a `WR-001-slug.md` filename prefix (`^[A-Z][A-Z0-9]*-\d+`). Missing title may use the first ATX H1 or that filename slug. No id anywhere ⇒ not spendable. Auto-admission is fail-closed; explicit `--tickets` still freezes a ticket without `agent_eligible`.
+
+Boards are great for humans. **Waves** are great for machines that spend money.
 
 ---
 
@@ -182,7 +193,7 @@ Boards are great for humans and agents. **Waves** are great for machines that sp
 
 ```text
 ┌─────────────────────────────────────────────┐
-│  Tracker adapter (markdown today)           │
+│  Tracker adapter (markdown or JSON)         │
 │  select + normalize → hash into manifest    │
 └────────────────────┬────────────────────────┘
                      ▼

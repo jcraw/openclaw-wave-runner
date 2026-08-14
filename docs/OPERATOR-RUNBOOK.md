@@ -12,7 +12,9 @@
 ```bash
 node dist/scripts/wave-cli.js capabilities --db /path/to/wave.sqlite
 node dist/scripts/wave-cli.js dry-run --wave W1 --repo /path/to/repo --tickets FX-001
+node dist/scripts/wave-cli.js dry-run --wave W1 --repo /path/to/repo --tickets-json tickets.json
 node dist/scripts/wave-cli.js create --wave W1 --repo /path/to/repo --tickets FX-001,FX-002
+node dist/scripts/wave-cli.js create --wave W1 --repo /path/to/repo --tickets-json tickets.json
 node dist/scripts/wave-cli.js start --wave W1 --simulate
 node dist/scripts/wave-cli.js inspect --wave W1
 node dist/scripts/wave-cli.js approve --wave W1 --ticket FX-001 --revision N

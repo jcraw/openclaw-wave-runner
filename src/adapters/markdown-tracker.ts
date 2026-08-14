@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { basename, join, relative } from "node:path";
 
 import { hashTicketContent, normalizeSelectedDependencies } from "../core/manifest.js";
 import type { FrozenTicket, TicketSelector } from "../domain/types.js";
@@ -53,6 +53,44 @@ export function parseFrontmatter(raw: string): { data: Record<string, string | s
   return { data, body };
 }
 
+const TICKET_ID_RE = /^[A-Z][A-Z0-9]*-\d+$/;
+const TICKET_ID_PREFIX_RE = /^([A-Z][A-Z0-9]*-\d+)/;
+
+function firstScalar(
+  data: Record<string, string | string[] | boolean>,
+  keys: string[],
+): string | boolean | undefined {
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string" && value) return value;
+  }
+  return undefined;
+}
+
+function firstStringList(
+  data: Record<string, string | string[] | boolean>,
+  keys: string[],
+): string[] {
+  for (const key of keys) {
+    if (!(key in data)) continue;
+    const value = data[key];
+    if (Array.isArray(value)) return value.map(String);
+    if (typeof value === "string") return value ? value.split(/[,\s]+/).filter(Boolean) : [];
+  }
+  return [];
+}
+
+function ticketIdFromPath(path: string): string | undefined {
+  return TICKET_ID_PREFIX_RE.exec(basename(path).replace(/\.md$/i, ""))?.[1];
+}
+
+function titleFromPath(path: string, ticketId: string): string {
+  const base = basename(path).replace(/\.md$/i, "");
+  const prefix = `${ticketId}-`;
+  return base.startsWith(prefix) && base.length > prefix.length ? base.slice(prefix.length) : base;
+}
+
 export function listMarkdownTickets(issuesRoot: string): string[] {
   const out: string[] = [];
   const walk = (dir: string) => {
@@ -95,18 +133,20 @@ export function parseTicketFile(path: string, repoRoot: string): ParsedTicket | 
     return undefined;
   }
   const { data, body } = parseFrontmatter(raw);
-  const id = typeof data.id === "string" ? data.id : "";
-  if (!/^[A-Z][A-Z0-9]*-\d+$/.test(id)) return undefined;
-  const depends = Array.isArray(data.depends_on)
-    ? data.depends_on.map(String)
-    : typeof data.depends_on === "string" && data.depends_on
-      ? data.depends_on.split(/[,\s]+/).filter(Boolean)
-      : [];
+  const idRaw = firstScalar(data, ["id", "ticket", "issue"]);
+  const ticketId =
+    typeof idRaw === "string" && TICKET_ID_RE.test(idRaw) ? idRaw : ticketIdFromPath(path);
+  if (!ticketId) return undefined;
+  const titleRaw = firstScalar(data, ["title", "name", "summary"]);
+  const heading = body.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const title =
+    (typeof titleRaw === "string" && titleRaw) || heading || titleFromPath(path, ticketId) || ticketId;
+  const statusRaw = firstScalar(data, ["status", "state"]);
   return {
-    ticketId: id,
-    title: typeof data.title === "string" ? data.title : id,
-    status: typeof data.status === "string" ? data.status : "open",
-    dependsOn: depends,
+    ticketId,
+    title,
+    status: typeof statusRaw === "string" ? statusRaw : "open",
+    dependsOn: firstStringList(data, ["depends_on", "blocked_by", "depends"]),
     planClass: typeof data.plan_class === "string" ? data.plan_class : undefined,
     verifyCommand:
       typeof data.verify === "string"
