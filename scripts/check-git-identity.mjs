@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Fail if any commit uses a GitHub noreply that is not jcraw, or if local
- * user.email is a personal mailbox. `{login}@users.noreply.github.com` is
- * owned by that GitHub user, not by the display name.
+ * Fail if any commit uses a GitHub noreply that is not jcraw, or if any
+ * author/committer is a personal mailbox. `{login}@users.noreply.github.com`
+ * is owned by that GitHub user, not by the display name.
  */
 import { execFileSync } from "node:child_process";
 
@@ -46,6 +46,13 @@ if (badNoreply.length > 0) {
   process.exit(1);
 }
 
+if (historyPersonal.length > 0) {
+  console.error("git identity: history contains personal-mailbox authors.");
+  console.error(`forbidden: ${historyPersonal.join(", ")}`);
+  console.error("use JCraw <4335668+jcraw@users.noreply.github.com>");
+  process.exit(1);
+}
+
 if (!IN_CI) {
   const localBad = [];
   for (const email of configEmail) {
@@ -57,12 +64,6 @@ if (!IN_CI) {
     console.error("fix: git config user.email 4335668+jcraw@users.noreply.github.com");
     process.exit(1);
   }
-}
-
-if (historyPersonal.length > 0) {
-  console.warn(
-    "git identity: history still contains personal-mailbox authors (WR-007 rewrite).",
-  );
 }
 
 console.log("git identity ok");

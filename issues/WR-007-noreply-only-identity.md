@@ -1,7 +1,7 @@
 ---
 id: WR-007
 title: Public git identity is noreply-only — scrub personal mailboxes
-status: blocked
+status: done
 priority: crit
 created: 2026-08-14
 updated: 2026-08-14
@@ -17,27 +17,26 @@ labels: [identity, privacy]
 # WR-007 — Noreply-only public identity
 
 ## Problem
-After the stranger-`jason` rewrite, public `main` authors were set to a **personal mailbox**. That address is now git metadata on origin. `docs/GIT-IDENTITY.md` and the identity checker also *recommended* that mailbox.
-
-Tree leak (docs/checker copy) is being stripped in the prevent-forward hotfix. **History on origin still has the mailbox** until an explicit author rewrite + force-push.
+After the stranger-`jason` rewrite, public `main` authors were set to a **personal mailbox**. That address became git metadata on origin. `docs/GIT-IDENTITY.md` and the identity checker also *recommended* that mailbox.
 
 ## Scope
 In:
-- Jason-gated `git filter-repo` / equivalent author rewrite of `main` to `JCraw <4335668+jcraw@users.noreply.github.com>`
-- After rewrite: `check-git-identity.mjs` **fails** if any author/committer is not in the noreply allowlist (`4335668+jcraw`, `jcraw`) plus already-pushed machine `astra@openclaw.local` if we keep those commits
+- Jason-gated author rewrite of `main` to `JCraw <4335668+jcraw@users.noreply.github.com>`
+- After rewrite: `check-git-identity.mjs` **fails** if any author/committer is a personal mailbox or a non-jcraw noreply
 - No personal inbox in docs, scripts, package metadata, or recommended examples
 - `npm run identity` / `npm run quality` stay fail-closed
 
 Out:
 - Other private repos unless Jason asks
-- Overnight / drain / merge of closer-wave worktrees
+- Overnight / drain
 - Changing GitHub account recovery email
 
 ## Acceptance
-- [ ] `git log --format=%ae%n%ce` on origin/main has no personal mailboxes
-- [ ] Identity check fails closed on a personal mailbox in history
-- [ ] Docs recommend only the id-prefixed jcraw noreply
-- [ ] `npm run identity` green after rewrite
+- [x] `git log --format=%ae%n%ce` on origin/main has no personal mailboxes
+- [x] Identity check fails closed on a personal mailbox in history
+- [x] Docs recommend only the id-prefixed jcraw noreply
+- [x] `npm run identity` green after rewrite
 
-## Agent notes
-Do **not** force-push while WR-CLOSER worktrees are live. Rewrite is Jason-only.
+## Resolution
+
+**Done 2026-08-14.** Jason-gated `git filter-repo` mailmap + blob replace. Authors are `JCraw <4335668+jcraw@users.noreply.github.com>`, existing `jcraw@users.noreply.github.com`, or machine `astra@openclaw.local`. Local bundle: `~/.openclaw/workspace/tmp/wr-007-rewrite/pre-rewrite.bundle`.
