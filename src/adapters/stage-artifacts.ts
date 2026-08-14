@@ -3,14 +3,8 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { join } from "node:path";
 
 import type { StageName, WorkerTruth } from "../domain/types.js";
-
-export type StageAttemptRef = {
-  root: string;
-  waveId: string;
-  ticketId: string;
-  stage: StageName;
-  attempt: number;
-};
+export type { StageAttemptRef } from "../core/stage-paths.js";
+export { stageAttemptDir, stageSessionKey } from "../core/stage-paths.js";
 
 export type StageTerminal = {
   idempotencyKey: string;
@@ -22,19 +16,6 @@ export type StageTerminal = {
   artifact?: string;
   hash?: string;
 };
-
-export function stageAttemptDir(input: StageAttemptRef): string {
-  return join(input.root, "tmp", "wave-runs", input.waveId, input.ticketId, input.stage, String(input.attempt));
-}
-
-export function stageSessionKey(input: {
-  waveId: string;
-  ticketId: string;
-  stage: StageName;
-  attempt: number;
-}): string {
-  return `agent:main:acp:wave-runner-${input.waveId}-${input.ticketId}-${input.stage}-${input.attempt}`;
-}
 
 export function sha256Text(text: string): string {
   return createHash("sha256").update(text).digest("hex");
