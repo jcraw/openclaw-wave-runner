@@ -13,6 +13,7 @@ import type {
   WaveView,
 } from "../domain/types.js";
 import { DEFAULT_LIMITS } from "../domain/types.js";
+import { deriveWriterScope } from "../domain/writer-scope.js";
 import { countersFromBudgets } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
 import { inspect, recordEvent } from "./controller-context.js";
@@ -73,6 +74,9 @@ export function ticketFromFrozen(waveId: string, ticket: FrozenTicket): TicketRu
     model: ticket.model,
     humanHold: ticket.humanHold,
     humanHoldReason: ticket.humanHoldReason,
+    writerScope: ticket.writerScope || deriveWriterScope(ticket),
+    product: ticket.product,
+    game: ticket.game,
   };
 }
 

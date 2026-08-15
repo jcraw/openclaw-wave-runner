@@ -11,6 +11,7 @@ import {
   refreshHeldLeases,
 } from "./launch.js";
 import { isIdleGateStatus } from "./operator-loop.js";
+import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import {
   isTerminalTicket,
   isTerminalWave,
@@ -120,23 +121,58 @@ export async function advanceReadyTickets(ctrl: ControllerContext, waveId: strin
   if (wave.cancelRequested || isTerminalWave(wave.status) || isIdleGateStatus(wave.status)) {
     return;
   }
-  const openOutbox = ctrl.db.listOutbox(waveId).some(
-    (item) => item.state !== "SETTLED" && item.state !== "FAILED",
-  );
-  if (openOutbox) return;
 
-  const approved = ctrl.db.listTickets(waveId).find((t) => t.status === "APPROVED");
-  if (approved) {
-    await queueStage(ctrl, waveId, approved.ticketId, "IMPL");
-    return;
+  const open = ctrl.db
+    .listOutbox(waveId)
+    .filter((item) => item.state !== "SETTLED" && item.state !== "FAILED");
+
+  // Scopes already holding an IMPL outbox cannot take another IMPL (serial per scope).
+  const busyImplScopes = new Set<string>();
+  for (const item of open) {
+    if (item.stage !== "IMPL") continue;
+    const t = ctrl.db.getTicket(waveId, item.ticketId);
+    if (!t) continue;
+    busyImplScopes.add(t.writerScope || deriveWriterScope(t));
   }
-  const inFlight = ctrl.db.listTickets(waveId).some((t) =>
-    ["CLAIMED", "PLANNING", "IMPLEMENTING", "VERIFYING"].includes(t.status),
+
+  // 1) Queue all APPROVED IMPLs whose writer scope is free.
+  let queued = 0;
+  const approved = ctrl.db.listTickets(waveId).filter((t) => t.status === "APPROVED");
+  for (const ticket of approved) {
+    const scope = ticket.writerScope || deriveWriterScope(ticket);
+    if (busyImplScopes.has(scope)) continue;
+    const lease = ctrl.db.getLease(writerLeaseKey(wave.repoPath, scope));
+    if (lease && lease.ticketId !== ticket.ticketId) continue;
+    try {
+      await queueStage(ctrl, waveId, ticket.ticketId, "IMPL");
+      busyImplScopes.add(scope);
+      queued += 1;
+    } catch (err) {
+      // Preserve fail-closed admission errors when nothing is in flight.
+      if (queued === 0 && open.length === 0) throw err;
+      break;
+    }
+  }
+
+  // 2) Queue PLAN for eligible tickets while under provider fan-out.
+  // Do not block PLAN just because an unrelated scope is implementing (WR-011).
+  const tickets = ctrl.db.listTickets(waveId);
+  const done = new Set(tickets.filter((t) => t.status === "DONE").map((t) => t.ticketId));
+  const planCandidates = tickets.filter(
+    (ticket) =>
+      (ticket.status === "PENDING" || ticket.status === "REVISING") &&
+      ticket.dependsOn.every((dep) => done.has(dep)),
   );
-  if (inFlight) return;
-  const next = nextEligibleTicket(ctrl, waveId);
-  if (next) {
-    await queueStage(ctrl, waveId, next.ticketId, next.status === "REVISING" ? "PLAN" : "PLAN");
+  for (const ticket of planCandidates) {
+    // Skip if this ticket already has open outbox work.
+    if (open.some((item) => item.ticketId === ticket.ticketId)) continue;
+    try {
+      await queueStage(ctrl, waveId, ticket.ticketId, "PLAN");
+      queued += 1;
+    } catch (err) {
+      if (queued === 0 && open.length === 0) throw err;
+      break;
+    }
   }
 }
 

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { WaveError } from "../domain/errors.js";
 import type { StageName } from "../domain/types.js";
-import { repoWriterKey } from "../domain/types.js";
+import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import { admitReservation, reservationCeiling } from "./budget.js";
 import { CrashInjectedError, type ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
@@ -51,10 +51,12 @@ export async function queueStage(
       extraLaunch: true,
     });
     if (stage === "IMPL") {
-      const current = ctrl.db.getLease(repoWriterKey(live.repoPath));
+      const scope = ticket.writerScope || deriveWriterScope(ticket);
+      const resourceKey = writerLeaseKey(live.repoPath, scope);
+      const current = ctrl.db.getLease(resourceKey);
       const lease = acquireLease({
         current,
-        resourceKey: repoWriterKey(live.repoPath),
+        resourceKey,
         now: ctrl.clock.now(),
         ttlMs: ctrl.leaseTtlMs,
         claimant: ctrl.process,
@@ -114,7 +116,9 @@ export async function queueStage(
       attempt,
       idempotencyKey,
       state: "PENDING",
-      fencingGeneration: ctrl.db.getLease(repoWriterKey(live.repoPath))?.generation ?? 1,
+      fencingGeneration: ctrl.db.getLease(
+        writerLeaseKey(live.repoPath, ticket.writerScope || deriveWriterScope(ticket)),
+      )?.generation ?? 1,
       createdAt: now,
       updatedAt: now,
     });

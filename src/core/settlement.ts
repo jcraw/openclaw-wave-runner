@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { hashJson } from "../domain/hash.js";
 import type { LaunchOutbox, LaunchReceipt, TicketRun, WaveRecord } from "../domain/types.js";
-import { repoWriterKey } from "../domain/types.js";
+import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import { applySettlement, markIndeterminate } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
@@ -217,7 +217,8 @@ export async function settleOutbox(
       ticket.verifyProof = verifyProof;
       putTicketStatus(ctrl, ticket, "VERIFYING");
       putTicketStatus(ctrl, ticket, "DONE", "verified");
-      const lease = ctrl.db.getLease(repoWriterKey(wave.repoPath));
+      const scope = ticket.writerScope || deriveWriterScope(ticket);
+      const lease = ctrl.db.getLease(writerLeaseKey(wave.repoPath, scope));
       if (lease && lease.ticketId === ticket.ticketId) {
         releaseLease({
           current: lease,

@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 
 import { resolveHumanHold } from "../core/human-hold.js";
+import { deriveWriterScope } from "../domain/writer-scope.js";
 import { hashTicketContent, normalizeSelectedDependencies } from "../core/manifest.js";
 import type { FrozenTicket, TicketSelector } from "../domain/types.js";
 import type { TicketProjection, TrackerAdapter } from "./ports.js";
@@ -17,6 +18,9 @@ export type ParsedTicket = {
   model?: string;
   humanHold?: boolean;
   humanHoldReason?: "needs_jason" | "human_gated";
+  product?: string;
+  game?: string;
+  writerScope?: string;
   sourcePath: string;
   body: string;
   raw: string;
@@ -149,6 +153,13 @@ export function parseTicketFile(path: string, repoRoot: string): ParsedTicket | 
     needsJason: data.needs_jason,
     eligibility: data.eligibility,
   });
+  const product = typeof data.product === "string" ? data.product : undefined;
+  const game = typeof data.game === "string" ? data.game : undefined;
+  const sourcePath = relative(repoRoot, path);
+  const writerScope =
+    typeof data.writer_scope === "string"
+      ? data.writer_scope
+      : deriveWriterScope({ ticketId, sourcePath, product, game });
   return {
     ticketId,
     title,
@@ -164,7 +175,10 @@ export function parseTicketFile(path: string, repoRoot: string): ParsedTicket | 
     provider: typeof data.worker === "string" ? data.worker : undefined,
     model: typeof data.model === "string" ? data.model : undefined,
     ...hold,
-    sourcePath: relative(repoRoot, path),
+    product,
+    game,
+    writerScope,
+    sourcePath,
     body,
     raw,
   };
@@ -206,6 +220,9 @@ export class MarkdownTracker implements TrackerAdapter {
         model: ticket.model,
         humanHold: ticket.humanHold,
         humanHoldReason: ticket.humanHoldReason,
+        product: ticket.product,
+        game: ticket.game,
+        writerScope: ticket.writerScope,
       };
     });
     return normalizeSelectedDependencies(

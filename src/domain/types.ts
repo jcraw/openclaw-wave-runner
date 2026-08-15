@@ -91,6 +91,10 @@ export type FrozenTicket = {
   /** True when Jason/human must approve (needs_jason / human_gated). Omit = agent plan-gate. */
   humanHold?: boolean;
   humanHoldReason?: "needs_jason" | "human_gated";
+  /** Writer lease scope (WR-011). Disjoint scopes may IMPL in parallel. */
+  writerScope?: string;
+  product?: string;
+  game?: string;
   satisfiedExternalDeps?: SatisfiedExternalDep[];
 };
 
@@ -160,6 +164,9 @@ export type TicketRun = {
   model?: string;
   humanHold?: boolean;
   humanHoldReason?: "needs_jason" | "human_gated";
+  writerScope?: string;
+  product?: string;
+  game?: string;
   result?: string;
 };
 
@@ -343,15 +350,16 @@ export const SUPERVISED_PILOT_LIMITS: Readonly<WaveLimits> = Object.freeze({
   maxLaunches: 6,
   maxRetriesPerStage: 1,
   maxWallTimeMs: 0,
+  // repoConcurrency stays 1 = one writer *per scope* (see writerLeaseKey).
   repoConcurrency: 1,
-  perProviderConcurrency: 1,
+  // Allow multi-game fan-out inside one supervised wave (WR-011).
+  perProviderConcurrency: 3,
   perStageReservationTokens: 8_000,
   perStageReservationCostMicros: 0,
 });
 
-export function repoWriterKey(repoPath: string): string {
-  return `repo-writer:${repoPath}`;
-}
+/** @deprecated use writerLeaseKey + deriveWriterScope (WR-011) */
+export { repoWriterKey, writerLeaseKey, deriveWriterScope } from "./writer-scope.js";
 
 export function providerKey(provider: string): string {
   return `provider:${provider}`;
