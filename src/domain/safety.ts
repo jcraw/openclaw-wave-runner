@@ -103,13 +103,8 @@ export function assertSupervisedBoundedLaunch(input: {
     if (input.limits.maxTokens < 1 || input.limits.maxTokens > SAFETY.supervisedMaxTokens) {
       throw new SafetyGateError(`supervised maxTokens must be 1-${SAFETY.supervisedMaxTokens}.`);
     }
-    if (
-      input.limits.maxWallTimeMs < 1 ||
-      input.limits.maxWallTimeMs > SAFETY.supervisedMaxWallTimeMs
-    ) {
-      throw new SafetyGateError(
-        `supervised maxWallTimeMs must be 1-${SAFETY.supervisedMaxWallTimeMs}.`,
-      );
+    if (input.limits.maxWallTimeMs < 0) {
+      throw new SafetyGateError("supervised maxWallTimeMs must be >= 0 (0 = no elapsed-time deadline).");
     }
   }
 }

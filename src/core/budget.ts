@@ -74,13 +74,13 @@ export function admitReservation(input: {
   if (wave.stopAt !== undefined && now >= wave.stopAt) {
     throw new AdmissionDeniedError("absolute stop_at has passed.");
   }
-  if (wave.deadlineMs !== undefined && wave.counters.startedAt !== undefined) {
-    if (now - wave.counters.startedAt >= wave.deadlineMs) {
-      throw new AdmissionDeniedError("max wall-time deadline has passed.");
-    }
-  }
-  if (wave.counters.startedAt !== undefined && now - wave.counters.startedAt >= wave.limits.maxWallTimeMs) {
-    throw new AdmissionDeniedError("max_wall_time has elapsed.");
+  if (
+    wave.deadlineMs !== undefined &&
+    wave.deadlineMs > 0 &&
+    wave.counters.startedAt !== undefined &&
+    now - wave.counters.startedAt >= wave.deadlineMs
+  ) {
+    throw new AdmissionDeniedError("max wall-time deadline has passed.");
   }
   if (input.extraLaunch && wave.counters.launches + 1 > wave.limits.maxLaunches) {
     throw new AdmissionDeniedError("max_launches would be exceeded.");

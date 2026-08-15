@@ -54,7 +54,7 @@ const pilotLimits = {
   ...DEFAULT_LIMITS,
   maxTokens: 48_000,
   maxLaunches: 6,
-  maxWallTimeMs: 20 * 60_000,
+  maxWallTimeMs: 0,
   repoConcurrency: 1 as const,
 };
 
@@ -89,11 +89,17 @@ test("Phase 6: supervised real-worker pilot admits only explicit 1-3 ticket list
     isolatedWorktree: true,
     limits: { ...pilotLimits, maxLaunches: 7 },
   }), /maxLaunches/);
+  assert.doesNotThrow(() => assertSupervisedBoundedLaunch({
+    ticketIds: ["FX-001", "FX-002"],
+    operatorAction: true,
+    isolatedWorktree: true,
+    limits: { ...pilotLimits, maxWallTimeMs: 24 * 60 * 60_000 },
+  }));
   assert.throws(() => assertSupervisedBoundedLaunch({
     ticketIds: ["FX-001", "FX-002"],
     operatorAction: true,
     isolatedWorktree: true,
-    limits: { ...pilotLimits, maxWallTimeMs: 30 * 60_000 + 1 },
+    limits: { ...pilotLimits, maxWallTimeMs: -1 },
   }), /maxWallTimeMs/);
 });
 

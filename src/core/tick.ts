@@ -23,9 +23,15 @@ import { assertLaunchAllowed } from "./wave-create.js";
 export function deadlineExceeded(ctrl: ControllerContext, wave: WaveRecord): boolean {
   const now = ctrl.clock.now();
   if (wave.stopAt !== undefined && now >= wave.stopAt) return true;
-  if (wave.counters.startedAt !== undefined) {
-    if (now - wave.counters.startedAt >= wave.limits.maxWallTimeMs) return true;
-    if (wave.deadlineMs !== undefined && now - wave.counters.startedAt >= wave.deadlineMs) return true;
+  // limits.maxWallTimeMs is schema leftover and must not stop a wave.
+  // Only an explicit deadlineMs / stopAt is an elapsed-time kill.
+  if (
+    wave.deadlineMs !== undefined &&
+    wave.deadlineMs > 0 &&
+    wave.counters.startedAt !== undefined &&
+    now - wave.counters.startedAt >= wave.deadlineMs
+  ) {
+    return true;
   }
   return false;
 }

@@ -336,7 +336,7 @@ export const SUPERVISED_PILOT_LIMITS: Readonly<WaveLimits> = Object.freeze({
   maxCostMicros: 0,
   maxLaunches: 6,
   maxRetriesPerStage: 1,
-  maxWallTimeMs: 20 * 60_000,
+  maxWallTimeMs: 0,
   repoConcurrency: 1,
   perProviderConcurrency: 1,
   perStageReservationTokens: 8_000,

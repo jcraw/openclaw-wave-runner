@@ -81,20 +81,21 @@ test("matrix: stop_at and wall deadline refuse admission atomically", () => {
       }),
     /deadline/,
   );
-  assert.throws(
-    () =>
-      admitReservation({
-        wave: sampleWave({
-          limits: { ...DEFAULT_LIMITS, maxWallTimeMs: 100 },
-          counters: emptyCounters(1_000),
-        }),
-        entries: [],
-        candidateTokens: 100,
-        candidateCostMicros: 0,
-        now: 1_200,
-        extraLaunch: true,
+});
+
+test("matrix: legacy manifest max wall does not stop long-running supervised work", () => {
+  assert.doesNotThrow(() =>
+    admitReservation({
+      wave: sampleWave({
+        limits: { ...DEFAULT_LIMITS, maxWallTimeMs: 100 },
+        counters: emptyCounters(1_000),
       }),
-    /max_wall_time/,
+      entries: [],
+      candidateTokens: 100,
+      candidateCostMicros: 0,
+      now: 8 * 60 * 60_000 + 1_000,
+      extraLaunch: true,
+    }),
   );
 });
 

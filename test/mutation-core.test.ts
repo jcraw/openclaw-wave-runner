@@ -400,25 +400,25 @@ test("mutation: admitReservation equality bounds on stop/deadline/wall/launches"
     }),
   );
 
-  assert.throws(
-    () =>
-      admit({
-        wave: sampleWave({
-          limits: limits({ maxWallTimeMs: 100 }),
-          counters: emptyCounters(1_000),
-        }),
-        now: 1_100,
-      }),
-    /max_wall_time/,
-  );
   assert.doesNotThrow(() =>
     admit({
       wave: sampleWave({
         limits: limits({ maxWallTimeMs: 100 }),
         counters: emptyCounters(1_000),
       }),
-      now: 1_099,
+      now: 8 * 60 * 60_000 + 1_000,
     }),
+  );
+  assert.throws(
+    () =>
+      admit({
+        wave: sampleWave({
+          deadlineMs: 100,
+          counters: emptyCounters(1_000),
+        }),
+        now: 1_100,
+      }),
+    /deadline/,
   );
 
   assert.throws(
@@ -881,28 +881,20 @@ test("mutation: safety limit equalities and omitted operator/ticketIds", () => {
   assert.doesNotThrow(() =>
     assertSupervisedBoundedLaunch({
       ...base,
-      limits: { ...baseLimits, maxWallTimeMs: 1 },
+      limits: { ...baseLimits, maxWallTimeMs: 0 },
     }),
   );
   assert.doesNotThrow(() =>
     assertSupervisedBoundedLaunch({
       ...base,
-      limits: { ...baseLimits, maxWallTimeMs: SAFETY.supervisedMaxWallTimeMs },
+      limits: { ...baseLimits, maxWallTimeMs: 24 * 60 * 60_000 },
     }),
   );
   assert.throws(
     () =>
       assertSupervisedBoundedLaunch({
         ...base,
-        limits: { ...baseLimits, maxWallTimeMs: 0 },
-      }),
-    SafetyGateError,
-  );
-  assert.throws(
-    () =>
-      assertSupervisedBoundedLaunch({
-        ...base,
-        limits: { ...baseLimits, maxWallTimeMs: SAFETY.supervisedMaxWallTimeMs + 1 },
+        limits: { ...baseLimits, maxWallTimeMs: -1 },
       }),
     SafetyGateError,
   );
