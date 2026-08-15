@@ -108,7 +108,15 @@ export async function reconcile(ctrl: ControllerContext, waveId: string): Promis
     const receipt = JSON.parse(latest.receiptJson) as LaunchReceipt;
     const truth = await ctrl.worker.inspect(receipt);
     if (truth.status === "succeeded" || truth.status === "failed" || truth.status === "cancelled") {
-      await settleOutbox(ctrl, latest, receipt, truth.status, truth.outputRef, truth.summary);
+      await settleOutbox(
+        ctrl,
+        latest,
+        receipt,
+        truth.status,
+        truth.outputRef,
+        truth.summary,
+        truth.error,
+      );
     } else if (latest.receiptJson) {
       ctrl.db.transaction(() => {
         const row = ctrl.db.getOutboxByIdempotency(latest.idempotencyKey);
@@ -204,7 +212,15 @@ export async function observeLaunched(ctrl: ControllerContext, waveId: string): 
       if (ctrl.crashAt === "after_completion" || ctrl.crashAt === "before_settlement") {
         throw new CrashInjectedError(ctrl.crashAt);
       }
-      await settleOutbox(ctrl, item, receipt, truth.status, truth.outputRef, truth.summary);
+      await settleOutbox(
+        ctrl,
+        item,
+        receipt,
+        truth.status,
+        truth.outputRef,
+        truth.summary,
+        truth.error,
+      );
     }
   }
 }

@@ -10,7 +10,37 @@ import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { releaseLease } from "./lease.js";
 import { markSettled } from "./outbox.js";
-import { TICKET_NEXT, TICKET_OWNERS, WAVE_NEXT, WAVE_OWNERS } from "./state-machine.js";
+import {
+  assertTicketTransition,
+  TICKET_NEXT,
+  TICKET_OWNERS,
+  WAVE_NEXT,
+  WAVE_OWNERS,
+} from "./state-machine.js";
+
+const REASON_CAP = 500;
+
+function clipReason(text: string): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= REASON_CAP) return t;
+  return `${t.slice(0, REASON_CAP - 1)}…`;
+}
+
+/** Durable short reason for inspect / cascade (WR-005 + WR-010). */
+export function stageDeathReason(input: {
+  status: "failed" | "cancelled";
+  summary?: string;
+  error?: string;
+  stage: "PLAN" | "IMPL" | "VERIFY";
+  attempt: number;
+}): string {
+  const fromWorker = clipReason(input.summary ?? input.error ?? "");
+  if (fromWorker) return fromWorker;
+  if (input.status === "cancelled") {
+    return clipReason(`${input.stage} attempt ${input.attempt}: worker cancelled (no stage artifacts)`);
+  }
+  return clipReason(`${input.stage} attempt ${input.attempt}: worker failed`);
+}
 
 export async function settleOutbox(
   ctrl: ControllerContext,
@@ -19,6 +49,7 @@ export async function settleOutbox(
   status: "succeeded" | "failed" | "cancelled",
   outputRef?: string,
   summary?: string,
+  error?: string,
 ): Promise<void> {
   const usage = await ctrl.usage.settle(receipt);
   const waveId = item.waveId;
@@ -42,6 +73,7 @@ export async function settleOutbox(
     summary = planText;
   }
   let verifyProof: string | undefined;
+  let verifyFailSnippet: string | undefined;
   if (item.stage === "IMPL" && status === "succeeded") {
     const ticket = requireTicket(ctrl, waveId, item.ticketId);
     const worktree = ticket.implWorktree;
@@ -51,7 +83,12 @@ export async function settleOutbox(
         command: ticket.verifyCommand ?? "true",
       });
       verifyProof = verify.proof;
-      if (!verify.ok) status = "failed";
+      if (!verify.ok) {
+        status = "failed";
+        verifyFailSnippet = clipReason(
+          `verify failed: ${ticket.verifyCommand ?? "true"}${verify.proof ? ` (${verify.proof})` : ""}`,
+        );
+      }
     }
   }
 
@@ -77,10 +114,52 @@ export async function settleOutbox(
     const ticket = requireTicket(ctrl, waveId, item.ticketId);
     const wave = requireWave(ctrl, waveId);
     if (status !== "succeeded") {
-      ticket.status = status === "cancelled" ? "CANCELLED" : "FAILED";
-      ticket.result = summary ?? status;
-      ticket.revision += 1;
-      ctrl.db.putTicket(ticket);
+      const attempt = stage?.attempt ?? item.attempt ?? 1;
+      const reason = stageDeathReason({
+        status,
+        summary: verifyFailSnippet ?? summary,
+        error,
+        stage: item.stage,
+        attempt,
+      });
+      // Operator/wave cancel is sticky CANCELLED, no retry.
+      if (wave.cancelRequested) {
+        ticket.status = "CANCELLED";
+        ticket.result = reason || "operator cancel";
+        ticket.owner = TICKET_OWNERS.CANCELLED;
+        ticket.nextAction = TICKET_NEXT.CANCELLED;
+        ticket.revision += 1;
+        ctrl.db.putTicket(ticket);
+      } else {
+        // maxRetriesPerStage = extra attempts after the first (WR-010).
+        const retriesRemain = attempt - 1 < wave.limits.maxRetriesPerStage;
+        if (retriesRemain && (item.stage === "PLAN" || item.stage === "IMPL")) {
+          const rearm = item.stage === "PLAN" ? "REVISING" : "APPROVED";
+          assertTicketTransition(ticket.status, rearm, false);
+          ticket.status = rearm;
+          ticket.result = clipReason(`retry ${attempt + 1} after: ${reason}`);
+          ticket.owner = TICKET_OWNERS[rearm];
+          ticket.nextAction = TICKET_NEXT[rearm];
+          ticket.revision += 1;
+          ctrl.db.putTicket(ticket);
+          if (wave.status === "WAITING_APPROVAL") {
+            wave.status = "RUNNING";
+            wave.owner = WAVE_OWNERS.RUNNING;
+            wave.nextAction = WAVE_NEXT.RUNNING;
+            wave.revision += 1;
+            wave.updatedAt = now;
+            ctrl.db.putWave(wave);
+          }
+        } else {
+          // Worker death exhausts as FAILED (not operator CANCELLED).
+          ticket.status = "FAILED";
+          ticket.result = reason;
+          ticket.owner = TICKET_OWNERS.FAILED;
+          ticket.nextAction = TICKET_NEXT.FAILED;
+          ticket.revision += 1;
+          ctrl.db.putTicket(ticket);
+        }
+      }
     } else if (item.stage === "PLAN") {
       ticket.status = "PLAN_REVIEW";
       ticket.planArtifact = planPath;

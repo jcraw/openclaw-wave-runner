@@ -151,6 +151,8 @@ const CHAIN_LIMITS = {
   maxTokens: 80_000,
   perStageReservationTokens: 8_000,
   maxLaunches: 8,
+  // Explicit zero so mid-chain death tests stay one-shot (defaults now retry once).
+  maxRetriesPerStage: 0,
 };
 
 async function driveFx001ToDone(controller: Awaited<ReturnType<typeof seedWave>>, waveId: string) {
@@ -194,10 +196,13 @@ test("mid-chain PLAN cancel fails dependents and the wave", async () => {
   await killFx002Plan(sim, controller, "wave-mid-cancel", "cancelled");
   const view = controller.inspect("wave-mid-cancel");
   assert.equal(view.tickets.find((t) => t.ticketId === "FX-001")?.status, "DONE");
-  assert.equal(view.tickets.find((t) => t.ticketId === "FX-002")?.status, "CANCELLED");
+  // Worker cancel (not operator) exhausts as FAILED with a durable reason.
+  const mid = view.tickets.find((t) => t.ticketId === "FX-002");
+  assert.equal(mid?.status, "FAILED");
+  assert.ok((mid?.result ?? "").length > 0, "death reason must be persisted");
   const tail = view.tickets.find((t) => t.ticketId === "FX-003");
   assert.equal(tail?.status, "FAILED");
-  assert.equal(tail?.result, "dependency FX-002 cancelled");
+  assert.equal(tail?.result, "dependency FX-002 failed");
   assert.equal(view.wave.status, "FAILED");
   assert.equal(view.wave.cancelRequested, false);
   assert.ok(!view.outbox.some((item) => item.ticketId === "FX-003"));
@@ -209,6 +214,43 @@ test("mid-chain PLAN cancel fails dependents and the wave", async () => {
   assert.equal(again.wave.status, "FAILED");
   assert.equal(again.wave.counters.launches, launches);
   assert.equal(sim.worker.launches, workerLaunches);
+});
+
+test("empty PLAN cancel retries once then fails (WR-010)", async () => {
+  const sim = createSimulator("p1-plan-retry");
+  const limits = { ...CHAIN_LIMITS, maxRetriesPerStage: 1, maxLaunches: 6 };
+  const controller = await seedWave(sim, "wave-plan-retry", ["FX-001"], limits);
+  await controller.start("wave-plan-retry");
+  sim.worker.completeOnInspect = false;
+  // Launch PLAN:1
+  await controller.tick("wave-plan-retry");
+  const key1 = "wave-plan-retry:FX-001:PLAN:1";
+  assert.ok(sim.worker.byKey.has(key1));
+  sim.worker.byKey.get(key1)!.status = "cancelled";
+  // Settle re-arms REVISING then same tick may advance into PLAN:2 / PLANNING.
+  await controller.tick("wave-plan-retry");
+  let view = controller.inspect("wave-plan-retry");
+  const afterFirst = view.tickets.find((t) => t.ticketId === "FX-001");
+  assert.ok(
+    afterFirst?.status === "REVISING" || afterFirst?.status === "PLANNING",
+    `expected REVISING or PLANNING after first cancel, got ${afterFirst?.status}`,
+  );
+  assert.match(afterFirst?.result ?? "", /retry 2 after/i);
+  assert.equal(view.wave.status, "RUNNING");
+  // Ensure PLAN:2 is live (may already be launched by the settle tick).
+  for (let i = 0; i < 4 && !sim.worker.byKey.has("wave-plan-retry:FX-001:PLAN:2"); i += 1) {
+    await controller.tick("wave-plan-retry");
+  }
+  const key2 = "wave-plan-retry:FX-001:PLAN:2";
+  assert.ok(sim.worker.byKey.has(key2), "second PLAN attempt must launch");
+  sim.worker.byKey.get(key2)!.status = "cancelled";
+  await controller.runUntilIdle("wave-plan-retry");
+  view = controller.inspect("wave-plan-retry");
+  const dead = view.tickets.find((t) => t.ticketId === "FX-001");
+  assert.equal(dead?.status, "FAILED");
+  assert.ok((dead?.result ?? "").length > 0, "exhausted retry must keep a reason");
+  assert.equal(view.wave.status, "FAILED");
+  assert.equal(view.stages.filter((s) => s.ticketId === "FX-001" && s.stage === "PLAN").length, 2);
 });
 
 test("mid-chain PLAN fail fails dependents and the wave", async () => {

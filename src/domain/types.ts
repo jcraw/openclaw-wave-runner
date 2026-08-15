@@ -322,7 +322,8 @@ export const DEFAULT_LIMITS: WaveLimits = {
   maxTokens: 50_000,
   maxCostMicros: 0,
   maxLaunches: 4,
-  maxRetriesPerStage: 0,
+  // One automatic retry on empty/flaky worker death (see WR-010).
+  maxRetriesPerStage: 1,
   maxWallTimeMs: 30 * 60_000,
   repoConcurrency: 1,
   perProviderConcurrency: 1,
@@ -334,7 +335,7 @@ export const SUPERVISED_PILOT_LIMITS: Readonly<WaveLimits> = Object.freeze({
   maxTokens: 48_000,
   maxCostMicros: 0,
   maxLaunches: 6,
-  maxRetriesPerStage: 0,
+  maxRetriesPerStage: 1,
   maxWallTimeMs: 20 * 60_000,
   repoConcurrency: 1,
   perProviderConcurrency: 1,
