@@ -1,17 +1,17 @@
 ---
 id: WR-008
 title: Split agent plan-gate from human WAITING_APPROVAL
-status: plan_review
+status: done
 priority: high
 created: 2026-08-14
-updated: 2026-08-14
+updated: 2026-08-15
 source: jason
 agent_eligible: true
 eligibility: agent_eligible
 depends_on: []
 verify: npm test
 worker: grok
-phase: planning
+phase: done
 worker_out_dir: tmp/workers/WR-008
 worker_pid: ""
 plan: plans/2026-08-14-wr-008-agent-plan-gate.md
@@ -55,11 +55,11 @@ Out:
 - ACP spawn changes
 
 ## Acceptance
-- [ ] Default plan-ready is agent-gate, not human-hold
-- [ ] Kicked wave PLAN → Astra → IMPL without Jason asking (MUD-036 case)
-- [ ] Next ticket in the same wave gets the same hop (MUD-038 case)
-- [ ] `needs_jason` / `human_gated` still become `WAITING_APPROVAL` and stop
-- [ ] Tests fail if agent-gate has no wake receipt
+- [x] Default plan-ready is agent-gate, not human-hold
+- [x] Kicked wave PLAN → Astra → IMPL without Jason asking (MUD-036 case)
+- [x] Next ticket in the same wave gets the same hop (MUD-038 case)
+- [x] `needs_jason` / `human_gated` still become `WAITING_APPROVAL` and stop
+- [x] Tests fail if agent-gate has no wake receipt
 
 ## Plan
 
@@ -67,3 +67,7 @@ Plan ready for Astra common-sense review. Impl = fresh session.
 
 - `plans/2026-08-14-wr-008-agent-plan-gate.md`
 - `tmp/workers/WR-008/PLAN.md`
+
+## Closeout
+
+System fix 2026-08-15: supervised launch restored + WR-008 AWAITING_PLAN_GATE shipped. npm test 110/110. Commit 6e64c2c.
