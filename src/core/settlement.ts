@@ -3,7 +3,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { hashJson } from "../domain/hash.js";
-import type { LaunchOutbox, LaunchReceipt } from "../domain/types.js";
+import type { LaunchOutbox, LaunchReceipt, TicketRun, WaveRecord } from "../domain/types.js";
 import { repoWriterKey } from "../domain/types.js";
 import { applySettlement, markIndeterminate } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
@@ -22,8 +22,7 @@ const REASON_CAP = 500;
 
 function clipReason(text: string): string {
   const t = text.replace(/\s+/g, " ").trim();
-  if (t.length <= REASON_CAP) return t;
-  return `${t.slice(0, REASON_CAP - 1)}…`;
+  return t.length <= REASON_CAP ? t : `${t.slice(0, REASON_CAP - 1)}…`;
 }
 
 /** Durable short reason for inspect / cascade (WR-005 + WR-010). */
@@ -36,10 +35,31 @@ export function stageDeathReason(input: {
 }): string {
   const fromWorker = clipReason(input.summary ?? input.error ?? "");
   if (fromWorker) return fromWorker;
-  if (input.status === "cancelled") {
-    return clipReason(`${input.stage} attempt ${input.attempt}: worker cancelled (no stage artifacts)`);
-  }
-  return clipReason(`${input.stage} attempt ${input.attempt}: worker failed`);
+  const kind = input.status === "cancelled" ? "worker cancelled (no stage artifacts)" : "worker failed";
+  return clipReason(`${input.stage} attempt ${input.attempt}: ${kind}`);
+}
+
+function putTicketStatus(
+  ctrl: ControllerContext,
+  ticket: TicketRun,
+  status: TicketRun["status"],
+  result?: string,
+): void {
+  ticket.status = status;
+  if (result !== undefined) ticket.result = result;
+  ticket.owner = TICKET_OWNERS[status];
+  ticket.nextAction = TICKET_NEXT[status];
+  ticket.revision += 1;
+  ctrl.db.putTicket(ticket);
+}
+
+function setWaveStatus(ctrl: ControllerContext, wave: WaveRecord, status: WaveRecord["status"], now: number): void {
+  wave.status = status;
+  wave.owner = WAVE_OWNERS[status];
+  wave.nextAction = WAVE_NEXT[status];
+  wave.revision += 1;
+  wave.updatedAt = now;
+  ctrl.db.putWave(wave);
 }
 
 export async function settleOutbox(
@@ -104,11 +124,11 @@ export async function settleOutbox(
       ctrl.db.putStage(stage);
       const budget = ctrl.db.listBudgets(waveId).find((b) => b.stageRunId === stage.stageRunId);
       if (budget) {
-        if (usage.kind === "actual") {
-          ctrl.db.putBudget(applySettlement(budget, usage.tokens, usage.costMicros, now));
-        } else {
-          ctrl.db.putBudget(markIndeterminate(budget, now));
-        }
+        ctrl.db.putBudget(
+          usage.kind === "actual"
+            ? applySettlement(budget, usage.tokens, usage.costMicros, now)
+            : markIndeterminate(budget, now),
+        );
       }
     }
     const ticket = requireTicket(ctrl, waveId, item.ticketId);
@@ -122,82 +142,32 @@ export async function settleOutbox(
         stage: item.stage,
         attempt,
       });
-      // Operator/wave cancel is sticky CANCELLED, no retry.
       if (wave.cancelRequested) {
-        ticket.status = "CANCELLED";
-        ticket.result = reason || "operator cancel";
-        ticket.owner = TICKET_OWNERS.CANCELLED;
-        ticket.nextAction = TICKET_NEXT.CANCELLED;
-        ticket.revision += 1;
-        ctrl.db.putTicket(ticket);
+        putTicketStatus(ctrl, ticket, "CANCELLED", reason || "operator cancel");
       } else {
-        // maxRetriesPerStage = extra attempts after the first (WR-010).
         const retriesRemain = attempt - 1 < wave.limits.maxRetriesPerStage;
         if (retriesRemain && (item.stage === "PLAN" || item.stage === "IMPL")) {
           const rearm = item.stage === "PLAN" ? "REVISING" : "APPROVED";
           assertTicketTransition(ticket.status, rearm, false);
-          ticket.status = rearm;
-          ticket.result = clipReason(`retry ${attempt + 1} after: ${reason}`);
-          ticket.owner = TICKET_OWNERS[rearm];
-          ticket.nextAction = TICKET_NEXT[rearm];
-          ticket.revision += 1;
-          ctrl.db.putTicket(ticket);
-          if (wave.status === "WAITING_APPROVAL") {
-            wave.status = "RUNNING";
-            wave.owner = WAVE_OWNERS.RUNNING;
-            wave.nextAction = WAVE_NEXT.RUNNING;
-            wave.revision += 1;
-            wave.updatedAt = now;
-            ctrl.db.putWave(wave);
-          }
+          putTicketStatus(ctrl, ticket, rearm, clipReason(`retry ${attempt + 1} after: ${reason}`));
+          if (wave.status === "WAITING_APPROVAL") setWaveStatus(ctrl, wave, "RUNNING", now);
         } else {
-          // Worker death exhausts as FAILED (not operator CANCELLED).
-          ticket.status = "FAILED";
-          ticket.result = reason;
-          ticket.owner = TICKET_OWNERS.FAILED;
-          ticket.nextAction = TICKET_NEXT.FAILED;
-          ticket.revision += 1;
-          ctrl.db.putTicket(ticket);
+          putTicketStatus(ctrl, ticket, "FAILED", reason);
         }
       }
     } else if (item.stage === "PLAN") {
-      ticket.status = "PLAN_REVIEW";
       ticket.planArtifact = planPath;
-      ticket.owner = TICKET_OWNERS.PLAN_REVIEW;
-      ticket.nextAction = TICKET_NEXT.PLAN_REVIEW;
-      ticket.revision += 1;
-      ctrl.db.putTicket(ticket);
-      const decision = ctrl.policy.decide({
-        planClass: ticket.planClass,
-        planText: summary ?? "",
-      });
+      putTicketStatus(ctrl, ticket, "PLAN_REVIEW");
+      const decision = ctrl.policy.decide({ planClass: ticket.planClass, planText: summary ?? "" });
       if (decision === "wait") {
-        wave.status = "WAITING_APPROVAL";
-        wave.owner = WAVE_OWNERS.WAITING_APPROVAL;
-        wave.nextAction = WAVE_NEXT.WAITING_APPROVAL;
-        wave.revision += 1;
-        wave.updatedAt = now;
-        ctrl.db.putWave(wave);
+        setWaveStatus(ctrl, wave, "WAITING_APPROVAL", now);
       } else {
-        ticket.status = "APPROVED";
-        ticket.owner = TICKET_OWNERS.APPROVED;
-        ticket.nextAction = TICKET_NEXT.APPROVED;
-        ticket.revision += 1;
-        ctrl.db.putTicket(ticket);
+        putTicketStatus(ctrl, ticket, "APPROVED");
       }
     } else if (item.stage === "IMPL") {
-      ticket.status = "VERIFYING";
       ticket.verifyProof = verifyProof;
-      ticket.owner = TICKET_OWNERS.VERIFYING;
-      ticket.nextAction = TICKET_NEXT.VERIFYING;
-      ticket.revision += 1;
-      ctrl.db.putTicket(ticket);
-      ticket.status = "DONE";
-      ticket.result = "verified";
-      ticket.owner = TICKET_OWNERS.DONE;
-      ticket.nextAction = TICKET_NEXT.DONE;
-      ticket.revision += 1;
-      ctrl.db.putTicket(ticket);
+      putTicketStatus(ctrl, ticket, "VERIFYING");
+      putTicketStatus(ctrl, ticket, "DONE", "verified");
       const lease = ctrl.db.getLease(repoWriterKey(wave.repoPath));
       if (lease && lease.ticketId === ticket.ticketId) {
         releaseLease({
@@ -209,25 +179,18 @@ export async function settleOutbox(
         ctrl.db.deleteLease(lease.resourceKey);
       }
     }
-    if (planPath) {
+    for (const [kind, path] of [
+      ["plan", planPath],
+      ["proof", verifyProof],
+    ] as const) {
+      if (!path) continue;
       ctrl.db.putArtifact({
         artifactId: `${waveId}:art:${randomUUID()}`,
         waveId,
         ticketId: item.ticketId,
-        kind: "plan",
-        path: planPath,
-        hash: hashJson(planPath),
-        createdAt: now,
-      });
-    }
-    if (verifyProof) {
-      ctrl.db.putArtifact({
-        artifactId: `${waveId}:art:${randomUUID()}`,
-        waveId,
-        ticketId: item.ticketId,
-        kind: "proof",
-        path: verifyProof,
-        hash: hashJson(verifyProof),
+        kind,
+        path,
+        hash: hashJson(path),
         createdAt: now,
       });
     }
@@ -275,15 +238,12 @@ function readActualPlanText(input: {
   outputDir?: string;
 }): string {
   const candidates: string[] = [];
-  if (input.outputDir) {
-    candidates.push(join(input.outputDir, "PLAN.md"));
-  }
+  if (input.outputDir) candidates.push(join(input.outputDir, "PLAN.md"));
   if (input.outputRef && existsSync(input.outputRef)) {
     try {
       const stat = statSync(input.outputRef);
-      if (stat.isFile() && input.outputRef.endsWith("PLAN.md")) {
-        candidates.push(input.outputRef);
-      } else if (stat.isDirectory() && input.outputDir && input.outputRef === input.outputDir) {
+      if (stat.isFile() && input.outputRef.endsWith("PLAN.md")) candidates.push(input.outputRef);
+      else if (stat.isDirectory() && input.outputDir && input.outputRef === input.outputDir) {
         candidates.push(join(input.outputRef, "PLAN.md"));
       }
     } catch {
@@ -296,13 +256,8 @@ function readActualPlanText(input: {
       const text = readFileSync(path, "utf8").trim();
       if (text) return text;
     } catch {
-      // Try the next candidate.
+      // next candidate
     }
   }
-  return `# PLAN ${input.ticketId}
-
-${input.summary ?? "deterministic plan"}
-
-class: ${input.planClass ?? "manual"}
-`;
+  return `# PLAN ${input.ticketId}\n\n${input.summary ?? "deterministic plan"}\n\nclass: ${input.planClass ?? "manual"}\n`;
 }
