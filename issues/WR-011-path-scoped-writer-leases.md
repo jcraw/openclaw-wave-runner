@@ -1,7 +1,7 @@
 ---
 id: WR-011
 title: Path-scoped writer leases + parallel multi-product waves
-status: in_progress
+status: done
 priority: high
 created: 2026-08-15
 updated: 2026-08-15
@@ -11,7 +11,7 @@ eligibility: agent_eligible
 depends_on: []
 verify: npm test
 worker: astra
-phase: impl
+phase: done
 labels: [concurrency, leases, parallel, game-jam]
 ---
 
@@ -36,3 +36,7 @@ Whole-repo `repo-writer:<repo>` serializes Godstones vs Rink Rush vs every other
 ## Out
 - Unrestricted drain / overnight
 - Cross-host distributed locks
+
+## Closeout
+
+Shipped 2026-08-15 dda36b9. npm test 114/114.
