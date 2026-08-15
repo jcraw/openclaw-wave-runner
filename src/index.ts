@@ -9,7 +9,7 @@ import type {
   WaveRunnerPorts,
 } from "./contracts.js";
 import { DEFAULT_LIMITS, SUPERVISED_PILOT_LIMITS } from "./domain/types.js";
-import { SAFETY } from "./domain/safety.js";
+import { PRODUCTION_WORKER_DISABLED_MESSAGE, SAFETY } from "./domain/safety.js";
 import { openWaveController } from "./runtime.js";
 import { OpenClawGatewayAcpSpawn } from "./adapters/openclaw-acp.js";
 
@@ -91,7 +91,9 @@ function register(api: OpenClawPluginApi): void {
 
   api.registerGatewayMethod(
     "wave_runner_m0.start",
-    handler((params) => controller.start(readString(params, "waveId"))),
+    handler(() => {
+      throw new Error(PRODUCTION_WORKER_DISABLED_MESSAGE);
+    }),
     { scope: "operator.write" },
   );
   api.registerGatewayMethod(
@@ -176,10 +178,10 @@ function register(api: OpenClawPluginApi): void {
       milestone: "v0",
       productionDrainEnabled: false,
       overnightEnabled: false,
-      productionWorkerLaunchEnabled: true,
-      productWorkerRuntime: "openclaw-acp",
-      supervisedOneTicketLaunchAllowed: true,
-      supervisedBoundedLaunchAllowed: true,
+      productionWorkerLaunchEnabled: false,
+      productWorkerRuntime: "disabled-use-direct-wrappers",
+      supervisedOneTicketLaunchAllowed: false,
+      supervisedBoundedLaunchAllowed: false,
       supervisedMaxTickets: 3,
       safety: { ...SAFETY },
       usageMetadata: "public Task Run DTO has no tokens; INDETERMINATE fail-closed",

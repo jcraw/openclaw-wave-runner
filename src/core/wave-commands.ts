@@ -175,7 +175,7 @@ export function approveWave(
     ticket.nextAction = TICKET_NEXT.APPROVED;
     ticket.revision += 1;
     ctrl.db.putTicket(ticket);
-    if (wave.status === "WAITING_APPROVAL") {
+    if (wave.status === "WAITING_APPROVAL" || wave.status === "AWAITING_PLAN_GATE") {
       assertWaveTransition(wave.status, "RUNNING", wave.cancelRequested);
       wave.status = "RUNNING";
       wave.owner = WAVE_OWNERS.RUNNING;
@@ -204,6 +204,15 @@ export function reviseWave(
     ticket.nextAction = TICKET_NEXT.REVISING;
     ticket.revision += 1;
     ctrl.db.putTicket(ticket);
+    if (wave.status === "WAITING_APPROVAL" || wave.status === "AWAITING_PLAN_GATE") {
+      assertWaveTransition(wave.status, "RUNNING", wave.cancelRequested);
+      wave.status = "RUNNING";
+      wave.owner = WAVE_OWNERS.RUNNING;
+      wave.nextAction = WAVE_NEXT.RUNNING;
+      wave.revision += 1;
+      wave.updatedAt = ctrl.clock.now();
+      ctrl.db.putWave(wave);
+    }
   });
   return inspect(ctrl, waveId);
 }

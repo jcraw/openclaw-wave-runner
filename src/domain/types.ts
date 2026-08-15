@@ -10,6 +10,7 @@ export type WaveStatus =
   | "DRAFT"
   | "FROZEN"
   | "RUNNING"
+  | "AWAITING_PLAN_GATE"
   | "WAITING_APPROVAL"
   | "PAUSED"
   | "COMPLETED"
@@ -87,6 +88,9 @@ export type FrozenTicket = {
   verifyCommand?: string;
   provider?: string;
   model?: string;
+  /** True when Jason/human must approve (needs_jason / human_gated). Omit = agent plan-gate. */
+  humanHold?: boolean;
+  humanHoldReason?: "needs_jason" | "human_gated";
   satisfiedExternalDeps?: SatisfiedExternalDep[];
 };
 
@@ -154,6 +158,8 @@ export type TicketRun = {
   verifyCommand?: string;
   provider?: string;
   model?: string;
+  humanHold?: boolean;
+  humanHoldReason?: "needs_jason" | "human_gated";
   result?: string;
 };
 

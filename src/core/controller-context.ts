@@ -18,6 +18,7 @@ import type {
   PolicyAdapter,
   TrackerAdapter,
   UsageAdapter,
+  WakePort,
   WorkerAdapter,
   WorkflowBackend,
   WorkspaceAdapter,
@@ -41,6 +42,7 @@ export type ControllerOptions = {
   usage: UsageAdapter;
   workspace: WorkspaceAdapter;
   policy: PolicyAdapter;
+  wake?: WakePort;
   process: ProcessIdentity;
   leaseTtlMs?: number;
   crashAt?: OutboxBoundary | null;
@@ -61,6 +63,7 @@ export type ControllerContext = {
   readonly usage: UsageAdapter;
   readonly workspace: WorkspaceAdapter;
   readonly policy: PolicyAdapter;
+  readonly wake?: WakePort;
   readonly process: ProcessIdentity;
   readonly leaseTtlMs: number;
   crashAt: OutboxBoundary | null;

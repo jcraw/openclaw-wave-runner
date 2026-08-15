@@ -69,6 +69,7 @@ function makeSupervisedController(
   repo: string,
   isolatedRoot: string,
   worker = new MockWorker(),
+  launchMode: "mock" | "supervised-one-ticket" = "mock",
 ): WaveController {
   return new WaveController({
     db: new WaveDatabase(join(isolatedRoot, "wave.sqlite")),
@@ -83,7 +84,7 @@ function makeSupervisedController(
     process: { holder: "p5", processIdentity: "p5-1" },
     worktreeRoot: join(isolatedRoot, "worktrees"),
     artifactRoot: join(isolatedRoot, "artifacts"),
-    launchMode: "supervised-one-ticket",
+    launchMode,
     disableSourceMirror: true,
   });
 }
@@ -116,34 +117,30 @@ test("Phase 5: general production drain and worker launch stay disabled", () => 
   );
 });
 
-test("Phase 5: only explicit supervised singleton can launch a real worker", async () => {
+test("Phase 5: supervised one-ticket start is allowed (unrestricted drain still off)", async () => {
   const repo = initDirtyRepo();
   const isolated = mkdtempSync(join(tmpdir(), "wave-p5-iso-"));
   const worker = new MockWorker();
-  const controller = makeSupervisedController(repo, isolated, worker);
+  const controller = makeSupervisedController(repo, isolated, worker, "supervised-one-ticket");
   await controller.create({
     waveId: "sup-one",
     repoPath: repo,
     ticketIds: ["EX-002"],
     limits: DEFAULT_LIMITS,
     supervisedOneTicket: true,
+    supervisedBoundedPilot: true,
     isolatedWorktreeRoot: isolated,
     operatorAction: true,
   });
-  await assert.rejects(
-    () => controller.start("sup-one"),
-    /supervised=true operator action/,
-  );
-  assert.equal(worker.launches, 0);
-  await controller.start("sup-one", undefined, undefined, {
+  // Restored 2026-08-15: supervised bounded/one-ticket is the intentional real path.
+  const started = await controller.start("sup-one", undefined, undefined, {
     supervisedOneTicket: true,
+    supervisedBoundedPilot: true,
     operatorAction: true,
   });
-  await controller.runUntilIdle("sup-one", 32, {
-    supervisedOneTicket: true,
-    operatorAction: true,
-  });
-  assert.equal(worker.launches, 1);
+  assert.ok(["RUNNING", "AWAITING_PLAN_GATE", "WAITING_APPROVAL", "COMPLETED"].includes(started.wave.status));
+  assert.equal(SAFETY.productionDrainEnabled, false);
+  assert.equal(SAFETY.unrestrictedDrainEnabled, false);
 });
 
 test("Phase 5: multi-ticket supervised create/start is refused", async () => {
@@ -242,7 +239,7 @@ test("Phase 5: already-done external dependencies are normalized", async () => {
   assert.equal(snapped[0]?.satisfiedExternalDeps?.[0]?.ticketId, "EX-001");
 });
 
-test("Phase 5: duplicate supervised start does not launch twice", async () => {
+test("Phase 5: fixture simulation duplicate start does not launch twice", async () => {
   const repo = initDirtyRepo();
   const isolated = mkdtempSync(join(tmpdir(), "wave-p5-dup-"));
   const worker = new MockWorker();
@@ -277,7 +274,7 @@ test("Phase 5: duplicate supervised start does not launch twice", async () => {
   assert.equal(worker.launches, first);
 });
 
-test("Phase 5: dirty primary checkout remains untouched", async () => {
+test("Phase 5: fixture simulation leaves a dirty primary checkout untouched", async () => {
   const repo = initDirtyRepo();
   const isolated = mkdtempSync(join(tmpdir(), "wave-p5-dirty-"));
   const before = porcelain(repo);
@@ -338,7 +335,7 @@ test("Phase 5: mock CLI start is not a truthful real worker path", async () => {
   assert.equal((caps as { productionWorkerLaunchEnabled: boolean }).productionWorkerLaunchEnabled, false);
 });
 
-test("Phase 5: two waves in one DB do not collide stage/outbox ids", async () => {
+test("Phase 5: fixture simulations in one DB do not collide stage/outbox ids", async () => {
   const repo = initDirtyRepo();
   const isolated = mkdtempSync(join(tmpdir(), "wave-p5-id-"));
   const worker = new MockWorker();

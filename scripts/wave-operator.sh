@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+# Wave Runner supervised operator (restored 2026-08-15).
+# Real workers only via --supervised. No unrestricted drain. No overnight here.
+# Plan-gate (AWAITING_PLAN_GATE): stay alive; do NOT exit; do NOT bash-stamp APPROVED.
+# Human hold (WAITING_APPROVAL): OPERATOR_STOP waiting_human; exit 0.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  wave-operator.sh dry-run|create|start|tick|inspect|approve|cancel|loop|all
+
+Required env:
+  WAVE_ID   REPO   OUT_DIR
+
+Optional env:
+  TICKETS            comma ids (create)
+  MAX_LAUNCHES       default 6
+  MAX_TOKENS         default 50000
+  MAX_WALL_MS        default 0 (no elapsed deadline)
+  MAX_TICKS          default 0 (unlimited)
+  TICK_SLEEP         default 20
+  PLUGIN_DIR         package root (default: parent of scripts/)
+  WAVE_RUNNER_ACP=1  enable ACP spawn path
+
+Examples:
+  WAVE_ID=W1 REPO=/path/to/repo OUT_DIR=/tmp/w1 TICKETS=GS-057 \
+    ./scripts/wave-operator.sh all
+EOF
+}
+
+PHASE="${1:-}"
+if [[ -z "$PHASE" || "$PHASE" == "-h" || "$PHASE" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+: "${WAVE_ID:?WAVE_ID required}"
+: "${REPO:?REPO required}"
+: "${OUT_DIR:?OUT_DIR required}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+CLI_JS="${CLI_JS:-$PLUGIN_DIR/dist/scripts/wave-cli.js}"
+if [[ ! -f "$CLI_JS" ]]; then
+  echo "error: missing $CLI_JS — run npm run build in $PLUGIN_DIR" >&2
+  exit 2
+fi
+
+mkdir -p "$OUT_DIR/cli" "$OUT_DIR/ticks" "$OUT_DIR/worktrees" "$OUT_DIR/artifacts"
+
+MAX_LAUNCHES="${MAX_LAUNCHES:-6}"
+MAX_TOKENS="${MAX_TOKENS:-50000}"
+MAX_WALL_MS="${MAX_WALL_MS:-0}"
+MAX_TICKS="${MAX_TICKS:-0}"
+TICK_SLEEP="${TICK_SLEEP:-20}"
+
+status_of_json() {
+  python3 - "$1" <<'PY2'
+import json,sys
+p=sys.argv[1]
+d=json.load(open(p))
+w=d.get("wave") or d
+print(w.get("status") or "")
+PY2
+}
+
+run_cli() {
+  local op="$1"; shift || true
+  local out_json="$OUT_DIR/cli/${op}.json"
+  local err_file="$OUT_DIR/cli/${op}.err"
+  local args=(node "$CLI_JS" "$op"
+    --db "$OUT_DIR/wave.sqlite"
+    --repo "$REPO"
+    --worktree-root "$OUT_DIR/worktrees"
+    --artifact-root "$OUT_DIR/artifacts"
+    --wave "$WAVE_ID"
+    --supervised
+  )
+  case "$op" in
+    dry-run|create)
+      : "${TICKETS:?TICKETS required for $op}"
+      args+=(--tickets "$TICKETS" --max-launches "$MAX_LAUNCHES" --max-tokens "$MAX_TOKENS" --max-wall-ms "$MAX_WALL_MS")
+      ;;
+    tick)
+      local nn="${1:-}"
+      if [[ -n "$nn" ]]; then
+        out_json="$OUT_DIR/cli/tick-${nn}.json"
+        err_file="$OUT_DIR/cli/tick-${nn}.err"
+      fi
+      ;;
+    approve)
+      local ticket="${1:-}"; local rev="${2:-}"
+      : "${ticket:?ticket required}"; : "${rev:?revision required}"
+      args+=(--ticket "$ticket" --revision "$rev")
+      out_json="$OUT_DIR/cli/approve-${ticket}.json"
+      err_file="$OUT_DIR/cli/approve-${ticket}.err"
+      ;;
+    inspect|start|cancel|pause|resume) ;;
+    *)
+      echo "error: unknown op $op" >&2
+      exit 2
+      ;;
+  esac
+
+  set +e
+  "${args[@]}" >"$out_json" 2>"$err_file"
+  local rc=$?
+  set -e
+  if [[ $rc -ne 0 ]]; then
+    echo "error: wave-cli $op failed rc=$rc" >&2
+    cat "$err_file" >&2 || true
+    return "$rc"
+  fi
+  if [[ "$op" == "inspect" ]]; then
+    cp -f "$out_json" "$OUT_DIR/cli/inspect.json"
+  fi
+  cat "$out_json"
+  return 0
+}
+
+case "$PHASE" in
+  dry-run|create|start|inspect|cancel)
+    run_cli "$PHASE"
+    ;;
+  tick)
+    run_cli tick "${2:-}"
+    ;;
+  approve)
+    run_cli approve "${2:-}" "${3:-}"
+    ;;
+  loop|all)
+    if [[ "$PHASE" == "all" ]]; then
+      run_cli dry-run >/dev/null || echo "dry-run soft-fail"
+      run_cli create >/dev/null
+      run_cli start >/dev/null
+    fi
+    i=0
+    started=$(date +%s)
+    while true; do
+      i=$((i + 1))
+      printf -v nn "%02d" "$i"
+      if [[ "$MAX_TICKS" != "0" && "$i" -gt "$MAX_TICKS" ]]; then
+        echo "OPERATOR_STOP max_ticks" >&2
+        exit 1
+      fi
+      run_cli inspect >/dev/null || true
+      st="$(status_of_json "$OUT_DIR/cli/inspect.json" 2>/dev/null || true)"
+      case "$st" in
+        COMPLETED)
+          echo "WAVE_OK status=$st"
+          exit 0
+          ;;
+        FAILED|CANCELLED|BUDGET_STOPPED|BLOCKED)
+          echo "WAVE_BAD status=$st" >&2
+          exit 1
+          ;;
+        WAITING_APPROVAL)
+          echo "OPERATOR_STOP waiting_human" >&2
+          exit 0
+          ;;
+        AWAITING_PLAN_GATE)
+          echo "PLAN_GATE waiting_astra wave=$WAVE_ID (inspect-sleep ${TICK_SLEEP}s)"
+          sleep "$TICK_SLEEP"
+          continue
+          ;;
+        PAUSED)
+          echo "OPERATOR_STOP paused" >&2
+          exit 0
+          ;;
+        DRAFT|FROZEN)
+          run_cli start >/dev/null || true
+          ;;
+        RUNNING|"")
+          :
+          ;;
+      esac
+      echo "=== tick $nn elapsed=$(( $(date +%s) - started ))s status=${st:-?} ==="
+      if ! run_cli tick "$nn" >/dev/null; then
+        echo "TICK_FAILED $nn" >&2
+        exit 1
+      fi
+      st="$(status_of_json "$OUT_DIR/cli/tick-${nn}.json")"
+      echo "status=$st"
+      case "$st" in
+        COMPLETED) echo "WAVE_OK"; exit 0 ;;
+        FAILED|CANCELLED|BUDGET_STOPPED|BLOCKED) echo "WAVE_BAD status=$st" >&2; exit 1 ;;
+        WAITING_APPROVAL) echo "OPERATOR_STOP waiting_human" >&2; exit 0 ;;
+        AWAITING_PLAN_GATE)
+          echo "PLAN_GATE waiting_astra"
+          sleep "$TICK_SLEEP"
+          continue
+          ;;
+      esac
+      sleep "$TICK_SLEEP"
+    done
+    ;;
+  *)
+    echo "error: unknown phase $PHASE" >&2
+    usage
+    exit 2
+    ;;
+esac

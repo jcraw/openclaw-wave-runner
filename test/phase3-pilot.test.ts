@@ -16,7 +16,7 @@ test("Phase 3: 3-ticket dependency wave with serial writer and mixed approval", 
   await controller.start("wave-3");
   await controller.runUntilIdle("wave-3");
   let view = controller.inspect("wave-3");
-  assert.equal(view.wave.status, "WAITING_APPROVAL");
+  assert.equal(view.wave.status, "AWAITING_PLAN_GATE");
   assert.equal(view.tickets[0]?.ticketId, "FX-001");
   const first = view.tickets[0]!;
   controller.approve("wave-3", first.ticketId, first.revision);
@@ -34,12 +34,12 @@ test("Phase 3: 3-ticket dependency wave with serial writer and mixed approval", 
   }
   view = controller.inspect("wave-3");
   const third = view.tickets.find((t) => t.ticketId === "FX-003");
-  if (view.wave.status === "WAITING_APPROVAL" && third?.status === "PLAN_REVIEW") {
+  if ((view.wave.status === "AWAITING_PLAN_GATE" || view.wave.status === "WAITING_APPROVAL") && third?.status === "PLAN_REVIEW") {
     controller.approve("wave-3", third.ticketId, third.revision);
     await controller.runUntilIdle("wave-3");
   }
   view = controller.inspect("wave-3");
-  assert.ok(["COMPLETED", "WAITING_APPROVAL", "RUNNING"].includes(view.wave.status));
+  assert.ok(["COMPLETED", "AWAITING_PLAN_GATE", "WAITING_APPROVAL", "RUNNING"].includes(view.wave.status));
   assert.ok(view.leases.filter((l) => l.resourceKey.startsWith("repo-writer:")).length <= 1);
   const projection = controller.project();
   assert.equal(projection.authoritative, false);

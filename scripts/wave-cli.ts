@@ -28,9 +28,11 @@ const supervised = process.argv.includes("--supervised");
 const simulate = process.argv.includes("--simulate");
 const disableAcp =
   process.argv.includes("--no-acp") || process.argv.includes("--disable-acp");
+// Supervised bounded launch is the intentional real-worker path (restored 2026-08-15).
+// Unrestricted drain / overnight remain disabled inside SAFETY + assertSupervisedBoundedLaunch.
 if ((op === "start" || op === "tick") && !supervised && !simulate) {
   throw new SafetyGateError(
-    "CLI start/tick require --supervised (real singleton worker) or --simulate (mock only).",
+    "CLI start/tick require --supervised (real worker) or --simulate (mock only).",
   );
 }
 const ticketsJsonFlag = optional("tickets-json");

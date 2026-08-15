@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 
+import { resolveHumanHold } from "../core/human-hold.js";
 import { hashTicketContent, normalizeSelectedDependencies } from "../core/manifest.js";
 import type { FrozenTicket, TicketSelector } from "../domain/types.js";
 import type { TicketProjection, TrackerAdapter } from "./ports.js";
@@ -14,6 +15,8 @@ export type ParsedTicket = {
   verifyCommand?: string;
   provider?: string;
   model?: string;
+  humanHold?: boolean;
+  humanHoldReason?: "needs_jason" | "human_gated";
   sourcePath: string;
   body: string;
   raw: string;
@@ -142,6 +145,10 @@ export function parseTicketFile(path: string, repoRoot: string): ParsedTicket | 
   const title =
     (typeof titleRaw === "string" && titleRaw) || heading || titleFromPath(path, ticketId) || ticketId;
   const statusRaw = firstScalar(data, ["status", "state"]);
+  const hold = resolveHumanHold({
+    needsJason: data.needs_jason,
+    eligibility: data.eligibility,
+  });
   return {
     ticketId,
     title,
@@ -156,6 +163,7 @@ export function parseTicketFile(path: string, repoRoot: string): ParsedTicket | 
           : undefined,
     provider: typeof data.worker === "string" ? data.worker : undefined,
     model: typeof data.model === "string" ? data.model : undefined,
+    ...hold,
     sourcePath: relative(repoRoot, path),
     body,
     raw,
@@ -196,6 +204,8 @@ export class MarkdownTracker implements TrackerAdapter {
         verifyCommand: ticket.verifyCommand,
         provider: ticket.provider,
         model: ticket.model,
+        humanHold: ticket.humanHold,
+        humanHoldReason: ticket.humanHoldReason,
       };
     });
     return normalizeSelectedDependencies(

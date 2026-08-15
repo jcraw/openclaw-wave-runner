@@ -124,3 +124,15 @@ export type PolicyDecision = "auto-approve" | "wait";
 export interface PolicyAdapter {
   decide(input: { planClass?: string; planText: string }): PolicyDecision;
 }
+
+export type PlanGateWake = {
+  waveId: string;
+  ticketId: string;
+  planPath?: string;
+  revision: number;
+};
+
+/** Host one-shot wake for agent plan-gate. Ledger event is authoritative; host emit is best-effort. */
+export interface WakePort {
+  emitOnce(wake: PlanGateWake): void | Promise<void>;
+}

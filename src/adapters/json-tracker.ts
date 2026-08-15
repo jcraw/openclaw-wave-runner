@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 
+import { resolveHumanHold } from "../core/human-hold.js";
 import { hashTicketContent, normalizeSelectedDependencies } from "../core/manifest.js";
 import type { FrozenTicket, TicketSelector } from "../domain/types.js";
 import type { TicketProjection, TrackerAdapter } from "./ports.js";
@@ -15,6 +16,10 @@ export type JsonTicketIngest = {
   planClass?: string;
   provider?: string;
   model?: string;
+  needsJason?: boolean | string;
+  eligibility?: string;
+  humanHold?: boolean;
+  humanHoldReason?: "needs_jason" | "human_gated";
 };
 
 function asObject(value: unknown): Record<string, unknown> | undefined {
@@ -64,6 +69,10 @@ function parseJsonTickets(text: string): JsonTicketIngest[] {
         throw new Error(`JSON ticket ${ticketId} dependsOn must be a string array`);
       }
     }
+    const hold = resolveHumanHold({
+      needsJason: obj.needs_jason ?? obj.needsJason,
+      eligibility: obj.eligibility,
+    });
     return {
       ticketId,
       title: optionalText(obj.title) ?? ticketId,
@@ -75,6 +84,7 @@ function parseJsonTickets(text: string): JsonTicketIngest[] {
       planClass: optionalText(obj.planClass),
       provider: optionalText(obj.provider),
       model: optionalText(obj.model),
+      ...hold,
     };
   });
 }
@@ -112,6 +122,8 @@ export class JsonTracker implements TrackerAdapter {
         verifyCommand: ticket.verifyCommand,
         provider: ticket.provider,
         model: ticket.model,
+        humanHold: ticket.humanHold,
+        humanHoldReason: ticket.humanHoldReason,
       };
     });
     return normalizeSelectedDependencies(

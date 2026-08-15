@@ -39,6 +39,7 @@ export class WaveController {
   readonly usage;
   readonly workspace;
   readonly policy;
+  readonly wake;
   readonly process;
   readonly leaseTtlMs;
   crashAt;
@@ -59,6 +60,7 @@ export class WaveController {
     this.usage = opts.usage;
     this.workspace = opts.workspace;
     this.policy = opts.policy;
+    this.wake = opts.wake;
     this.process = opts.process;
     this.leaseTtlMs = opts.leaseTtlMs ?? 60_000;
     this.crashAt = opts.crashAt ?? null;

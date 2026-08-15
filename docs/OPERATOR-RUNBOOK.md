@@ -1,6 +1,6 @@
 # Wave Runner operator runbook
 
-**Production backlog drain is disabled.** Overnight remains an explicit operator human gate.
+**Production worker launch is disabled.** This runbook is for inspection, cancellation, and fixture/dev simulation only.
 
 ## Surfaces
 
@@ -25,27 +25,19 @@ node dist/scripts/wave-cli.js emergency-stop
 node dist/scripts/wave-cli.js backup --dest /path/to/backup.sqlite
 ```
 
-Supervised bounded run (real worker adapter; still not production drain):
+`--simulate` is mock-only and is not a truthful real-worker receipt. Any `--supervised`
+create/start/tick attempt fails closed. Gateway `wave_runner.start` / `wave_runner.tick` also fail
+closed before launching ACP or CLI workers.
 
-```bash
-node dist/scripts/wave-cli.js create --wave W1 --repo /path/to/repo --tickets FX-001,FX-002 \
-  --supervised --worktree-root /tmp/wave-worktrees \
-  --max-launches 4 --max-tokens 48000 --max-wall-ms 1200000
-node dist/scripts/wave-cli.js start --wave W1 --repo /path/to/repo --supervised --worktree-root /tmp/wave-worktrees \
-  --artifact-root /tmp/wave-artifacts
-node dist/scripts/wave-cli.js tick --wave W1 --repo /path/to/repo --supervised --worktree-root /tmp/wave-worktrees \
-  --artifact-root /tmp/wave-artifacts
-```
+For production repo work use:
 
-`start` / `tick` require `--supervised` or `--simulate`. Product workers go through OpenClaw ACP when the spawn port is injected; the plugin fails closed if that port is missing. `--launcher` is compatibility fallback only. Every real-worker tick is an **explicit operator action** — there is no recurring LLM poll. Supervised manifests accept only an immutable **1–3** ticket list and hard-cap launches / tokens / wall time. `--simulate` is mock-only and is not a truthful real-worker receipt.
+- `tools/kick_openclaw_specialist.sh` for a named OpenClaw specialist
+- `tools/run_detached_builder.sh` for code: PLAN → real review → fresh IMPL → verifier
 
-## Bounded wave (replaces “clear the backlog”)
+## Fixture/dev simulation
 
-1. Choose an explicit ticket list. Never “drain everything”.
-2. `dry-run` then `create` then `start`.
-3. PLAN writes wave artifacts. Approve (or rely on safe-policy / docs-only modes when configured).
-4. IMPL uses an isolated worktree. Verification runs there.
-5. Inspect proof artifacts. Merge/push is a separate human policy and is **off** by default.
+Use `dry-run`, `create`, and `start --simulate` only with disposable fixture repositories. Do not
+interpret simulated artifacts as production receipts.
 
 ## Emergency stop
 
@@ -66,7 +58,21 @@ cp /path/to/backup.sqlite "$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite"
 
 - unrestricted drain-everything  
 - recurring LLM polling / overnight autonomous execution  
-- production worker launches  
+- production worker launches (ACP or CLI)
 - more than 3 supervised tickets or limits above supervised caps  
 - deploy/push from the runner  
-- overnight enablement without an explicit operator policy change in code + process  
+- overnight enablement without an explicit operator policy change in code + process
+
+## Agent plan-gate vs human hold (WR-008)
+
+- **Default after PLAN** (agent-eligible tickets): wave status `AWAITING_PLAN_GATE`.
+  Operator loop **stays running** and waits. Astra reads `PLAN.md` and runs
+  `wave-operator.sh approve <ticket> <revision>`. Ledger event `plan_gate_wake`
+  is the durable receipt. Do **not** bash-stamp `APPROVED`.
+- **Human hold** (`needs_jason` / `eligibility: human_gated`): wave status
+  `WAITING_APPROVAL`. Operator prints `OPERATOR_STOP waiting_human` and exits.
+- **Supervised launch is ON** for explicit `--supervised` CLI / `wave-operator.sh`.
+  Unrestricted drain, overnight, merge/push remain disabled.
+- **Run a backlog slice:**
+  `REPO=... TICKETS=A,B OUT_DIR=... ./scripts/run-backlog-wave.sh`
+  Keep an Astra session watching plan-gate wakes until the wave completes.

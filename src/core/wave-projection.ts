@@ -54,7 +54,10 @@ export function project(ctrl: ControllerContext) {
             plan: t.planArtifact,
           })),
         pauseCancel: {
-          canPause: wave.status === "RUNNING" || wave.status === "WAITING_APPROVAL",
+          canPause:
+            wave.status === "RUNNING" ||
+            wave.status === "WAITING_APPROVAL" ||
+            wave.status === "AWAITING_PLAN_GATE",
           canCancel: !isTerminalWave(wave.status),
           canResume: wave.status === "PAUSED",
         },

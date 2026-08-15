@@ -1,5 +1,9 @@
 import { SafetyGateError } from "./errors.js";
 
+export const PRODUCTION_WORKER_DISABLED_MESSAGE =
+  "Wave Runner production worker launch is disabled; use tools/kick_openclaw_specialist.sh " +
+  "for named specialists or tools/run_detached_builder.sh for code work.";
+
 /**
  * Hard safety gates. Production drain / overnight / unrestricted modes stay
  * disabled even if a caller asks. Phase 4 runbook documents the human revisit.

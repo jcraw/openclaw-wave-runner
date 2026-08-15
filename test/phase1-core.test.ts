@@ -115,7 +115,7 @@ test("INDETERMINATE fail-closed usage keeps full reservation", async () => {
   await controller.start("wave-indet");
   await controller.runUntilIdle("wave-indet");
   const waiting = controller.inspect("wave-indet");
-  assert.equal(waiting.wave.status, "WAITING_APPROVAL");
+  assert.equal(waiting.wave.status, "AWAITING_PLAN_GATE");
   const budget = waiting.budgets[0];
   assert.ok(budget);
   assert.equal(budget.state, "INDETERMINATE");
@@ -159,7 +159,7 @@ async function driveFx001ToDone(controller: Awaited<ReturnType<typeof seedWave>>
   await controller.start(waveId);
   await controller.runUntilIdle(waveId);
   const waiting = controller.inspect(waveId);
-  assert.equal(waiting.wave.status, "WAITING_APPROVAL");
+  assert.equal(waiting.wave.status, "AWAITING_PLAN_GATE");
   const first = waiting.tickets.find((t) => t.ticketId === "FX-001");
   assert.ok(first);
   controller.approve(waveId, first.ticketId, first.revision);

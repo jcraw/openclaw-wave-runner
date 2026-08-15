@@ -27,7 +27,7 @@ test("property: budget, concurrency, and finite-step invariants hold under rando
           controller.resume(`wave-p${trial}`);
         } else if (roll < 0.35) {
           controller.cancel(`wave-p${trial}`);
-        } else if (view.wave.status === "WAITING_APPROVAL") {
+        } else if (view.wave.status === "AWAITING_PLAN_GATE" || view.wave.status === "WAITING_APPROVAL") {
           const ticket = view.tickets.find((t) => t.status === "PLAN_REVIEW");
           if (ticket) controller.approve(`wave-p${trial}`, ticket.ticketId, ticket.revision);
         } else {

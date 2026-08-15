@@ -25,7 +25,7 @@ for (const boundary of BOUNDARIES) {
     assert.equal(new Set(keys).size, keys.length);
     assert.ok(sim.worker.launches <= 2, `launches=${sim.worker.launches}`);
     const reserved = view.budgets.filter((b) => b.state === "RESERVED");
-    if (view.wave.status === "WAITING_APPROVAL" || view.outbox.some((o) => o.state === "SETTLED")) {
+    if (view.wave.status === "AWAITING_PLAN_GATE" || view.wave.status === "WAITING_APPROVAL" || view.outbox.some((o) => o.state === "SETTLED")) {
       assert.equal(reserved.length, 0);
     }
     const accounted = view.budgets.reduce(

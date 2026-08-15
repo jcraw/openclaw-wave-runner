@@ -10,6 +10,7 @@ import {
   reconcile,
   refreshHeldLeases,
 } from "./launch.js";
+import { isIdleGateStatus } from "./operator-loop.js";
 import {
   isTerminalTicket,
   isTerminalWave,
@@ -116,7 +117,7 @@ function failDependentsOfDeadTickets(ctrl: ControllerContext, waveId: string): v
 
 export async function advanceReadyTickets(ctrl: ControllerContext, waveId: string): Promise<void> {
   const wave = requireWave(ctrl, waveId);
-  if (wave.cancelRequested || isTerminalWave(wave.status) || wave.status === "WAITING_APPROVAL") {
+  if (wave.cancelRequested || isTerminalWave(wave.status) || isIdleGateStatus(wave.status)) {
     return;
   }
   const openOutbox = ctrl.db.listOutbox(waveId).some(
@@ -179,7 +180,7 @@ export async function tickWave(
   refreshHeldLeases(ctrl, waveId);
   expireStaleLeases(ctrl);
   await reconcile(ctrl, waveId);
-  if (requireWave(ctrl, waveId).status === "WAITING_APPROVAL") {
+  if (isIdleGateStatus(requireWave(ctrl, waveId).status)) {
     return inspect(ctrl, waveId);
   }
   await dispatchPending(ctrl, waveId);
@@ -201,7 +202,7 @@ export async function runUntilIdle(
     const after = inspect(ctrl, waveId);
     if (
       isTerminalWave(after.wave.status) ||
-      after.wave.status === "WAITING_APPROVAL" ||
+      isIdleGateStatus(after.wave.status) ||
       after.wave.status === "PAUSED" ||
       (after.wave.revision === before.wave.revision &&
         after.tickets.every((t, idx) => t.revision === before.tickets[idx]?.revision) &&

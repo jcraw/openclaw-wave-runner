@@ -1,5 +1,9 @@
 import { SafetyGateError } from "../domain/errors.js";
-import { SAFETY, assertBoundedWaveRequest, assertSupervisedBoundedLaunch } from "../domain/safety.js";
+import {
+  SAFETY,
+  assertBoundedWaveRequest,
+  assertSupervisedBoundedLaunch,
+} from "../domain/safety.js";
 import type {
   CreateWaveInput,
   FrozenManifest,
@@ -67,6 +71,8 @@ export function ticketFromFrozen(waveId: string, ticket: FrozenTicket): TicketRu
     verifyCommand: ticket.verifyCommand,
     provider: ticket.provider,
     model: ticket.model,
+    humanHold: ticket.humanHold,
+    humanHoldReason: ticket.humanHoldReason,
   };
 }
 
@@ -75,8 +81,10 @@ export function assertLaunchAllowed(
   view: WaveView,
   options: SupervisedStartOptions,
 ): void {
-  if (SAFETY.productionWorkerLaunchEnabled || SAFETY.productionDrainEnabled) {
-    throw new SafetyGateError("production worker launches and drain remain disabled.");
+  // productionDrain / unrestricted stay hard-off via SAFETY flags.
+  // Supervised bounded launch is the intentional real-worker path.
+  if (SAFETY.productionDrainEnabled) {
+    throw new SafetyGateError("production backlog drain is disabled.");
   }
   if (ctrl.launchMode === "mock") return;
   if (ctrl.launchMode !== "supervised-bounded" && ctrl.launchMode !== "supervised-one-ticket") {

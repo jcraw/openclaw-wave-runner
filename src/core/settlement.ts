@@ -150,7 +150,9 @@ export async function settleOutbox(
           const rearm = item.stage === "PLAN" ? "REVISING" : "APPROVED";
           assertTicketTransition(ticket.status, rearm, false);
           putTicketStatus(ctrl, ticket, rearm, clipReason(`retry ${attempt + 1} after: ${reason}`));
-          if (wave.status === "WAITING_APPROVAL") setWaveStatus(ctrl, wave, "RUNNING", now);
+          if (wave.status === "WAITING_APPROVAL" || wave.status === "AWAITING_PLAN_GATE") {
+            setWaveStatus(ctrl, wave, "RUNNING", now);
+          }
         } else {
           putTicketStatus(ctrl, ticket, "FAILED", reason);
         }
@@ -160,7 +162,54 @@ export async function settleOutbox(
       putTicketStatus(ctrl, ticket, "PLAN_REVIEW");
       const decision = ctrl.policy.decide({ planClass: ticket.planClass, planText: summary ?? "" });
       if (decision === "wait") {
-        setWaveStatus(ctrl, wave, "WAITING_APPROVAL", now);
+        // humanHold may not round-trip ticket_runs columns — also read frozen manifest.
+        let humanHold = ticket.humanHold === true;
+        if (!humanHold) {
+          try {
+            const manifest = JSON.parse(wave.manifestJson) as {
+              tickets?: Array<{ ticketId: string; humanHold?: boolean }>;
+            };
+            const frozen = (manifest.tickets ?? []).find((x) => x.ticketId === ticket.ticketId);
+            humanHold = frozen?.humanHold === true;
+          } catch {
+            // ignore
+          }
+        }
+        if (humanHold) {
+          // Jason / human_gated hold — operator STOP, no wake.
+          setWaveStatus(ctrl, wave, "WAITING_APPROVAL", now);
+        } else {
+          // Default agent plan-gate (WR-008).
+          setWaveStatus(ctrl, wave, "AWAITING_PLAN_GATE", now);
+          const wakePayload = {
+            waveId,
+            ticketId: item.ticketId,
+            planPath: planPath ?? ticket.planArtifact,
+            revision: ticket.revision,
+          };
+          const already = ctrl.db.listEvents(waveId).some((ev) => {
+            if (ev.type !== "plan_gate_wake") return false;
+            try {
+              const p = JSON.parse(ev.payloadJson) as {
+                ticketId?: string;
+                revision?: number;
+              };
+              return p.ticketId === item.ticketId && p.revision === ticket.revision;
+            } catch {
+              return false;
+            }
+          });
+          if (!already) {
+            ctrl.db.insertEvent({
+              eventId: `${waveId}:plan-gate-wake:${item.ticketId}:${ticket.revision}`,
+              waveId,
+              type: "plan_gate_wake",
+              payloadJson: JSON.stringify(wakePayload),
+              createdAt: now,
+              revisionApplied: wave.revision,
+            });
+          }
+        }
       } else {
         putTicketStatus(ctrl, ticket, "APPROVED");
       }
@@ -214,11 +263,25 @@ export async function settleOutbox(
       // Projection failure must not roll back durable state.
     }
   }
-  if (requireWave(ctrl, waveId).status === "WAITING_APPROVAL" && requireWave(ctrl, waveId).flowId) {
-    const live = requireWave(ctrl, waveId);
+  const liveAfter = requireWave(ctrl, waveId);
+  if (liveAfter.status === "AWAITING_PLAN_GATE") {
+    const t = ctrl.db.getTicket(waveId, item.ticketId);
+    if (t && ctrl.wake) {
+      try {
+        await ctrl.wake.emitOnce({
+          waveId,
+          ticketId: item.ticketId,
+          planPath: t.planArtifact,
+          revision: t.revision,
+        });
+      } catch {
+        // Host wake is best-effort; ledger event is the receipt.
+      }
+    }
+  } else if (liveAfter.status === "WAITING_APPROVAL" && liveAfter.flowId) {
     try {
       await ctrl.workflow.waitForApproval({
-        flowId: live.flowId!,
+        flowId: liveAfter.flowId,
         expectedRevision: 0,
         currentStep: "await-operator-approval",
         stateJson: { waveId, ticketId: item.ticketId },

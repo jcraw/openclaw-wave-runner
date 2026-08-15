@@ -4,8 +4,8 @@
 
 Freeze a ticket set. Reserve budget before every launch. Run plan → approve → **fresh** implement. Terminate with proof — not vibes, not “keep going until empty.”
 
-> Status: **v0.1** — deterministic core + OpenClaw plugin adapters are real and tested.  
-> **Unrestricted / overnight / production drain stay fail-closed off.** Supervised 1–3 ticket waves only.
+> Status: **experimental/dev proof only** — deterministic core and mock fixtures remain tested.
+> **Production worker launch, unrestricted drain, and overnight operation are fail-closed off.**
 
 ---
 
@@ -122,7 +122,7 @@ Plugin id: `wave-runner-m0`. Exact install flags follow your OpenClaw version �
 
 ---
 
-## Quick start (CLI, simulate)
+## Quick start (CLI, fixture simulation)
 
 No paid workers — exercises freeze → admit → mock stages:
 
@@ -134,21 +134,10 @@ npm run cli -- start --wave W1 --simulate
 npm run cli -- inspect --wave W1
 ```
 
-Supervised real-worker path (1–3 tickets, isolated worktrees, hard caps, **explicit operator ticks**):
-
-```bash
-npm run cli -- create --wave W1 --repo /path/to/repo --tickets T-001 \
-  --supervised --worktree-root /tmp/wave-worktrees \
-  --max-launches 4 --max-tokens 48000 --max-wall-ms 1200000
-
-npm run cli -- start --wave W1 --repo /path/to/repo --supervised \
-  --worktree-root /tmp/wave-worktrees --artifact-root /tmp/wave-artifacts
-
-npm run cli -- tick --wave W1 --repo /path/to/repo --supervised \
-  --worktree-root /tmp/wave-worktrees --artifact-root /tmp/wave-artifacts
-```
-
-See [`docs/OPERATOR-RUNBOOK.md`](docs/OPERATOR-RUNBOOK.md).
+`--supervised` production attempts fail with an actionable error. For real repo work use the
+repository's `tools/kick_openclaw_specialist.sh` (named specialists) or
+`tools/run_detached_builder.sh` (PLAN → review → fresh IMPL code work). See
+[`docs/OPERATOR-RUNBOOK.md`](docs/OPERATOR-RUNBOOK.md).
 
 Gateway methods (when the plugin is loaded): `wave_runner.*` and compatibility `wave_runner_m0.*`.
 
@@ -230,7 +219,8 @@ Hard-coded **off** until an operator deliberately changes policy *and* the code 
 - deploy/push from the runner  
 - active Gateway restart/config mutation from the runner  
 
-Supervised mode caps: **≤3 tickets**, launch/token/wall ceilings, **repo concurrency = 1**, isolated worktrees.
+The former supervised-worker path is retained only as testable internal code; public CLI and
+Gateway production launch are disabled. Mock `--simulate` remains available for fixture/dev proofs.
 
 Emergency stop cancels non-terminal waves and fail-closes reserved spend.
 
