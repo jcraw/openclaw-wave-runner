@@ -70,6 +70,15 @@ function positiveInt(name: string, fallback: number): number {
   return value;
 }
 
+/** Allow 0 for no-deadline wall clocks (max-wall-ms). */
+function nonNegativeInt(name: string, fallback: number): number {
+  const raw = optional(name);
+  if (raw === undefined) return fallback;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`--${name} must be a non-negative integer`);
+  return value;
+}
+
 const command: OperatorCommand = (() => {
   switch (op) {
     case "dry-run":
@@ -87,7 +96,7 @@ const command: OperatorCommand = (() => {
                 ...SUPERVISED_PILOT_LIMITS,
                 maxTokens: positiveInt("max-tokens", SUPERVISED_PILOT_LIMITS.maxTokens),
                 maxLaunches: positiveInt("max-launches", Math.min(6, ticketIds.length * 2)),
-                maxWallTimeMs: positiveInt("max-wall-ms", SUPERVISED_PILOT_LIMITS.maxWallTimeMs),
+                maxWallTimeMs: nonNegativeInt("max-wall-ms", SUPERVISED_PILOT_LIMITS.maxWallTimeMs),
               }
             : DEFAULT_LIMITS,
           supervisedBoundedPilot: supervised,
