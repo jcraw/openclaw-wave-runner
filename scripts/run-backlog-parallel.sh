@@ -14,7 +14,7 @@ set -euo pipefail
 : "${TICKETS_FILE:?TICKETS_FILE required}"
 OUT_ROOT="${OUT_ROOT:-$(pwd)/tmp/backlog-parallel-$(date +%Y%m%d%H%M%S)}"
 WR="${WR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-MAX_PARALLEL="${MAX_PARALLEL:-4}"
+MAX_PARALLEL="${MAX_PARALLEL:-5}"
 export PATH="/home/j/.nvm/versions/node/v24.18.1/bin:$PATH"
 export OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-http://127.0.0.1:18789}"
 if [[ -z "${OPENCLAW_GATEWAY_TOKEN:-}" && -f /home/j/.openclaw/secrets/gateway-token ]]; then
@@ -74,9 +74,9 @@ run_lane() {
       export REPO
       export OUT_DIR="$wave_out"
       export TICKETS="$ticket"
-      export MAX_LAUNCHES=6
-      export MAX_TOKENS=50000
-      export MAX_WALL_MS=0
+      export MAX_LAUNCHES="${MAX_LAUNCHES:-10}"
+      export MAX_TOKENS="${MAX_TOKENS:-500000}"
+      export MAX_WALL_MS="${MAX_WALL_MS:-0}"
       export TICK_SLEEP=20
       echo ">> $ticket"
       if bash "$WR/scripts/run-backlog-wave.sh"; then

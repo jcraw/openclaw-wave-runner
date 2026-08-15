@@ -815,7 +815,7 @@ test("mutation: safety limit equalities and omitted operator/ticketIds", () => {
     () =>
       assertSupervisedBoundedLaunch({
         ...base,
-        ticketIds: ["A", "B", "C", "D"],
+        ticketIds: ["A", "B", "C", "D", "E", "F", "G", "H", "I"],
       }),
     SafetyGateError,
   );

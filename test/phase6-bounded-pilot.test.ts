@@ -52,15 +52,15 @@ function fixture(launchMode: "mock" | "supervised-bounded" = "mock") {
 
 const pilotLimits = {
   ...DEFAULT_LIMITS,
-  maxTokens: 48_000,
-  maxLaunches: 6,
+  maxTokens: 500_000,
+  maxLaunches: 10,
   maxWallTimeMs: 0,
   repoConcurrency: 1 as const,
 };
 
 const operator = { supervisedBoundedPilot: true, operatorAction: true };
 
-test("Phase 6: supervised real-worker pilot admits only explicit 1-3 ticket lists and hard caps", () => {
+test("Phase 6: supervised real-worker pilot admits only explicit bounded ticket lists and hard caps", () => {
   assert.equal(SAFETY.productionDrainEnabled, false);
   assert.equal(SAFETY.overnightEnabled, false);
   assert.equal(SAFETY.deployPushEnabled, false);
@@ -72,11 +72,11 @@ test("Phase 6: supervised real-worker pilot admits only explicit 1-3 ticket list
     limits: pilotLimits,
   }));
   assert.throws(() => assertSupervisedBoundedLaunch({
-    ticketIds: ["FX-001", "FX-002", "FX-003", "FX-004"],
+    ticketIds: ["FX-001", "FX-002", "FX-003", "FX-004", "FX-005", "FX-006", "FX-007", "FX-008", "FX-009"],
     operatorAction: true,
     isolatedWorktree: true,
     limits: pilotLimits,
-  }), /at most 3/);
+  }), /at most 8/);
   assert.throws(() => assertSupervisedBoundedLaunch({
     ticketIds: ["FX-001", "FX-002"],
     operatorAction: false,
@@ -87,7 +87,7 @@ test("Phase 6: supervised real-worker pilot admits only explicit 1-3 ticket list
     ticketIds: ["FX-001", "FX-002"],
     operatorAction: true,
     isolatedWorktree: true,
-    limits: { ...pilotLimits, maxLaunches: 7 },
+    limits: { ...pilotLimits, maxLaunches: 11 },
   }), /maxLaunches/);
   assert.doesNotThrow(() => assertSupervisedBoundedLaunch({
     ticketIds: ["FX-001", "FX-002"],

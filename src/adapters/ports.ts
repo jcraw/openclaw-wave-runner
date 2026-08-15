@@ -6,6 +6,7 @@ export type {
   CancelResult,
   FlowRef,
   FrozenWave,
+  LandResult,
   LaunchIntent,
   PolicyDecision,
   StageTaskIntent,

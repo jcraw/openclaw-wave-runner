@@ -216,7 +216,8 @@ export async function settleOutbox(
     } else if (item.stage === "IMPL") {
       ticket.verifyProof = verifyProof;
       putTicketStatus(ctrl, ticket, "VERIFYING");
-      putTicketStatus(ctrl, ticket, "DONE", "verified");
+      // WR-013 land-on-done happens outside this transaction (async git).
+      // Ticket stays VERIFYING until land succeeds; settle path below finalizes.
       const scope = ticket.writerScope || deriveWriterScope(ticket);
       const lease = ctrl.db.getLease(writerLeaseKey(wave.repoPath, scope));
       if (lease && lease.ticketId === ticket.ticketId) {
@@ -246,6 +247,63 @@ export async function settleOutbox(
     }
     refreshCounters(ctrl, waveId);
   });
+
+  // WR-013: after verified IMPL, land worktree → main before DONE.
+  if (item.stage === "IMPL" && status === "succeeded") {
+    const t = requireTicket(ctrl, waveId, item.ticketId);
+    const wave = requireWave(ctrl, waveId);
+    if (t.implWorktree && ctrl.workspace.landToMain) {
+      const shouldPush =
+        /openclaw-wave-runner/.test(wave.repoPath) || process.env.WAVE_LAND_PUSH === "1";
+      const land = await ctrl.workspace.landToMain({
+        repoPath: wave.repoPath,
+        worktree: t.implWorktree,
+        branch: t.implBranch,
+        ticketId: t.ticketId,
+        waveId,
+        baseSha: wave.baseSha,
+        push: shouldPush,
+      });
+      ctrl.db.transaction(() => {
+        const now = ctrl.clock.now();
+        const ticket = requireTicket(ctrl, waveId, item.ticketId);
+        if (land.ok) {
+          putTicketStatus(
+            ctrl,
+            ticket,
+            "DONE",
+            land.commitSha ? `verified+landed ${land.commitSha.slice(0, 12)}` : "verified+landed",
+          );
+          ctrl.db.putArtifact({
+            artifactId: `${waveId}:art:${randomUUID()}`,
+            waveId,
+            ticketId: item.ticketId,
+            kind: "proof",
+            path: land.proof,
+            hash: hashJson(land.proof),
+            createdAt: now,
+          });
+        } else {
+          putTicketStatus(
+            ctrl,
+            ticket,
+            "FAILED",
+            clipReason(`land failed: ${land.error ?? "unknown"}`),
+          );
+        }
+        refreshCounters(ctrl, waveId);
+      });
+    } else {
+      // No land adapter (tests without landToMain) — keep prior DONE semantics.
+      ctrl.db.transaction(() => {
+        const ticket = requireTicket(ctrl, waveId, item.ticketId);
+        if (ticket.status === "VERIFYING") {
+          putTicketStatus(ctrl, ticket, "DONE", "verified");
+          refreshCounters(ctrl, waveId);
+        }
+      });
+    }
+  }
 
   const ticket = ctrl.db.getTicket(waveId, item.ticketId);
   if (ticket && !ctrl.disableSourceMirror) {

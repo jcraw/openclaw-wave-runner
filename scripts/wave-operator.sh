@@ -15,8 +15,8 @@ Required env:
 
 Optional env:
   TICKETS            comma ids (create)
-  MAX_LAUNCHES       default 6
-  MAX_TOKENS         default 50000
+  MAX_LAUNCHES       default 10
+  MAX_TOKENS         default 500000
   MAX_WALL_MS        default 0 (no elapsed deadline)
   MAX_TICKS          default 0 (unlimited)
   TICK_SLEEP         default 20
@@ -49,8 +49,8 @@ fi
 
 mkdir -p "$OUT_DIR/cli" "$OUT_DIR/ticks" "$OUT_DIR/worktrees" "$OUT_DIR/artifacts"
 
-MAX_LAUNCHES="${MAX_LAUNCHES:-6}"
-MAX_TOKENS="${MAX_TOKENS:-50000}"
+MAX_LAUNCHES="${MAX_LAUNCHES:-10}"
+MAX_TOKENS="${MAX_TOKENS:-500000}"
 MAX_WALL_MS="${MAX_WALL_MS:-0}"
 MAX_TICKS="${MAX_TICKS:-0}"
 TICK_SLEEP="${TICK_SLEEP:-20}"

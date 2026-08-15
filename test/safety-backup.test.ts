@@ -35,6 +35,9 @@ test("safety: refuses drain-everything / overnight / empty selection", () => {
   );
   assert.throws(() => assertBoundedWaveRequest({ ticketIds: [] }), SafetyGateError);
   assert.doesNotThrow(() => assertBoundedWaveRequest({ ticketIds: ["T-1"] }));
+  assert.doesNotThrow(() =>
+    assertBoundedWaveRequest({ ticketIds: ["T-1"], overnight: true, operatorOvernight: true }),
+  );
 });
 
 test("safety: production worker profile is refused", () => {
@@ -76,7 +79,7 @@ test("safety: supervised launch enforces operator action, caps, isolation", () =
     () =>
       assertSupervisedBoundedLaunch({
         ...base,
-        ticketIds: ["A", "B", "C", "D"],
+        ticketIds: ["A", "B", "C", "D", "E", "F", "G", "H", "I"],
       }),
     SafetyGateError,
   );

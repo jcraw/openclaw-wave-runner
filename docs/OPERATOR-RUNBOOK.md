@@ -76,3 +76,24 @@ cp /path/to/backup.sqlite "$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite"
 - **Run a backlog slice:**
   `REPO=... TICKETS=A,B OUT_DIR=... ./scripts/run-backlog-wave.sh`
   Keep an Astra session watching plan-gate wakes until the wave completes.
+
+## Operator drain (WR-014 / WR-015)
+
+Low-token backlog drain — **no LLM control loop**.
+
+```bash
+# Daytime / overnight kick (Jason-explicit). Runs until eligible queue empty or human hold.
+REPO=/path/to/game_jam \
+  OUT_ROOT=~/.openclaw/workspace/projects/agent-backlog-wave-runner/tmp/drain-$(date +%Y%m%d) \
+  MAX_PARALLEL=5 \
+  bash scripts/drain-eligible.sh
+
+# Long/overnight: same command under nohup (no wall deadline by default).
+# OVERNIGHT=1 is documentary; autonomous overnight cron stays OFF.
+nohup env REPO=/path/to/game_jam OVERNIGHT=1 bash scripts/drain-eligible.sh \
+  > /tmp/drain-overnight.log 2>&1 &
+```
+
+Standing defaults (WR-012): `maxTokens=500000`, `maxLaunches=10`, `maxRetriesPerStage=2`,
+`maxWallTimeMs=0`, lease TTL 2h, ACP concurrent sessions 5 (OpenClaw config).
+Land-on-done (WR-013): verified IMPL lands to `main` before ticket DONE.

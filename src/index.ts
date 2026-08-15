@@ -182,7 +182,7 @@ function register(api: OpenClawPluginApi): void {
       productWorkerRuntime: "disabled-use-direct-wrappers",
       supervisedOneTicketLaunchAllowed: false,
       supervisedBoundedLaunchAllowed: false,
-      supervisedMaxTickets: 3,
+      supervisedMaxTickets: SAFETY.supervisedMaxTickets,
       safety: { ...SAFETY },
       usageMetadata: "public Task Run DTO has no tokens; INDETERMINATE fail-closed",
     })),

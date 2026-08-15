@@ -104,6 +104,13 @@ export type WorktreeSpec = {
   worktreeRoot: string;
 };
 
+export type LandResult = {
+  ok: boolean;
+  commitSha?: string;
+  proof: string;
+  error?: string;
+};
+
 export interface WorkspaceAdapter {
   currentHead(repoPath: string): Promise<string>;
   createImplWorktree(spec: WorktreeSpec): Promise<{ worktree: string; branch: string }>;
@@ -117,6 +124,16 @@ export interface WorkspaceAdapter {
   verify(input: { worktree: string; command: string }): Promise<{ ok: boolean; proof: string }>;
   recordProof(input: { worktree: string; ticketId: string; proof: string }): Promise<string>;
   primaryDirty(repoPath: string): Promise<boolean>;
+  /** WR-013: land verified worktree onto primary main (commit). Optional on mocks. */
+  landToMain?(input: {
+    repoPath: string;
+    worktree: string;
+    branch?: string;
+    ticketId: string;
+    waveId: string;
+    baseSha: string;
+    push?: boolean;
+  }): Promise<LandResult>;
 }
 
 export type PolicyDecision = "auto-approve" | "wait";

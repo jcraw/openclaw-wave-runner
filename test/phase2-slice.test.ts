@@ -92,12 +92,13 @@ test("Phase 2: markdown + task flow + worktree PLAN/approve/IMPL/verify", async 
   controller.approve("slice-one", ticket.ticketId, ticket.revision);
   await controller.runUntilIdle("slice-one");
   view = controller.inspect("slice-one");
-  assert.equal(view.tickets[0]?.status, "DONE");
+  assert.equal(view.tickets[0]?.status, "DONE", String(view.tickets[0]?.result ?? ""));
   assert.equal(view.wave.status, "COMPLETED");
   assert.ok(view.tickets[0]?.implWorktree);
   assert.ok(view.tickets[0]?.verifyProof);
-  const head = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  assert.equal(head, primarySha);
+  assert.match(String(view.tickets[0]?.result ?? ""), /verified/);
+  // WR-013 land-on-done may advance primary when the worktree had commits.
+  void primarySha;
 });
 
 test("Phase 2: cancellation prevents new children and duplicate completions are harmless", async () => {

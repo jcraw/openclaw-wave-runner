@@ -19,6 +19,7 @@ import { GitWorkspace } from "./adapters/workspace.js";
 import type { WaveRunnerPorts } from "./contracts.js";
 import { OWNER_SESSION_KEY } from "./controller.js";
 import { SystemClock } from "./domain/clock.js";
+import { SAFETY } from "./domain/safety.js";
 import type { LaunchMode } from "./domain/types.js";
 import { WaveController } from "./core/controller.js";
 import { WaveDatabase } from "./store/database.js";
@@ -173,7 +174,7 @@ export function openWaveController(input: {
     worktreeRoot: isolatedRoot,
     artifactRoot,
     launchMode: input.launchMode ?? "supervised-bounded",
-    leaseTtlMs: 30 * 60_000,
+    leaseTtlMs: SAFETY.supervisedLeaseTtlMs,
     disableSourceMirror: true,
   });
 }
@@ -244,7 +245,7 @@ export function openCliController(input: {
     worktreeRoot: isolatedRoot,
     artifactRoot,
     launchMode: "supervised-bounded",
-    leaseTtlMs: 30 * 60_000,
+    leaseTtlMs: SAFETY.supervisedLeaseTtlMs,
     disableSourceMirror: true,
   });
 }

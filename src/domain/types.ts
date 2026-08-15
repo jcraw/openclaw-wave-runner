@@ -332,28 +332,30 @@ export const TERMINAL_TICKET: ReadonlySet<TicketStatus> = new Set([
 ]);
 
 export const DEFAULT_LIMITS: WaveLimits = {
-  maxTokens: 50_000,
+  // WR-012: drain-shaped defaults — orchestrator stays cheap; workers may run long.
+  maxTokens: 500_000,
   maxCostMicros: 0,
-  maxLaunches: 4,
-  // One automatic retry on empty/flaky worker death (see WR-010).
-  maxRetriesPerStage: 1,
-  maxWallTimeMs: 30 * 60_000,
+  maxLaunches: 10,
+  // Two automatic retries on empty/flaky worker death (WR-010/012).
+  maxRetriesPerStage: 2,
+  maxWallTimeMs: 0,
   repoConcurrency: 1,
-  perProviderConcurrency: 1,
+  perProviderConcurrency: 5,
+  // Reservation is admission headroom only; settle clears it (do not starve long IMPL).
   perStageReservationTokens: 8_000,
   perStageReservationCostMicros: 0,
 };
 
 export const SUPERVISED_PILOT_LIMITS: Readonly<WaveLimits> = Object.freeze({
-  maxTokens: 48_000,
+  maxTokens: 500_000,
   maxCostMicros: 0,
-  maxLaunches: 6,
-  maxRetriesPerStage: 1,
+  maxLaunches: 10,
+  maxRetriesPerStage: 2,
   maxWallTimeMs: 0,
   // repoConcurrency stays 1 = one writer *per scope* (see writerLeaseKey).
   repoConcurrency: 1,
-  // Allow multi-game fan-out inside one supervised wave (WR-011).
-  perProviderConcurrency: 3,
+  // Align with OpenClaw acp.maxConcurrentSessions default (5).
+  perProviderConcurrency: 5,
   perStageReservationTokens: 8_000,
   perStageReservationCostMicros: 0,
 });

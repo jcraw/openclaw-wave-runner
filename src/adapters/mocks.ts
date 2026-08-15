@@ -254,6 +254,23 @@ export class MockWorkspace implements WorkspaceAdapter {
   async primaryDirty(_repoPath: string): Promise<boolean> {
     return this.primaryIsDirty;
   }
+
+  lands = 0;
+  async landToMain(input: {
+    repoPath: string;
+    worktree: string;
+    branch?: string;
+    ticketId: string;
+    waveId: string;
+    baseSha: string;
+    push?: boolean;
+  }): Promise<{ ok: boolean; commitSha?: string; proof: string; error?: string }> {
+    this.lands += 1;
+    const proof = join(input.worktree, "LAND.json");
+    const commitSha = `land-${input.ticketId}-${this.lands}`;
+    writeFileSync(proof, JSON.stringify({ ok: true, commitSha, push: Boolean(input.push) }), "utf8");
+    return { ok: true, commitSha, proof };
+  }
 }
 
 export class SafePolicy implements PolicyAdapter {

@@ -5,8 +5,15 @@ export const PRODUCTION_WORKER_DISABLED_MESSAGE =
   "for named specialists or tools/run_detached_builder.sh for code work.";
 
 /**
- * Hard safety gates. Production drain / overnight / unrestricted modes stay
- * disabled even if a caller asks. Phase 4 runbook documents the human revisit.
+ * Hard safety gates (WR-012/015).
+ *
+ * Distinctions:
+ * - autonomousOvernight / recurringLlmPolling / unrestrictedDrain = OFF
+ *   (no auto cron, no LLM control loop, no "drain everything forever" without selection).
+ * - operatorOvernightDrain = OK when Jason/operator explicitly kicks drain --eligible
+ *   (may run all night; no wall by default; still no LLM orchestrator).
+ * - productionDrainEnabled stays false: operator drain is supervised lanes, not a
+ *   separate production-only mode.
  */
 export const SAFETY = Object.freeze({
   productionDrainEnabled: false,
@@ -14,29 +21,46 @@ export const SAFETY = Object.freeze({
   unrestrictedDrainEnabled: false,
   recurringLlmPollingEnabled: false,
   autonomousOvernightEnabled: false,
+  /** Explicit operator-kicked long/overnight drain is allowed (WR-015). */
+  operatorOvernightDrainAllowed: true,
   deployPushEnabled: false,
   productionWorkerLaunchEnabled: false,
   allowActiveGatewayRestart: false,
   allowActiveGatewayConfigMutation: false,
   supervisedBoundedLaunchAllowed: true,
-  supervisedMaxTickets: 3,
-  supervisedMaxLaunches: 6,
-  supervisedMaxTokens: 50_000,
-  supervisedMaxWallTimeMs: 30 * 60_000,
+  supervisedMaxTickets: 8,
+  supervisedMaxLaunches: 10,
+  supervisedMaxTokens: 500_000,
+  /** 0 = no elapsed-time deadline by default (WR-012). */
+  supervisedMaxWallTimeMs: 0,
   supervisedOneTicketLaunchAllowed: true,
+  /** Default lease TTL for live supervised workers (2h). */
+  supervisedLeaseTtlMs: 2 * 60 * 60_000,
 });
 
 export function assertBoundedWaveRequest(input: {
   drainEverything?: boolean;
   overnight?: boolean;
+  /** Operator-kicked overnight drain (WR-015); not autonomous overnight. */
+  operatorOvernight?: boolean;
   recurringLlmPolling?: boolean;
   ticketIds?: string[];
 }): void {
   if (input.drainEverything || SAFETY.unrestrictedDrainEnabled) {
     throw new SafetyGateError("unrestricted drain-everything is disabled.");
   }
-  if (input.overnight || SAFETY.overnightEnabled || SAFETY.autonomousOvernightEnabled) {
-    throw new SafetyGateError("overnight execution remains an explicit operator human gate.");
+  // Autonomous / unprompted overnight stays off. Operator overnight is separate.
+  if (
+    (input.overnight && !input.operatorOvernight) ||
+    SAFETY.overnightEnabled ||
+    SAFETY.autonomousOvernightEnabled
+  ) {
+    throw new SafetyGateError(
+      "autonomous overnight remains off; use operator drain --eligible (optionally overnight).",
+    );
+  }
+  if (input.operatorOvernight && !SAFETY.operatorOvernightDrainAllowed) {
+    throw new SafetyGateError("operator overnight drain is disabled.");
   }
   if (input.recurringLlmPolling || SAFETY.recurringLlmPollingEnabled) {
     throw new SafetyGateError("recurring LLM polling is disabled.");
@@ -79,7 +103,9 @@ export function assertSupervisedBoundedLaunch(input: {
     throw new SafetyGateError("supervised launch requires an explicit operator action.");
   }
   if (!input.ticketIds || input.ticketIds.length < 1 || input.ticketIds.length > SAFETY.supervisedMaxTickets) {
-    throw new SafetyGateError("supervised launch requires an explicit immutable list of at most 3 tickets.");
+    throw new SafetyGateError(
+      `supervised launch requires an explicit immutable list of at most ${SAFETY.supervisedMaxTickets} tickets.`,
+    );
   }
   if (new Set(input.ticketIds).size !== input.ticketIds.length) {
     throw new SafetyGateError("supervised ticket list must not contain duplicates.");

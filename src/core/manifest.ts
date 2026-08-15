@@ -7,7 +7,7 @@ import type {
   WaveLimits,
 } from "../domain/types.js";
 
-export const TERMINAL_BOARD_STATUSES = new Set(["done", "wontfix", "cancelled"]);
+export const TERMINAL_BOARD_STATUSES = new Set(["done", "wontfix", "cancelled", "closed", "complete", "completed"]);
 
 export type TicketCatalogEntry = {
   ticketId: string;

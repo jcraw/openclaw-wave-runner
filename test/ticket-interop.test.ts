@@ -147,8 +147,8 @@ test("CLI --tickets-json builds JsonTracker and freezes without issues/", async 
   assert.equal(created.tickets[0]?.ticketId, "X-1");
 });
 
-test("JSON without --tickets keeps the full file order; supervised max-3 still applies", () => {
-  const tickets = [1, 2, 3, 4].map((n) => ({
+test("JSON without --tickets keeps the full file order; supervised max-8 still applies", () => {
+  const tickets = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({
     ticketId: `X-${n}`,
     sourcePath: `x/${n}`,
   }));
@@ -157,8 +157,8 @@ test("JSON without --tickets keeps the full file order; supervised max-3 still a
     repoPath: "/tmp",
     jsonText: JSON.stringify(tickets),
   });
-  assert.deepEqual(source.ticketIds, ["X-1", "X-2", "X-3", "X-4"]);
-  assert.equal(SAFETY.supervisedMaxTickets, 3);
+  assert.deepEqual(source.ticketIds, ["X-1", "X-2", "X-3", "X-4", "X-5", "X-6", "X-7", "X-8", "X-9"]);
+  assert.equal(SAFETY.supervisedMaxTickets, 8);
   assert.throws(
     () =>
       assertSupervisedBoundedLaunch({
@@ -166,7 +166,7 @@ test("JSON without --tickets keeps the full file order; supervised max-3 still a
         operatorAction: true,
         isolatedWorktree: true,
       }),
-    /at most 3/,
+    /at most 8/,
   );
 });
 
