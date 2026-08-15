@@ -1,7 +1,7 @@
 ---
 id: WR-005
 title: Persist and inspect why a stage/ticket died
-status: open
+status: done
 priority: high
 created: 2026-08-14
 updated: 2026-08-14
@@ -49,3 +49,7 @@ Out:
 
 ## Agent notes
 Cap stored reason (~500 chars). Do not dump full verify logs into the ledger. Public package only.
+
+## Resolution
+
+**Done 2026-08-14**. Reliability pass: empty worker death retries once; durable ticket.result reason; worker death -> FAILED (operator cancel stays CANCELLED). npm test 103 passed. Commit c71bee8.

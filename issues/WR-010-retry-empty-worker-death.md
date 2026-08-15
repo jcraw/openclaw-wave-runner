@@ -1,7 +1,7 @@
 ---
 id: WR-010
 title: Retry once on empty worker death (make maxRetries real)
-status: open
+status: done
 priority: high
 created: 2026-08-14
 updated: 2026-08-14
@@ -68,3 +68,7 @@ Out:
 
 ## Agent notes
 Keep it dumb. One retry is enough. Do not add backoff timers, new statuses, or LLM classification of errors. Public package only. Push origin after land (Jason standing rule).
+
+## Resolution
+
+**Done 2026-08-14**. Reliability pass: empty worker death retries once; durable ticket.result reason; worker death -> FAILED (operator cancel stays CANCELLED). npm test 103 passed. Commit c71bee8.
