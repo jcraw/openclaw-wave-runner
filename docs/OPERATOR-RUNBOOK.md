@@ -97,4 +97,8 @@ nohup env REPO=/path/to/game_jam OVERNIGHT=1 bash scripts/drain-eligible.sh \
 
 Standing defaults (WR-012): `maxTokens=500000`, `maxLaunches=10`, `maxRetriesPerStage=2`,
 `maxWallTimeMs=0`, lease TTL 2h, ACP concurrent sessions 5 (OpenClaw config).
-Land-on-done (WR-013): verified IMPL lands to `main` before ticket DONE.
+Land-on-done (WR-013 / WR-017): verified IMPL lands to `main` before ticket DONE.
+Land commits use the primary repo `user.name` / `user.email` (or both `WAVE_LAND_NAME` and
+`WAVE_LAND_EMAIL`). The runner never invents `wave-runner@local`. Successful land removes
+the impl worktree; durable proof is `tmp/wave-runner/<wave>/<ticket>/LAND.json`.
+Push still requires explicit `WAVE_LAND_PUSH=1`.

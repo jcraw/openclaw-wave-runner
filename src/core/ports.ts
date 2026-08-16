@@ -133,6 +133,7 @@ export interface WorkspaceAdapter {
     waveId: string;
     baseSha: string;
     push?: boolean;
+    artifactRoot?: string;
   }): Promise<LandResult>;
 }
 

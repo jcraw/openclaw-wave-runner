@@ -41,6 +41,11 @@ export function writerLeaseKey(repoPath: string, scope: string): string {
   return `writer:${repoPath}:${scope}`;
 }
 
+/** Exclusive land lock for one primary repo (WR-017). */
+export function landLockKey(repoPath: string): string {
+  return `land:${repoPath}`;
+}
+
 /**
  * Back-compat whole-repo key. Prefer writerLeaseKey + deriveWriterScope.
  * @deprecated WR-011

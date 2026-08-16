@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { deriveWriterScope, writerLeaseKey } from "../src/domain/writer-scope.js";
+import { deriveWriterScope, landLockKey, writerLeaseKey } from "../src/domain/writer-scope.js";
 import { createSimulator, seedWave } from "../src/sim/simulator.js";
 
 test("deriveWriterScope prefers product/game/board path", () => {
@@ -23,6 +23,7 @@ test("writerLeaseKey is repo+scope", () => {
     writerLeaseKey("/repo/game_jam", "board:godstones"),
     "writer:/repo/game_jam:board:godstones",
   );
+  assert.equal(landLockKey("/repo/game_jam"), "land:/repo/game_jam");
 });
 
 test("WR-011: two different scopes can IMPL in parallel inside one wave", async () => {

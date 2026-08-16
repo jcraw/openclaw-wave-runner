@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -96,7 +96,12 @@ test("Phase 2: markdown + task flow + worktree PLAN/approve/IMPL/verify", async 
   assert.equal(view.wave.status, "COMPLETED");
   assert.ok(view.tickets[0]?.implWorktree);
   assert.ok(view.tickets[0]?.verifyProof);
-  assert.match(String(view.tickets[0]?.result ?? ""), /verified/);
+  assert.match(String(view.tickets[0]?.result ?? ""), /verified\+landed/);
+  const landPath = join(repo, "tmp", "wave-runner", "slice-one", "FX-101", "LAND.json");
+  assert.equal(existsSync(landPath), true);
+  const land = JSON.parse(readFileSync(landPath, "utf8")) as { ok?: boolean; commitSha?: string };
+  assert.equal(land.ok, true);
+  assert.ok(land.commitSha);
   // WR-013 land-on-done may advance primary when the worktree had commits.
   void primarySha;
 });
