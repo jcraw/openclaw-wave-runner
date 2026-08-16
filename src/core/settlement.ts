@@ -2,10 +2,13 @@ import { randomUUID } from "node:crypto";
 
 import { hashJson } from "../domain/hash.js";
 import type { LaunchOutbox, LaunchReceipt, TicketRun, WaveRecord } from "../domain/types.js";
+import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import { applySettlement, markIndeterminate } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { finalizeImplLand, implFenceFailure } from "./land-closeout.js";
+import { releaseLease } from "./lease.js";
+import { releaseWriterLeaseIfHeld } from "./lease-release.js";
 import { markSettled } from "./outbox.js";
 import { applyPlanSuccess } from "./plan-settle.js";
 import { readActualPlanText } from "./plan-text.js";
@@ -71,6 +74,7 @@ export async function settleOutbox(
   error?: string,
 ): Promise<void> {
   const usage = await ctrl.usage.settle(receipt);
+  const receiptSucceeded = status === "succeeded";
   const waveId = item.waveId;
   let planPath: string | undefined;
   if (item.stage === "PLAN" && status === "succeeded") {
@@ -139,13 +143,15 @@ export async function settleOutbox(
     const wave = requireWave(ctrl, waveId);
     if (status !== "succeeded") {
       const attempt = stage?.attempt ?? item.attempt ?? 1;
-      const reason = stageDeathReason({
+      let reason = stageDeathReason({
         status,
         summary: verifyFailSnippet ?? summary,
         error,
         stage: item.stage,
         attempt,
       });
+      const flipped = receiptSucceeded && !wave.cancelRequested;
+      if (flipped) reason = clipReason(`controller failed (worker succeeded): ${reason}`);
       if (wave.cancelRequested) {
         putTicketStatus(ctrl, ticket, "CANCELLED", reason || "operator cancel");
       } else {
@@ -161,13 +167,36 @@ export async function settleOutbox(
           }
         } else {
           putTicketStatus(ctrl, ticket, "FAILED", reason);
+          if (flipped) {
+            ctrl.db.putArtifact({
+              artifactId: `${waveId}:art:${randomUUID()}`,
+              waveId,
+              ticketId: item.ticketId,
+              kind: "settle-reason",
+              path: reason,
+              hash: hashJson(reason),
+              createdAt: now,
+            });
+          }
         }
       }
+      if (item.stage === "IMPL") releaseWriterLeaseIfHeld(ctrl, wave, ticket);
     } else if (item.stage === "PLAN") {
       applyPlanSuccess(ctrl, wave, ticket, planPath, summary, now);
     } else if (item.stage === "IMPL") {
       ticket.verifyProof = verifyProof;
       putTicketStatus(ctrl, ticket, "VERIFYING");
+      const scope = ticket.writerScope || deriveWriterScope(ticket);
+      const lease = ctrl.db.getLease(writerLeaseKey(wave.repoPath, scope));
+      if (lease && lease.ticketId === ticket.ticketId) {
+        releaseLease({
+          current: lease,
+          claimant: ctrl.process,
+          expectedGeneration: lease.generation,
+          now,
+        });
+        ctrl.db.deleteLease(lease.resourceKey);
+      }
     }
     for (const [kind, path] of [
       ["plan", planPath],

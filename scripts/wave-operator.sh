@@ -20,6 +20,7 @@ Optional env:
   MAX_WALL_MS        default 0 (no elapsed deadline)
   MAX_TICKS          default 0 (unlimited)
   TICK_SLEEP         default 20
+  STUCK_TICKS        default 20 (0 = disable). Same RUNNING fingerprint → OPERATOR_STOP stuck
   PLUGIN_DIR         package root (default: parent of scripts/)
   WAVE_RUNNER_ACP=1  enable ACP spawn path
 
@@ -54,6 +55,9 @@ MAX_TOKENS="${MAX_TOKENS:-500000}"
 MAX_WALL_MS="${MAX_WALL_MS:-0}"
 MAX_TICKS="${MAX_TICKS:-0}"
 TICK_SLEEP="${TICK_SLEEP:-20}"
+STUCK_TICKS="${STUCK_TICKS:-20}"
+STUCK_N=0
+PREV_FP=""
 
 status_of_json() {
   python3 - "$1" <<'PY2'
@@ -63,6 +67,57 @@ d=json.load(open(p))
 w=d.get("wave") or d
 print(w.get("status") or "")
 PY2
+}
+
+# Same field set as src/core/operator-loop.ts progressFingerprint.
+fingerprint_of_json() {
+  python3 - "$1" <<'PY2'
+import hashlib, json, sys
+d=json.load(open(sys.argv[1]))
+w=d.get("wave") or {}
+payload={
+  "status": w.get("status") or "",
+  "tickets": sorted([
+    {"id": t.get("ticketId") or t.get("id"), "status": t.get("status"),
+     "revision": t.get("revision"), "result": t.get("result") or ""}
+    for t in (d.get("tickets") or [])
+  ], key=lambda x: str(x["id"] or "")),
+  "outbox": sorted([
+    {"id": o.get("outboxId") or o.get("id"), "state": o.get("state")}
+    for o in (d.get("outbox") or [])
+  ], key=lambda x: str(x["id"] or "")),
+  "leases": sorted([
+    {"key": l.get("resourceKey") or l.get("key"), "holder": l.get("holder"),
+     "ticketId": l.get("ticketId") or ""}
+    for l in (d.get("leases") or [])
+  ], key=lambda x: str(x["key"] or "")),
+}
+print(hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest())
+PY2
+}
+
+note_stuck() {
+  local st="$1"
+  local json="$2"
+  local fp=""
+  if [[ -n "$json" && -s "$json" ]]; then
+    fp="$(fingerprint_of_json "$json" 2>/dev/null || true)"
+  fi
+  if [[ "$st" != "RUNNING" || -z "$fp" ]]; then
+    STUCK_N=0
+    PREV_FP=""
+    return 0
+  fi
+  if [[ "$fp" == "$PREV_FP" ]]; then
+    STUCK_N=$((STUCK_N + 1))
+    if [[ "$STUCK_TICKS" =~ ^[0-9]+$ && "$STUCK_TICKS" -gt 0 && "$STUCK_N" -ge "$STUCK_TICKS" ]]; then
+      echo "OPERATOR_STOP stuck" >&2
+      exit 1
+    fi
+  else
+    STUCK_N=0
+    PREV_FP="$fp"
+  fi
 }
 
 run_cli() {
@@ -146,6 +201,7 @@ case "$PHASE" in
       fi
       run_cli inspect >/dev/null || true
       st="$(status_of_json "$OUT_DIR/cli/inspect.json" 2>/dev/null || true)"
+      note_stuck "$st" "$OUT_DIR/cli/inspect.json"
       case "$st" in
         COMPLETED)
           echo "WAVE_OK status=$st"
@@ -181,6 +237,7 @@ case "$PHASE" in
         exit 1
       fi
       st="$(status_of_json "$OUT_DIR/cli/tick-${nn}.json")"
+      note_stuck "$st" "$OUT_DIR/cli/tick-${nn}.json"
       echo "status=$st"
       case "$st" in
         COMPLETED) echo "WAVE_OK"; exit 0 ;;

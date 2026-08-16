@@ -137,7 +137,9 @@ npm run cli -- inspect --wave W1
 `--supervised` production attempts fail with an actionable error. For real repo work use the
 repository's `tools/kick_openclaw_specialist.sh` (named specialists) or
 `tools/run_detached_builder.sh` (PLAN → review → fresh IMPL code work). See
-[`docs/OPERATOR-RUNBOOK.md`](docs/OPERATOR-RUNBOOK.md).
+[`docs/OPERATOR-RUNBOOK.md`](docs/OPERATOR-RUNBOOK.md) (kick hygiene: `verify` /
+`verify_command`, `agent_eligible`, no stale writer lease, one ticket per shared
+`writerScope` until same-scope multi-ticket smoke is green; `dry-run` is preflight).
 
 Gateway methods (when the plugin is loaded): `wave_runner.*` and compatibility `wave_runner_m0.*`.
 

@@ -19,6 +19,7 @@ const SAMPLE = {
   title: "Foreign ticket",
   dependsOn: [] as string[],
   sourcePath: "linear://X-1",
+  verifyCommand: "true",
 };
 
 function writeIssue(root: string, name: string, contents: string): string {

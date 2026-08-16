@@ -1,4 +1,12 @@
+import { hashJson } from "../domain/hash.js";
 import type { WaveStatus } from "../domain/types.js";
+
+export type ProgressView = {
+  wave: { status: WaveStatus };
+  tickets: Array<{ ticketId: string; status: string; revision: number; result?: string }>;
+  outbox: Array<{ outboxId: string; state: string }>;
+  leases: Array<{ resourceKey: string; holder: string; ticketId?: string }>;
+};
 
 export type OperatorLoopDecision =
   | "tick"
@@ -33,4 +41,47 @@ export function operatorLoopDecision(status: WaveStatus): OperatorLoopDecision {
 
 export function isIdleGateStatus(status: WaveStatus): boolean {
   return status === "AWAITING_PLAN_GATE" || status === "WAITING_APPROVAL";
+}
+
+/** Stable progress hash: wave status + ticket/outbox/lease identity fields. */
+export function progressFingerprint(view: ProgressView): string {
+  return hashJson({
+    status: view.wave.status,
+    tickets: [...view.tickets]
+      .map((t) => ({
+        id: t.ticketId,
+        status: t.status,
+        revision: t.revision,
+        result: t.result ?? "",
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    outbox: [...view.outbox]
+      .map((item) => ({ id: item.outboxId, state: item.state }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    leases: [...view.leases]
+      .map((lease) => ({
+        key: lease.resourceKey,
+        holder: lease.holder,
+        ticketId: lease.ticketId ?? "",
+      }))
+      .sort((a, b) => a.key.localeCompare(b.key)),
+  });
+}
+
+/**
+ * Increment only while RUNNING and the fingerprint is unchanged.
+ * Non-RUNNING (plan-gate / human hold / paused / terminal) resets.
+ * threshold <= 0 disables the stop.
+ */
+export function nextStuckCount(
+  prev: string,
+  next: string,
+  n: number,
+  threshold: number,
+  status: WaveStatus,
+): { count: number; stuck: boolean } {
+  if (status !== "RUNNING") return { count: 0, stuck: false };
+  if (next !== prev) return { count: 0, stuck: false };
+  const count = n + 1;
+  return { count, stuck: threshold > 0 && count >= threshold };
 }

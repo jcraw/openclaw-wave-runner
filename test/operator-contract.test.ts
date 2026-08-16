@@ -1,9 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { operatorLoopDecision } from "../src/core/operator-loop.js";
+import { nextStuckCount, operatorLoopDecision, progressFingerprint } from "../src/core/operator-loop.js";
 import { DEFAULT_LIMITS } from "../src/domain/types.js";
 import { createSimulator, seedWave } from "../src/sim/simulator.js";
+
+test("progressFingerprint + nextStuckCount: hash, revision, stuck, plan-gate", () => {
+  const view = {
+    wave: { status: "RUNNING" as const },
+    tickets: [{ ticketId: "FX-001", status: "APPROVED", revision: 1, result: "ok" }],
+    outbox: [{ outboxId: "obx-1", state: "SETTLED" }],
+    leases: [{ resourceKey: "writer:/repo:game:x", holder: "sim", ticketId: "FX-001" }],
+  };
+  const same = progressFingerprint(view);
+  assert.equal(progressFingerprint(view), same);
+  const bumped = {
+    ...view,
+    tickets: [{ ...view.tickets[0]!, revision: 2 }],
+  };
+  assert.notEqual(progressFingerprint(bumped), same);
+  assert.deepEqual(nextStuckCount("", same, 0, 3, "RUNNING"), { count: 0, stuck: false });
+  assert.deepEqual(nextStuckCount(same, same, 0, 3, "RUNNING"), { count: 1, stuck: false });
+  assert.deepEqual(nextStuckCount(same, same, 2, 3, "RUNNING"), { count: 3, stuck: true });
+  assert.deepEqual(nextStuckCount(same, same, 5, 3, "AWAITING_PLAN_GATE"), { count: 0, stuck: false });
+  assert.deepEqual(nextStuckCount(same, same, 5, 0, "RUNNING"), { count: 6, stuck: false });
+});
 
 test("operatorLoopDecision: agent-gate stays; human hold stops", () => {
   assert.equal(operatorLoopDecision("RUNNING"), "tick");
