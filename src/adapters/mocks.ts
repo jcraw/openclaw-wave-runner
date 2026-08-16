@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { hashTicketContent, normalizeSelectedDependencies } from "../core/manifest.js";
@@ -280,13 +280,5 @@ export class SafePolicy implements PolicyAdapter {
     if (input.planClass && this.safeClasses.has(input.planClass)) return "auto-approve";
     if (/\bSAFE_POLICY_CLASS\b/.test(input.planText)) return "auto-approve";
     return "wait";
-  }
-}
-
-export function readOptional(path: string): string | undefined {
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return undefined;
   }
 }

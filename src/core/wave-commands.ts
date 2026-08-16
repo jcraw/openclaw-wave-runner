@@ -25,7 +25,7 @@ import {
   WAVE_NEXT,
   WAVE_OWNERS,
 } from "./state-machine.js";
-import { stopForBudget, tickWave } from "./tick.js";
+import { tickWave } from "./tick.js";
 import { assertLaunchAllowed } from "./wave-create.js";
 
 export function freezeWave(
@@ -222,7 +222,6 @@ export function emergencyStop(ctrl: ControllerContext, reason = "operator emerge
   for (const wave of ctrl.db.listWaves()) {
     if (isTerminalWave(wave.status)) continue;
     cancelWave(ctrl, wave.waveId, nextEventId());
-    stopForBudget(ctrl, wave.waveId, reason);
     stopped.push(wave.waveId);
   }
   return { stopped };

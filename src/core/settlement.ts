@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
 
 import { hashJson } from "../domain/hash.js";
 import type { LaunchOutbox, LaunchReceipt, TicketRun, WaveRecord } from "../domain/types.js";
@@ -8,8 +6,11 @@ import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import { applySettlement, markIndeterminate } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
+import { finalizeImplLand, implFenceFailure } from "./land-closeout.js";
 import { releaseLease } from "./lease.js";
 import { markSettled } from "./outbox.js";
+import { applyPlanSuccess } from "./plan-settle.js";
+import { readActualPlanText } from "./plan-text.js";
 import {
   assertTicketTransition,
   TICKET_NEXT,
@@ -96,18 +97,23 @@ export async function settleOutbox(
   let verifyFailSnippet: string | undefined;
   if (item.stage === "IMPL" && status === "succeeded") {
     const ticket = requireTicket(ctrl, waveId, item.ticketId);
-    const worktree = ticket.implWorktree;
-    if (worktree) {
+    const wave = requireWave(ctrl, waveId);
+    const fence = implFenceFailure(ctrl, item, ticket, wave);
+    if (fence) {
+      status = "failed";
+      verifyFailSnippet = fence;
+    } else if (!ticket.verifyCommand) {
+      status = "failed";
+      verifyFailSnippet = "missing_verify";
+    } else if (ticket.implWorktree) {
       const verify = await ctrl.workspace.verify({
-        worktree,
-        command: ticket.verifyCommand ?? "true",
+        worktree: ticket.implWorktree,
+        command: ticket.verifyCommand,
       });
       verifyProof = verify.proof;
       if (!verify.ok) {
         status = "failed";
-        verifyFailSnippet = clipReason(
-          `verify failed: ${ticket.verifyCommand ?? "true"}${verify.proof ? ` (${verify.proof})` : ""}`,
-        );
+        verifyFailSnippet = clipReason(`verify failed: ${ticket.verifyCommand} (${verify.proof})`);
       }
     }
   }
@@ -146,7 +152,9 @@ export async function settleOutbox(
         putTicketStatus(ctrl, ticket, "CANCELLED", reason || "operator cancel");
       } else {
         const retriesRemain = attempt - 1 < wave.limits.maxRetriesPerStage;
-        if (retriesRemain && (item.stage === "PLAN" || item.stage === "IMPL")) {
+        const noRetry =
+          verifyFailSnippet === "missing_verify" || (verifyFailSnippet?.startsWith("stale_fence") ?? false);
+        if (retriesRemain && (item.stage === "PLAN" || item.stage === "IMPL") && !noRetry) {
           const rearm = item.stage === "PLAN" ? "REVISING" : "APPROVED";
           assertTicketTransition(ticket.status, rearm, false);
           putTicketStatus(ctrl, ticket, rearm, clipReason(`retry ${attempt + 1} after: ${reason}`));
@@ -158,66 +166,10 @@ export async function settleOutbox(
         }
       }
     } else if (item.stage === "PLAN") {
-      ticket.planArtifact = planPath;
-      putTicketStatus(ctrl, ticket, "PLAN_REVIEW");
-      const decision = ctrl.policy.decide({ planClass: ticket.planClass, planText: summary ?? "" });
-      if (decision === "wait") {
-        // humanHold may not round-trip ticket_runs columns — also read frozen manifest.
-        let humanHold = ticket.humanHold === true;
-        if (!humanHold) {
-          try {
-            const manifest = JSON.parse(wave.manifestJson) as {
-              tickets?: Array<{ ticketId: string; humanHold?: boolean }>;
-            };
-            const frozen = (manifest.tickets ?? []).find((x) => x.ticketId === ticket.ticketId);
-            humanHold = frozen?.humanHold === true;
-          } catch {
-            // ignore
-          }
-        }
-        if (humanHold) {
-          // Jason / human_gated hold — operator STOP, no wake.
-          setWaveStatus(ctrl, wave, "WAITING_APPROVAL", now);
-        } else {
-          // Default agent plan-gate (WR-008).
-          setWaveStatus(ctrl, wave, "AWAITING_PLAN_GATE", now);
-          const wakePayload = {
-            waveId,
-            ticketId: item.ticketId,
-            planPath: planPath ?? ticket.planArtifact,
-            revision: ticket.revision,
-          };
-          const already = ctrl.db.listEvents(waveId).some((ev) => {
-            if (ev.type !== "plan_gate_wake") return false;
-            try {
-              const p = JSON.parse(ev.payloadJson) as {
-                ticketId?: string;
-                revision?: number;
-              };
-              return p.ticketId === item.ticketId && p.revision === ticket.revision;
-            } catch {
-              return false;
-            }
-          });
-          if (!already) {
-            ctrl.db.insertEvent({
-              eventId: `${waveId}:plan-gate-wake:${item.ticketId}:${ticket.revision}`,
-              waveId,
-              type: "plan_gate_wake",
-              payloadJson: JSON.stringify(wakePayload),
-              createdAt: now,
-              revisionApplied: wave.revision,
-            });
-          }
-        }
-      } else {
-        putTicketStatus(ctrl, ticket, "APPROVED");
-      }
+      applyPlanSuccess(ctrl, wave, ticket, planPath, summary, now);
     } else if (item.stage === "IMPL") {
       ticket.verifyProof = verifyProof;
       putTicketStatus(ctrl, ticket, "VERIFYING");
-      // WR-013 land-on-done happens outside this transaction (async git).
-      // Ticket stays VERIFYING until land succeeds; settle path below finalizes.
       const scope = ticket.writerScope || deriveWriterScope(ticket);
       const lease = ctrl.db.getLease(writerLeaseKey(wave.repoPath, scope));
       if (lease && lease.ticketId === ticket.ticketId) {
@@ -248,61 +200,8 @@ export async function settleOutbox(
     refreshCounters(ctrl, waveId);
   });
 
-  // WR-013: after verified IMPL, land worktree → main before DONE.
   if (item.stage === "IMPL" && status === "succeeded") {
-    const t = requireTicket(ctrl, waveId, item.ticketId);
-    const wave = requireWave(ctrl, waveId);
-    if (t.implWorktree && ctrl.workspace.landToMain) {
-      const shouldPush =
-        /openclaw-wave-runner/.test(wave.repoPath) || process.env.WAVE_LAND_PUSH === "1";
-      const land = await ctrl.workspace.landToMain({
-        repoPath: wave.repoPath,
-        worktree: t.implWorktree,
-        branch: t.implBranch,
-        ticketId: t.ticketId,
-        waveId,
-        baseSha: wave.baseSha,
-        push: shouldPush,
-      });
-      ctrl.db.transaction(() => {
-        const now = ctrl.clock.now();
-        const ticket = requireTicket(ctrl, waveId, item.ticketId);
-        if (land.ok) {
-          putTicketStatus(
-            ctrl,
-            ticket,
-            "DONE",
-            land.commitSha ? `verified+landed ${land.commitSha.slice(0, 12)}` : "verified+landed",
-          );
-          ctrl.db.putArtifact({
-            artifactId: `${waveId}:art:${randomUUID()}`,
-            waveId,
-            ticketId: item.ticketId,
-            kind: "proof",
-            path: land.proof,
-            hash: hashJson(land.proof),
-            createdAt: now,
-          });
-        } else {
-          putTicketStatus(
-            ctrl,
-            ticket,
-            "FAILED",
-            clipReason(`land failed: ${land.error ?? "unknown"}`),
-          );
-        }
-        refreshCounters(ctrl, waveId);
-      });
-    } else {
-      // No land adapter (tests without landToMain) — keep prior DONE semantics.
-      ctrl.db.transaction(() => {
-        const ticket = requireTicket(ctrl, waveId, item.ticketId);
-        if (ticket.status === "VERIFYING") {
-          putTicketStatus(ctrl, ticket, "DONE", "verified");
-          refreshCounters(ctrl, waveId);
-        }
-      });
-    }
+    await finalizeImplLand(ctrl, item);
   }
 
   const ticket = ctrl.db.getTicket(waveId, item.ticketId);
@@ -350,36 +249,4 @@ export async function settleOutbox(
       // Workflow projection is non-authoritative.
     }
   }
-}
-
-function readActualPlanText(input: {
-  ticketId: string;
-  planClass?: string;
-  summary?: string;
-  outputRef?: string;
-  outputDir?: string;
-}): string {
-  const candidates: string[] = [];
-  if (input.outputDir) candidates.push(join(input.outputDir, "PLAN.md"));
-  if (input.outputRef && existsSync(input.outputRef)) {
-    try {
-      const stat = statSync(input.outputRef);
-      if (stat.isFile() && input.outputRef.endsWith("PLAN.md")) candidates.push(input.outputRef);
-      else if (stat.isDirectory() && input.outputDir && input.outputRef === input.outputDir) {
-        candidates.push(join(input.outputRef, "PLAN.md"));
-      }
-    } catch {
-      // Never fall back to another stage's PLAN.md.
-    }
-  }
-  for (const path of candidates) {
-    if (!existsSync(path)) continue;
-    try {
-      const text = readFileSync(path, "utf8").trim();
-      if (text) return text;
-    } catch {
-      // next candidate
-    }
-  }
-  return `# PLAN ${input.ticketId}\n\n${input.summary ?? "deterministic plan"}\n\nclass: ${input.planClass ?? "manual"}\n`;
 }

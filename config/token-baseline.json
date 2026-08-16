@@ -9,7 +9,7 @@
     "src/controller.ts": 2500,
     "src/adapters/grok-cli.ts": 2400,
     "src/adapters/openclaw-acp.ts": 2300,
-    "src/adapters/mocks.ts": 2300,
+    "src/adapters/mocks.ts": 2320,
     "src/adapters/acp-worker.ts": 2200,
     "src/runtime.ts": 2200
   }

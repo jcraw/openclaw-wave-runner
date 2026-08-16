@@ -40,7 +40,7 @@ test("Phase 4: emergency stop, backup, restore, audit", async () => {
   const restoredPath = join(destDir, "restored.sqlite");
   restoreWaveStore(backup, restoredPath);
   const audit = auditStore(restoredPath);
-  assert.equal(audit.schemaVersion, 1);
+  assert.equal(audit.schemaVersion, 2);
   assert.equal(audit.waveCount, 1);
   assert.equal(audit.waves[0]?.waveId, "wave-ops");
 });

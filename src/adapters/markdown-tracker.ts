@@ -132,6 +132,13 @@ export function listMarkdownTickets(issuesRoot: string): string[] {
   return out.sort();
 }
 
+function yamlVerifyCommand(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (value === true) return "true";
+  if (value === false) return "false";
+  return undefined;
+}
+
 export function parseTicketFile(path: string, repoRoot: string): ParsedTicket | undefined {
   let raw: string;
   try {
@@ -166,12 +173,7 @@ export function parseTicketFile(path: string, repoRoot: string): ParsedTicket | 
     status: typeof statusRaw === "string" ? statusRaw : "open",
     dependsOn: firstStringList(data, ["depends_on", "blocked_by", "depends"]),
     planClass: typeof data.plan_class === "string" ? data.plan_class : undefined,
-    verifyCommand:
-      typeof data.verify === "string"
-        ? data.verify
-        : typeof data.verify_command === "string"
-          ? data.verify_command
-          : undefined,
+    verifyCommand: yamlVerifyCommand(data.verify) ?? yamlVerifyCommand(data.verify_command),
     provider: typeof data.worker === "string" ? data.worker : undefined,
     model: typeof data.model === "string" ? data.model : undefined,
     ...hold,

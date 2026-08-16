@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const MIGRATIONS: Array<{ version: number; sql: string }> = [
   {
@@ -145,6 +145,16 @@ CREATE INDEX IF NOT EXISTS idx_ticket_runs_wave ON ticket_runs(wave_id, ord);
 CREATE INDEX IF NOT EXISTS idx_outbox_wave_state ON launch_outbox(wave_id, state);
 CREATE INDEX IF NOT EXISTS idx_budget_wave_state ON budget_entries(wave_id, state);
 CREATE INDEX IF NOT EXISTS idx_events_wave ON events(wave_id, created_at);
+`,
+  },
+  {
+    version: 2,
+    sql: `
+ALTER TABLE ticket_runs ADD COLUMN writer_scope TEXT;
+ALTER TABLE ticket_runs ADD COLUMN human_hold INTEGER;
+ALTER TABLE ticket_runs ADD COLUMN human_hold_reason TEXT;
+ALTER TABLE ticket_runs ADD COLUMN product TEXT;
+ALTER TABLE ticket_runs ADD COLUMN game TEXT;
 `,
   },
 ];

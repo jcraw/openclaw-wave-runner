@@ -13,8 +13,8 @@
     "dist/src/core/lease.js",
     "dist/src/domain/safety.js"
   ],
-  "incremental": true,
-  "incrementalFile": "tmp/stryker-incremental.json",
+  "ignorePatterns": ["/tmp/**", "/coverage/**"],
+  "incremental": false,
   "timeoutMS": 60000,
   "concurrency": 2,
   "reporters": ["clear-text", "progress", "json"],

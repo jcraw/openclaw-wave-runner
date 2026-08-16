@@ -59,32 +59,14 @@ test("WR-011: two different scopes can IMPL in parallel inside one wave", async 
     perStageReservationTokens: 8_000,
   });
   await controller.start("wave-par");
-  // Drive until both implementing or done — safe-policy auto-approves PLAN.
-  for (let i = 0; i < 12; i += 1) {
-    await controller.tick("wave-par");
-    const view = controller.inspect("wave-par");
-    const impl = view.tickets.filter((t) =>
-      ["IMPLEMENTING", "VERIFYING", "DONE"].includes(t.status),
-    );
-    const leases = view.leases;
-    if (impl.length >= 2 || view.wave.status === "COMPLETED") {
-      // At peak, two writer leases with different keys should be possible.
-      const keys = new Set(leases.map((l) => l.resourceKey));
-      if (keys.size >= 2 || view.wave.status === "COMPLETED") {
-        assert.ok(true);
-        // completed path is fine too
-        if (view.wave.status === "COMPLETED") {
-          assert.equal(view.tickets.filter((t) => t.status === "DONE").length, 2);
-        }
-        return;
-      }
-    }
-  }
+  await controller.runUntilIdle("wave-par");
   const final = controller.inspect("wave-par");
-  // Fallback assertion: both finished (serial would also finish; check scopes stored)
-  const scopes = final.tickets.map((t) => t.writerScope);
+  const reopened = sim.open();
+  const again = reopened.inspect("wave-par");
+  const scopes = again.tickets.map((t) => t.writerScope);
   assert.ok(scopes.includes("board:godstones"));
   assert.ok(scopes.includes("board:rink_rush"));
+  assert.equal(again.tickets.filter((t) => t.status === "DONE").length, 2);
   assert.equal(final.tickets.filter((t) => t.status === "DONE").length, 2);
 });
 

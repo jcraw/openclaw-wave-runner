@@ -14,7 +14,7 @@ import type {
 } from "../domain/types.js";
 import { DEFAULT_LIMITS } from "../domain/types.js";
 import { deriveWriterScope } from "../domain/writer-scope.js";
-import { countersFromBudgets } from "./budget.js";
+import { countersFromBudgets, failClosedWithoutRates } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
 import { inspect, recordEvent } from "./controller-context.js";
 import { hashManifest, topologicalOrder, validateManifest } from "./manifest.js";
@@ -112,6 +112,7 @@ export function assertLaunchAllowed(
 
 export async function dryRun(ctrl: ControllerContext, input: CreateWaveInput) {
   assertBoundedWaveRequest(input);
+  failClosedWithoutRates(input.quotaMode ?? "tokens", false);
   if (input.supervisedBoundedPilot || input.supervisedOneTicket) {
     assertSupervisedBoundedLaunch({
       ticketIds: input.ticketIds,
@@ -146,6 +147,7 @@ export async function createWave(
   eventId: string,
 ): Promise<WaveView> {
   assertBoundedWaveRequest(input);
+  failClosedWithoutRates(input.quotaMode ?? "tokens", false);
   if (input.supervisedBoundedPilot || input.supervisedOneTicket) {
     assertSupervisedBoundedLaunch({
       ticketIds: input.ticketIds,

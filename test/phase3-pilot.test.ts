@@ -40,7 +40,7 @@ test("Phase 3: 3-ticket dependency wave with serial writer and mixed approval", 
   }
   view = controller.inspect("wave-3");
   assert.ok(["COMPLETED", "AWAITING_PLAN_GATE", "WAITING_APPROVAL", "RUNNING"].includes(view.wave.status));
-  assert.ok(view.leases.filter((l) => l.resourceKey.startsWith("repo-writer:")).length <= 1);
+  assert.ok(view.leases.filter((l) => l.resourceKey.startsWith("writer:")).length <= 1);
   const projection = controller.project();
   assert.equal(projection.authoritative, false);
   assert.equal(projection.productionDrainEnabled, false);

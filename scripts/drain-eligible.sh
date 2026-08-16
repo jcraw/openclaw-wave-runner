@@ -14,10 +14,11 @@ WR="${WR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 OUT_ROOT="${OUT_ROOT:-$(pwd)/tmp/drain-eligible-$(date +%Y%m%d%H%M%S)}"
 MAX_PARALLEL="${MAX_PARALLEL:-5}"
 OVERNIGHT="${OVERNIGHT:-0}"
-export PATH="/home/j/.nvm/versions/node/v24.18.1/bin:${PATH:-}"
 export OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-http://127.0.0.1:18789}"
-if [[ -z "${OPENCLAW_GATEWAY_TOKEN:-}" && -f /home/j/.openclaw/secrets/gateway-token ]]; then
-  export OPENCLAW_GATEWAY_TOKEN="$(tr -d '[:space:]' </home/j/.openclaw/secrets/gateway-token)"
+TOKEN_FILE="${OPENCLAW_HOME:+$OPENCLAW_HOME/secrets/gateway-token}"
+TOKEN_FILE="${TOKEN_FILE:-${HOME:+$HOME/.openclaw/secrets/gateway-token}}"
+if [[ -z "${OPENCLAW_GATEWAY_TOKEN:-}" && -n "${TOKEN_FILE:-}" && -f "$TOKEN_FILE" ]]; then
+  export OPENCLAW_GATEWAY_TOKEN="$(tr -d '[:space:]' <"$TOKEN_FILE")"
 fi
 export WAVE_RUNNER_ACP="${WAVE_RUNNER_ACP:-1}"
 export PLUGIN_DIR="${PLUGIN_DIR:-$WR}"

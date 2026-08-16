@@ -30,7 +30,7 @@ title: One ticket vertical slice
 status: open
 depends_on: []
 plan_class: manual
-verify: true
+verify: "true"
 ---
 
 # FX-101

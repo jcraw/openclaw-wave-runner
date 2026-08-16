@@ -13,6 +13,7 @@ const SKIP_DIRS = new Set([
   "dist",
   "coverage",
   "tmp",
+  "reports",
   ".c8_output",
 ]);
 

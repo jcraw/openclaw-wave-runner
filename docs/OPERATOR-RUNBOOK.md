@@ -1,6 +1,7 @@
 # Wave Runner operator runbook
 
-**Production worker launch is disabled.** This runbook is for inspection, cancellation, and fixture/dev simulation only.
+**Unrestricted drain, autonomous overnight, and `SAFETY.deployPushEnabled` stay off.**
+Supervised CLI (`--supervised`) and Gateway `wave_runner.start` / `tick` with `supervised: true` are the intentional real-worker path.
 
 ## Surfaces
 
@@ -25,11 +26,11 @@ node dist/scripts/wave-cli.js emergency-stop
 node dist/scripts/wave-cli.js backup --dest /path/to/backup.sqlite
 ```
 
-`--simulate` is mock-only and is not a truthful real-worker receipt. Any `--supervised`
-create/start/tick attempt fails closed. Gateway `wave_runner.start` / `wave_runner.tick` also fail
-closed before launching ACP or CLI workers.
+`--simulate` is mock-only and is not a truthful real-worker receipt.
+`--supervised` (CLI) / `supervised: true` (Gateway) launches real workers under hard caps.
+Land push requires explicit `WAVE_LAND_PUSH=1`; repo path never implies push.
 
-For production repo work use:
+For one-off specialist work without a wave, use:
 
 - `tools/kick_openclaw_specialist.sh` for a named OpenClaw specialist
 - `tools/run_detached_builder.sh` for code: PLAN → real review → fresh IMPL → verifier
@@ -58,10 +59,10 @@ cp /path/to/backup.sqlite "$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite"
 
 - unrestricted drain-everything  
 - recurring LLM polling / overnight autonomous execution  
-- production worker launches (ACP or CLI)
-- more than 3 supervised tickets or limits above supervised caps  
-- deploy/push from the runner  
-- overnight enablement without an explicit operator policy change in code + process
+- production drain / worker-profile launches (`SAFETY.production*`)
+- more tickets or limits than `SAFETY.supervisedMax*`
+- deploy/push as a product mode (`SAFETY.deployPushEnabled`); operator may set `WAVE_LAND_PUSH=1`
+- autonomous overnight / recurring LLM polling
 
 ## Agent plan-gate vs human hold (WR-008)
 

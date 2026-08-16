@@ -22,11 +22,12 @@ export WAVE_RUNNER_ACP="${WAVE_RUNNER_ACP:-1}"
 AUTO_PLAN_GATE="${AUTO_PLAN_GATE:-1}"
 mkdir -p "$OUT_DIR/cli"
 
-if [[ -z "${OPENCLAW_GATEWAY_TOKEN:-}" && -f /home/j/.openclaw/secrets/gateway-token ]]; then
-  export OPENCLAW_GATEWAY_TOKEN="$(tr -d '[:space:]' </home/j/.openclaw/secrets/gateway-token)"
-fi
 export OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-http://127.0.0.1:18789}"
-export PATH="/home/j/.nvm/versions/node/v24.18.1/bin:${PATH:-}"
+TOKEN_FILE="${OPENCLAW_HOME:+$OPENCLAW_HOME/secrets/gateway-token}"
+TOKEN_FILE="${TOKEN_FILE:-${HOME:+$HOME/.openclaw/secrets/gateway-token}}"
+if [[ -z "${OPENCLAW_GATEWAY_TOKEN:-}" && -n "${TOKEN_FILE:-}" && -f "$TOKEN_FILE" ]]; then
+  export OPENCLAW_GATEWAY_TOKEN="$(tr -d '[:space:]' <"$TOKEN_FILE")"
+fi
 
 echo "run-backlog-wave WAVE_ID=$WAVE_ID OUT_DIR=$OUT_DIR TICKETS=$TICKETS AUTO_PLAN_GATE=$AUTO_PLAN_GATE"
 
