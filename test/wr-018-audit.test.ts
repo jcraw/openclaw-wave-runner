@@ -56,15 +56,21 @@ test("missing verifyCommand fails IMPL with missing_verify", async () => {
     order: 1,
     sourcePath: "issues/FX-001.md",
     planClass: "safe-policy",
+    verifyCommand: "true",
     body: "one",
   });
   const controller = await seedWave(sim, "wave-verify", ["FX-001"]);
+  const row = controller.db.getTicket("wave-verify", "FX-001");
+  assert.ok(row);
+  delete row.verifyCommand;
+  controller.db.putTicket(row);
   await controller.start("wave-verify");
   await controller.runUntilIdle("wave-verify");
   const view = controller.inspect("wave-verify");
   const ticket = view.tickets[0];
   assert.equal(ticket?.status, "FAILED");
   assert.match(ticket?.result ?? "", /missing_verify/);
+  assert.match(ticket?.result ?? "", /controller failed \(worker succeeded\):/);
   assert.equal(sim.workspace.verifies, 0);
   assert.equal(sim.workspace.lands, 0);
 });

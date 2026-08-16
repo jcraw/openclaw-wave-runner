@@ -10,8 +10,9 @@ import {
   reconcile,
   refreshHeldLeases,
 } from "./launch.js";
+import { failUnlaunchableApproved, releaseInactiveWriterLeases, writerLeaseBlocksImpl } from "./lease-release.js";
 import { isIdleGateStatus } from "./operator-loop.js";
-import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
+import { deriveWriterScope } from "../domain/writer-scope.js";
 import {
   isTerminalTicket,
   isTerminalWave,
@@ -62,6 +63,7 @@ export function stopForBudget(ctrl: ControllerContext, waveId: string, reason: s
       }
     }
     refreshCounters(ctrl, waveId);
+    releaseInactiveWriterLeases(ctrl, waveId);
   });
 }
 
@@ -141,8 +143,7 @@ export async function advanceReadyTickets(ctrl: ControllerContext, waveId: strin
   for (const ticket of approved) {
     const scope = ticket.writerScope || deriveWriterScope(ticket);
     if (busyImplScopes.has(scope)) continue;
-    const lease = ctrl.db.getLease(writerLeaseKey(wave.repoPath, scope));
-    if (lease && lease.ticketId !== ticket.ticketId) continue;
+    if (writerLeaseBlocksImpl(ctrl, wave, ticket)) continue;
     try {
       await queueStage(ctrl, waveId, ticket.ticketId, "IMPL");
       busyImplScopes.add(scope);
@@ -221,7 +222,9 @@ export async function tickWave(
   }
   await dispatchPending(ctrl, waveId);
   await observeLaunched(ctrl, waveId);
+  releaseInactiveWriterLeases(ctrl, waveId);
   await advanceReadyTickets(ctrl, waveId);
+  failUnlaunchableApproved(ctrl, waveId);
   maybeCompleteWave(ctrl, waveId);
   return inspect(ctrl, waveId);
 }

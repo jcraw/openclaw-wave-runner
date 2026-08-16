@@ -8,6 +8,7 @@ import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { finalizeImplLand, implFenceFailure } from "./land-closeout.js";
 import { releaseLease } from "./lease.js";
+import { releaseWriterLeaseIfHeld } from "./lease-release.js";
 import { markSettled } from "./outbox.js";
 import { applyPlanSuccess } from "./plan-settle.js";
 import { readActualPlanText } from "./plan-text.js";
@@ -73,6 +74,7 @@ export async function settleOutbox(
   error?: string,
 ): Promise<void> {
   const usage = await ctrl.usage.settle(receipt);
+  const receiptSucceeded = status === "succeeded";
   const waveId = item.waveId;
   let planPath: string | undefined;
   if (item.stage === "PLAN" && status === "succeeded") {
@@ -141,13 +143,15 @@ export async function settleOutbox(
     const wave = requireWave(ctrl, waveId);
     if (status !== "succeeded") {
       const attempt = stage?.attempt ?? item.attempt ?? 1;
-      const reason = stageDeathReason({
+      let reason = stageDeathReason({
         status,
         summary: verifyFailSnippet ?? summary,
         error,
         stage: item.stage,
         attempt,
       });
+      const flipped = receiptSucceeded && !wave.cancelRequested;
+      if (flipped) reason = clipReason(`controller failed (worker succeeded): ${reason}`);
       if (wave.cancelRequested) {
         putTicketStatus(ctrl, ticket, "CANCELLED", reason || "operator cancel");
       } else {
@@ -163,8 +167,20 @@ export async function settleOutbox(
           }
         } else {
           putTicketStatus(ctrl, ticket, "FAILED", reason);
+          if (flipped) {
+            ctrl.db.putArtifact({
+              artifactId: `${waveId}:art:${randomUUID()}`,
+              waveId,
+              ticketId: item.ticketId,
+              kind: "settle-reason",
+              path: reason,
+              hash: hashJson(reason),
+              createdAt: now,
+            });
+          }
         }
       }
+      if (item.stage === "IMPL") releaseWriterLeaseIfHeld(ctrl, wave, ticket);
     } else if (item.stage === "PLAN") {
       applyPlanSuccess(ctrl, wave, ticket, planPath, summary, now);
     } else if (item.stage === "IMPL") {

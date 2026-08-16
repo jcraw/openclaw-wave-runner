@@ -2,6 +2,7 @@ import type { LaunchOutbox, LaunchReceipt } from "../domain/types.js";
 import { CrashInjectedError, type ControllerContext } from "./controller-context.js";
 import { requireTicket, requireWave } from "./controller-context.js";
 import { isLeaseStale } from "./lease.js";
+import { isImplActive } from "./lease-release.js";
 import {
   claimOutbox,
   markFailed,
@@ -15,12 +16,12 @@ import { stageAttemptDir, stageSessionKey } from "./stage-paths.js";
 export function refreshHeldLeases(ctrl: ControllerContext, waveId: string): void {
   const now = ctrl.clock.now();
   for (const lease of ctrl.db.listLeases(waveId)) {
-    if (
-      lease.holder === ctrl.process.holder &&
-      lease.processIdentity === ctrl.process.processIdentity
-    ) {
-      ctrl.db.putLease({ ...lease, expiresAt: now + ctrl.leaseTtlMs });
+    if (lease.holder !== ctrl.process.holder || lease.processIdentity !== ctrl.process.processIdentity) {
+      continue;
     }
+    const ticket = lease.ticketId ? ctrl.db.getTicket(waveId, lease.ticketId) : undefined;
+    if (!ticket || !isImplActive(ticket.status)) continue;
+    ctrl.db.putLease({ ...lease, expiresAt: now + ctrl.leaseTtlMs });
   }
 }
 

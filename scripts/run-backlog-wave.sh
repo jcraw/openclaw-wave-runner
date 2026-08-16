@@ -18,8 +18,11 @@ export MAX_LAUNCHES="${MAX_LAUNCHES:-10}"
 export MAX_TOKENS="${MAX_TOKENS:-500000}"
 export MAX_WALL_MS="${MAX_WALL_MS:-0}"
 export TICK_SLEEP="${TICK_SLEEP:-20}"
+export STUCK_TICKS="${STUCK_TICKS:-20}"
 export WAVE_RUNNER_ACP="${WAVE_RUNNER_ACP:-1}"
 AUTO_PLAN_GATE="${AUTO_PLAN_GATE:-1}"
+STUCK_N=0
+PREV_FP=""
 mkdir -p "$OUT_DIR/cli"
 
 export OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-http://127.0.0.1:18789}"
@@ -52,6 +55,57 @@ for t in d.get("tickets") or []:
 PY
 }
 
+# Same field set as src/core/operator-loop.ts progressFingerprint.
+fingerprint_of_json() {
+  python3 - "$1" <<'PY'
+import hashlib, json, sys
+d=json.load(open(sys.argv[1]))
+w=d.get("wave") or {}
+payload={
+  "status": w.get("status") or "",
+  "tickets": sorted([
+    {"id": t.get("ticketId") or t.get("id"), "status": t.get("status"),
+     "revision": t.get("revision"), "result": t.get("result") or ""}
+    for t in (d.get("tickets") or [])
+  ], key=lambda x: str(x["id"] or "")),
+  "outbox": sorted([
+    {"id": o.get("outboxId") or o.get("id"), "state": o.get("state")}
+    for o in (d.get("outbox") or [])
+  ], key=lambda x: str(x["id"] or "")),
+  "leases": sorted([
+    {"key": l.get("resourceKey") or l.get("key"), "holder": l.get("holder"),
+     "ticketId": l.get("ticketId") or ""}
+    for l in (d.get("leases") or [])
+  ], key=lambda x: str(x["key"] or "")),
+}
+print(hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest())
+PY
+}
+
+note_stuck() {
+  local st="$1"
+  local json="$2"
+  local fp=""
+  if [[ -n "$json" && -s "$json" ]]; then
+    fp="$(fingerprint_of_json "$json" 2>/dev/null || true)"
+  fi
+  if [[ "$st" != "RUNNING" || -z "$fp" ]]; then
+    STUCK_N=0
+    PREV_FP=""
+    return 0
+  fi
+  if [[ "$fp" == "$PREV_FP" ]]; then
+    STUCK_N=$((STUCK_N + 1))
+    if [[ "$STUCK_TICKS" =~ ^[0-9]+$ && "$STUCK_TICKS" -gt 0 && "$STUCK_N" -ge "$STUCK_TICKS" ]]; then
+      echo "OPERATOR_STOP stuck" >&2
+      exit 1
+    fi
+  else
+    STUCK_N=0
+    PREV_FP="$fp"
+  fi
+}
+
 bash "$SCRIPT_DIR/wave-operator.sh" dry-run >/dev/null || true
 bash "$SCRIPT_DIR/wave-operator.sh" create
 bash "$SCRIPT_DIR/wave-operator.sh" start
@@ -67,13 +121,17 @@ while true; do
   fi
   bash "$SCRIPT_DIR/wave-operator.sh" tick "$nn" || true
   st=""
+  fp_json=""
   if [[ -s "$OUT_DIR/cli/tick-${nn}.json" ]]; then
     st="$(status_of "$OUT_DIR/cli/tick-${nn}.json" 2>/dev/null || true)"
+    fp_json="$OUT_DIR/cli/tick-${nn}.json"
   fi
   if [[ -z "$st" ]]; then
     bash "$SCRIPT_DIR/wave-operator.sh" inspect >/dev/null || true
     st="$(status_of "$OUT_DIR/cli/inspect.json" 2>/dev/null || true)"
+    fp_json="$OUT_DIR/cli/inspect.json"
   fi
+  note_stuck "$st" "$fp_json"
   echo "status=$st"
   case "$st" in
     COMPLETED) echo WAVE_OK; exit 0 ;;

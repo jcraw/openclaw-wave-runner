@@ -81,6 +81,7 @@ test("Phase 3: synthetic MUD-034 plus fourteen children stops at budget/manifest
       order: i + 1,
       sourcePath: `issues/${id}.md`,
       planClass: "safe-policy",
+      verifyCommand: "true",
       body: id,
     });
   }
@@ -92,6 +93,7 @@ test("Phase 3: synthetic MUD-034 plus fourteen children stops at budget/manifest
     order: 1,
     sourcePath: "issues/MUD-034.md",
     planClass: "manual",
+    verifyCommand: "true",
     body: "parent",
   });
   const controller = sim.open();

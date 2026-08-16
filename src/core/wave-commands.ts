@@ -25,6 +25,7 @@ import {
   WAVE_NEXT,
   WAVE_OWNERS,
 } from "./state-machine.js";
+import { releaseInactiveWriterLeases } from "./lease-release.js";
 import { tickWave } from "./tick.js";
 import { assertLaunchAllowed } from "./wave-create.js";
 
@@ -148,6 +149,7 @@ export function cancelWave(
       }
     }
     refreshCounters(ctrl, waveId);
+    releaseInactiveWriterLeases(ctrl, waveId);
   });
   const wave = requireWave(ctrl, waveId);
   if (wave.flowId) {

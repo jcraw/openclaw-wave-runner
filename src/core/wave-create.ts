@@ -1,4 +1,4 @@
-import { SafetyGateError } from "../domain/errors.js";
+import { SafetyGateError, WaveError } from "../domain/errors.js";
 import {
   SAFETY,
   assertBoundedWaveRequest,
@@ -80,6 +80,57 @@ export function ticketFromFrozen(waveId: string, ticket: FrozenTicket): TicketRu
   };
 }
 
+export type AdmitBlocker = { ticketId: string; code: string; message: string };
+
+function verifyMissing(ticket: FrozenTicket): boolean {
+  return !ticket.verifyCommand?.trim();
+}
+
+export function collectAdmitBlockers(tickets: FrozenTicket[]): AdmitBlocker[] {
+  const blockers: AdmitBlocker[] = [];
+  for (const ticket of tickets) {
+    if (verifyMissing(ticket)) {
+      blockers.push({
+        ticketId: ticket.ticketId,
+        code: "missing_verify",
+        message: "verifyCommand is empty or missing",
+      });
+    }
+    if (ticket.humanHold) {
+      blockers.push({
+        ticketId: ticket.ticketId,
+        code: "human_hold",
+        message: ticket.humanHoldReason ?? "human hold",
+      });
+    }
+  }
+  const byScope = new Map<string, string[]>();
+  for (const ticket of tickets) {
+    const scope = ticket.writerScope || deriveWriterScope(ticket);
+    const ids = byScope.get(scope) ?? [];
+    ids.push(ticket.ticketId);
+    byScope.set(scope, ids);
+  }
+  for (const [scope, ids] of byScope) {
+    if (ids.length < 2) continue;
+    for (const ticketId of ids) {
+      blockers.push({
+        ticketId,
+        code: "shared_writer_scope",
+        message: `shares writer scope ${scope} with ${ids.filter((id) => id !== ticketId).join(", ")}`,
+      });
+    }
+  }
+  return blockers;
+}
+
+export function assertTicketsHaveVerify(tickets: FrozenTicket[]): void {
+  const missing = tickets.filter(verifyMissing).map((ticket) => ticket.ticketId);
+  if (missing.length) {
+    throw new WaveError(`missing_verify: ${missing.join(", ")}`, "missing_verify");
+  }
+}
+
 export function assertLaunchAllowed(
   ctrl: ControllerContext,
   view: WaveView,
@@ -127,6 +178,8 @@ export async function dryRun(ctrl: ControllerContext, input: CreateWaveInput) {
     ticketIds: input.ticketIds,
     repoPath: input.repoPath,
   });
+  const admitBlockers = collectAdmitBlockers(tickets);
+  assertTicketsHaveVerify(tickets);
   const baseSha = await ctrl.workspace.currentHead(input.repoPath);
   const manifest = buildManifest(ctrl, input, tickets, baseSha);
   validateManifest(manifest);
@@ -138,6 +191,7 @@ export async function dryRun(ctrl: ControllerContext, input: CreateWaveInput) {
     order: manifest.tickets.map((t) => t.ticketId),
     limits: manifest.limits,
     safety: { ...SAFETY },
+    admitBlockers,
   };
 }
 
@@ -180,6 +234,7 @@ export async function createWave(
     ticketIds: input.ticketIds,
     repoPath: input.repoPath,
   });
+  assertTicketsHaveVerify(tickets);
   const baseSha = await ctrl.workspace.currentHead(input.repoPath);
   const manifest = buildManifest(ctrl, input, tickets, baseSha);
   validateManifest(manifest);

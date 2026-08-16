@@ -30,6 +30,10 @@ node dist/scripts/wave-cli.js backup --dest /path/to/backup.sqlite
 `--supervised` (CLI) / `supervised: true` (Gateway) launches real workers under hard caps.
 Land push requires explicit `WAVE_LAND_PUSH=1`; repo path never implies push.
 
+`dry-run` is the preflight. It fails closed on missing `verifyCommand` (`missing_verify`) and
+returns `admitBlockers` (warnings: `human_hold`, `shared_writer_scope`). There is no separate
+`preflight` verb.
+
 For one-off specialist work without a wave, use:
 
 - `tools/kick_openclaw_specialist.sh` for a named OpenClaw specialist
@@ -98,3 +102,28 @@ nohup env REPO=/path/to/game_jam OVERNIGHT=1 bash scripts/drain-eligible.sh \
 Standing defaults (WR-012): `maxTokens=500000`, `maxLaunches=10`, `maxRetriesPerStage=2`,
 `maxWallTimeMs=0`, lease TTL 2h, ACP concurrent sessions 5 (OpenClaw config).
 Land-on-done (WR-013): verified IMPL lands to `main` before ticket DONE.
+
+## Kick hygiene (WR-019)
+
+Incident `BL-RR-070-068-20260816104319` (RR-070 + RR-068, writer scope `game:rink_rush`):
+IMPL settled `missing_verify`, the writer lease stayed held, the sibling sat `APPROVED`
+forever, and the operator burned 100+ no-op ticks while the wave stayed `RUNNING`.
+
+Before `create` / `start`:
+
+1. Every ticket has `verify` / `verify_command` in frontmatter (explicit `"true"` is a fixture only).
+2. `agent_eligible` is set when the ticket should take the agent plan-gate.
+3. No stale writer lease on the same `writerScope` / game.
+4. Caps are set (`MAX_LAUNCHES`, `MAX_TOKENS`, optional `MAX_WALL_MS`).
+
+Until a live two-ticket same-scope smoke is green: **one ticket per wave** when tickets
+share `writerScope` or the same game. Same-game multi-ticket work is **serial waves**,
+not one multi-ticket wave.
+
+Do not late-edit ticket frontmatter after freeze — cancel and recreate.
+
+`dry-run` is the preflight for the list above. `STUCK_TICKS` (default 20) stops
+`wave-operator.sh` / `run-backlog-wave.sh` with `OPERATOR_STOP stuck` when a `RUNNING`
+fingerprint (`wave.status` + ticket id/status/revision/result + outbox id/state +
+lease key/holder/ticketId) does not change. `AWAITING_PLAN_GATE` is not stuck.
+`STUCK_TICKS=0` disables the stop.
