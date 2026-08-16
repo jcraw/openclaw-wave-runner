@@ -1,7 +1,7 @@
 ---
 id: WR-017
 title: Investigate + fix Wave Runner git land/closeout reliability
-status: open
+status: done
 priority: high
 created: 2026-08-16
 updated: 2026-08-16

@@ -1,7 +1,7 @@
 ---
 id: WR-019
 title: P0/P1 stuck-wave recovery — release lease on IMPL fail, terminal when stuck, admit verify
-status: impl
+status: done
 priority: high
 created: 2026-08-16
 updated: 2026-08-16
