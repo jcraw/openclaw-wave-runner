@@ -2,12 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import { hashJson } from "../domain/hash.js";
 import type { LaunchOutbox, LaunchReceipt, TicketRun, WaveRecord } from "../domain/types.js";
-import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import { applySettlement, markIndeterminate } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { finalizeImplLand, implFenceFailure } from "./land-closeout.js";
-import { releaseLease } from "./lease.js";
 import { releaseWriterLeaseIfHeld } from "./lease-release.js";
 import { markSettled } from "./outbox.js";
 import { applyPlanSuccess } from "./plan-settle.js";
@@ -184,19 +182,10 @@ export async function settleOutbox(
     } else if (item.stage === "PLAN") {
       applyPlanSuccess(ctrl, wave, ticket, planPath, summary, now);
     } else if (item.stage === "IMPL") {
+      // Keep writer lease through verify+land; releaseWriterLeaseAfterLand frees it.
+      // Fail path above still releases immediately so same-scope siblings are not starved (WR-019).
       ticket.verifyProof = verifyProof;
       putTicketStatus(ctrl, ticket, "VERIFYING");
-      const scope = ticket.writerScope || deriveWriterScope(ticket);
-      const lease = ctrl.db.getLease(writerLeaseKey(wave.repoPath, scope));
-      if (lease && lease.ticketId === ticket.ticketId) {
-        releaseLease({
-          current: lease,
-          claimant: ctrl.process,
-          expectedGeneration: lease.generation,
-          now,
-        });
-        ctrl.db.deleteLease(lease.resourceKey);
-      }
     }
     for (const [kind, path] of [
       ["plan", planPath],
