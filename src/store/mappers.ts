@@ -55,6 +55,7 @@ export function mapTicket(row: Record<string, unknown>): TicketRun {
     planArtifact: optString(row.plan_artifact),
     implWorktree: optString(row.impl_worktree),
     implBranch: optString(row.impl_branch),
+    implSha: optString(row.impl_sha),
     verifyProof: optString(row.verify_proof),
     verifyCommand: optString(row.verify_command),
     provider: optString(row.provider),

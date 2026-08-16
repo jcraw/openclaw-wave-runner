@@ -158,6 +158,7 @@ export type TicketRun = {
   planArtifact?: string;
   implWorktree?: string;
   implBranch?: string;
+  implSha?: string;
   verifyProof?: string;
   verifyCommand?: string;
   provider?: string;

@@ -5,6 +5,7 @@ import type { LaunchOutbox, LaunchReceipt, TicketRun, WaveRecord } from "../doma
 import { applySettlement, markIndeterminate } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
+import { runImplVerifyAndCommit } from "./impl-verify.js";
 import { finalizeImplLand, implFenceFailure } from "./land-closeout.js";
 import { releaseWriterLeaseIfHeld } from "./lease-release.js";
 import { markSettled } from "./outbox.js";
@@ -95,6 +96,7 @@ export async function settleOutbox(
   }
   let verifyProof: string | undefined;
   let verifyFailSnippet: string | undefined;
+  let implSha: string | undefined;
   if (item.stage === "IMPL" && status === "succeeded") {
     const ticket = requireTicket(ctrl, waveId, item.ticketId);
     const wave = requireWave(ctrl, waveId);
@@ -106,14 +108,13 @@ export async function settleOutbox(
       status = "failed";
       verifyFailSnippet = "missing_verify";
     } else if (ticket.implWorktree) {
-      const verify = await ctrl.workspace.verify({
-        worktree: ticket.implWorktree,
-        command: ticket.verifyCommand,
-      });
-      verifyProof = verify.proof;
-      if (!verify.ok) {
+      const ran = await runImplVerifyAndCommit(ctrl, { waveId, ticket, wave });
+      verifyProof = ran.proof;
+      if (ran.fail) {
         status = "failed";
-        verifyFailSnippet = clipReason(`verify failed: ${ticket.verifyCommand} (${verify.proof})`);
+        verifyFailSnippet = clipReason(ran.fail);
+      } else {
+        implSha = ran.implSha;
       }
     }
   }
@@ -185,6 +186,7 @@ export async function settleOutbox(
       // Keep writer lease through verify+land; releaseWriterLeaseAfterLand frees it.
       // Fail path above still releases immediately so same-scope siblings are not starved (WR-019).
       ticket.verifyProof = verifyProof;
+      if (implSha) ticket.implSha = implSha;
       putTicketStatus(ctrl, ticket, "VERIFYING");
     }
     for (const [kind, path] of [

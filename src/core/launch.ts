@@ -9,6 +9,7 @@ import {
   markLaunched,
   markReconciling,
 } from "./outbox.js";
+import { predecessorImplSha } from "./chain-worktree.js";
 import type { LaunchIntent } from "./ports.js";
 import { settleOutbox } from "./settlement.js";
 import { stageAttemptDir, stageSessionKey } from "./stage-paths.js";
@@ -154,7 +155,7 @@ export async function dispatchPending(ctrl: ControllerContext, waveId: string): 
         const wave = requireWave(ctrl, waveId);
         const created = await ctrl.workspace.createImplWorktree({
           repoPath: wave.repoPath,
-          baseSha: wave.baseSha,
+          baseSha: predecessorImplSha(ticket, ctrl.db.listTickets(waveId)) ?? wave.baseSha,
           waveId,
           ticketId: claimed.ticketId,
           worktreeRoot: ctrl.worktreeRoot ?? `${wave.repoPath}/tmp/wave-runner/worktrees`,

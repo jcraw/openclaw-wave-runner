@@ -1,11 +1,20 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { LandResult, WorkspaceAdapter } from "./ports.js";
 import { resolveLandIdentity, type LandIdentity } from "./land-identity.js";
+import {
+  commitStagedWorktree,
+  commitWithIdentity,
+  formatGitError,
+  git,
+  gitOk,
+  identityArgs,
+  readGitConfig,
+} from "./worktree-commit.js";
 
-const NOISE = ["WAVE_VERIFY.json", "LAND.json", "PROOF.md", "VERIFY.json", "WORKTREE", "tmp"];
+export { formatGitError, git, gitOk };
+
 type LandToMainInput = NonNullable<Parameters<NonNullable<WorkspaceAdapter["landToMain"]>>[0]>;
 
 const landTails = new Map<string, Promise<void>>();
@@ -15,39 +24,6 @@ export function enqueueLand<T>(repoPath: string, fn: () => Promise<T>): Promise<
   const run = prev.then(fn, fn);
   landTails.set(repoPath, run.then(() => undefined, () => undefined));
   return run;
-}
-
-export function formatGitError(error: unknown, cap = 1000): string {
-  const err = error as { message?: string; stderr?: unknown };
-  const stderr = typeof err.stderr === "string" ? err.stderr.trim() : "";
-  const msg = error instanceof Error ? error.message : String(error);
-  const text = stderr && !msg.includes(stderr) ? `${msg}: ${stderr}` : msg;
-  return text.length <= cap ? text : `${text.slice(0, cap - 1)}…`;
-}
-
-export function git(repo: string, args: string[]): string {
-  return execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-}
-
-export function gitOk(repo: string, args: string[]): { ok: boolean; out: string } {
-  try {
-    return { ok: true, out: git(repo, args) };
-  } catch (error) {
-    return { ok: false, out: formatGitError(error) };
-  }
-}
-
-function readGitConfig(repo: string, key: "user.name" | "user.email"): string {
-  const got = gitOk(repo, ["config", "--get", key]);
-  return got.ok ? got.out.trim() : "";
-}
-
-function identityArgs(identity: LandIdentity): string[] {
-  return ["-c", `user.name=${identity.name}`, "-c", `user.email=${identity.email}`];
-}
-
-function commitWithIdentity(repo: string, identity: LandIdentity, message: string): { ok: boolean; out: string } {
-  return gitOk(repo, [...identityArgs(identity), "commit", "-m", message]);
 }
 
 function durableProofPath(input: LandToMainInput): string {
@@ -176,22 +152,13 @@ export async function executeLandToMain(input: LandToMainInput): Promise<LandRes
     if (!resolved.ok) return fail(resolved.error);
     const identity = resolved.identity;
 
-    git(input.worktree, ["add", "-A"]);
-    for (const path of NOISE) {
-      gitOk(input.worktree, ["reset", "HEAD", "--", path]);
-      gitOk(input.worktree, ["clean", "-fd", "--", path]);
-    }
-    const staged = gitOk(input.worktree, ["diff", "--cached", "--name-only"]);
-    if (staged.ok && staged.out.trim()) {
-      const committed = commitWithIdentity(
-        input.worktree,
-        identity,
-        `Land ${input.ticketId} (${input.waveId}).`,
-      );
-      if (!committed.ok) return fail(`commit failed: ${committed.out}`);
-    }
-
-    const tip = git(input.worktree, ["rev-parse", "HEAD"]);
+    const committed = commitStagedWorktree(
+      input.worktree,
+      identity,
+      `Land ${input.ticketId} (${input.waveId}).`,
+    );
+    if (!committed.ok) return fail(committed.error);
+    const tip = committed.sha;
     const main = mainBranch(input.repoPath);
     const onMain = gitOk(input.repoPath, ["rev-parse", "--abbrev-ref", "HEAD"]).out === main;
     const dirty = git(input.repoPath, ["status", "--porcelain"]).length > 0;

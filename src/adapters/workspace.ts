@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { WaveError } from "../domain/errors.js";
 import type { LandResult, WorkspaceAdapter, WorktreeSpec } from "./ports.js";
 import { enqueueLand, executeLandToMain, git } from "./land-git.js";
+import { commitStagedWorktree, resolveRepoIdentity } from "./worktree-commit.js";
 
 export class GitWorkspace implements WorkspaceAdapter {
   async currentHead(repoPath: string): Promise<string> {
@@ -57,6 +58,24 @@ export class GitWorkspace implements WorkspaceAdapter {
     }
     writeFileSync(proof, JSON.stringify({ ok, command: input.command, output }, null, 2), "utf8");
     return { ok, proof };
+  }
+
+  async commitVerifiedWorktree(input: {
+    repoPath: string;
+    worktree: string;
+    ticketId: string;
+    waveId: string;
+  }): Promise<{ sha: string }> {
+    const resolved = resolveRepoIdentity(input.repoPath);
+    if (!resolved.ok) throw new Error(resolved.error);
+    const committed = commitStagedWorktree(
+      input.worktree,
+      resolved.identity,
+      `Verify ${input.ticketId} (${input.waveId}).`,
+    );
+    if (!committed.ok) throw new Error(committed.error);
+    if (!committed.sha.trim()) throw new Error("empty sha");
+    return { sha: committed.sha };
   }
 
   async recordProof(input: { worktree: string; ticketId: string; proof: string }): Promise<string> {

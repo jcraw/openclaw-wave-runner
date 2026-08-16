@@ -173,9 +173,9 @@ export class WaveDatabase {
         `INSERT INTO ticket_runs (
           wave_id, ticket_id, content_hash, title, depends_on_json, ord, source_path,
           stage, status, revision, owner, next_action, plan_class, plan_artifact,
-          impl_worktree, impl_branch, verify_proof, verify_command, provider, model, result,
+          impl_worktree, impl_branch, impl_sha, verify_proof, verify_command, provider, model, result,
           writer_scope, human_hold, human_hold_reason, product, game
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(wave_id, ticket_id) DO UPDATE SET
           content_hash=excluded.content_hash,
           title=excluded.title,
@@ -191,6 +191,7 @@ export class WaveDatabase {
           plan_artifact=excluded.plan_artifact,
           impl_worktree=excluded.impl_worktree,
           impl_branch=excluded.impl_branch,
+          impl_sha=excluded.impl_sha,
           verify_proof=excluded.verify_proof,
           verify_command=excluded.verify_command,
           provider=excluded.provider,
@@ -219,6 +220,7 @@ export class WaveDatabase {
         ticket.planArtifact ?? null,
         ticket.implWorktree ?? null,
         ticket.implBranch ?? null,
+        ticket.implSha ?? null,
         ticket.verifyProof ?? null,
         ticket.verifyCommand ?? null,
         ticket.provider ?? null,

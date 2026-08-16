@@ -122,6 +122,12 @@ export interface WorkspaceAdapter {
     artifactRoot?: string;
   }): Promise<string>;
   verify(input: { worktree: string; command: string }): Promise<{ ok: boolean; proof: string }>;
+  commitVerifiedWorktree(input: {
+    repoPath: string;
+    worktree: string;
+    ticketId: string;
+    waveId: string;
+  }): Promise<{ sha: string }>;
   recordProof(input: { worktree: string; ticketId: string; proof: string }): Promise<string>;
   primaryDirty(repoPath: string): Promise<boolean>;
   /** WR-013: land verified worktree onto primary main (commit). Optional on mocks. */

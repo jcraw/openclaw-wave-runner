@@ -11,7 +11,7 @@ import { runOperator } from "../src/cli/operations.js";
 test("schema migrates and freeze hashes are immutable", async () => {
   const sim = createSimulator("p1-hash");
   const controller = await seedWave(sim, "wave-hash", ["FX-001"]);
-  assert.equal(controller.db.schemaVersion(), 2);
+  assert.equal(controller.db.schemaVersion(), 3);
   const frozen = controller.freeze("wave-hash");
   const hash = frozen.wave.manifestHash;
   assert.match(hash, /^[a-f0-9]{64}$/);
