@@ -4,7 +4,7 @@ title: Chain worktrees — commit-on-verify, successor uses predecessor SHA
 status: done
 priority: high
 created: 2026-08-14
-updated: 2026-08-14
+updated: 2026-08-16
 source: jason
 agent_eligible: true
 eligibility: agent_eligible
