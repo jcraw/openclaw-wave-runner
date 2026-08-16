@@ -1,10 +1,10 @@
 ---
 id: WR-009
 title: Spike — Grok ACP stage token usage estimates
-status: open
+status: done
 priority: medium
 created: 2026-08-14
-updated: 2026-08-14
+updated: 2026-08-16
 source: jason
 agent_eligible: true
 eligibility: agent_eligible
