@@ -21,7 +21,7 @@ verify: npm test && npm run quality
 verify_command: npm test && npm run quality
 worker_out_dir: tmp/workers/WR-020
 plan: plans/2026-08-16-wr-020-live-wave-failures.md
-worker_pid: "2985486"
+worker_pid: ""
 ---
 
 # WR-020 — Live supervised-wave failure investigation + fixes
