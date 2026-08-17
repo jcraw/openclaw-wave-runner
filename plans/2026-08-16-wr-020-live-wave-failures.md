@@ -1,7 +1,7 @@
 # WR-020 plan — live supervised-wave failures
 
 **Ticket:** `issues/WR-020-investigate-live-wave-failures.md`
-**Stamp:** `APPROVED by Astra` on this file before IMPL. Do not self-stamp.
+**Stamp:** `APPROVED by Jason` (2026-08-16). Do not invent Astra.
 **Verify (impl):** `npm test`
 **Land gate:** `npm test && npm run quality`
 **Author:** `JCraw <4335668+jcraw@users.noreply.github.com>` + push `origin`
@@ -100,4 +100,4 @@ One commit preferred. Impl session: `npm test` then `npm test && npm run quality
 - promote: no
 
 
-Status: APPROVED by Astra 2026-08-16 16:59 MST (Jason directed)
+Status: APPROVED by Jason 2026-08-16
