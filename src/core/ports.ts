@@ -121,7 +121,12 @@ export interface WorkspaceAdapter {
     contents: string;
     artifactRoot?: string;
   }): Promise<string>;
-  verify(input: { worktree: string; command: string }): Promise<{ ok: boolean; proof: string }>;
+  verify(input: { worktree: string; command: string }): Promise<{
+    ok: boolean;
+    proof: string;
+    classify?: "runner_verify" | "product_verify";
+    timedOut?: boolean;
+  }>;
   commitVerifiedWorktree(input: {
     repoPath: string;
     worktree: string;

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { StageName, WorkerTruth } from "../domain/types.js";
+import type { LaunchReceipt, StageName, WorkerTruth } from "../domain/types.js";
 export type { StageAttemptRef } from "../core/stage-paths.js";
 export { stageAttemptDir, stageSessionKey } from "../core/stage-paths.js";
 
@@ -19,6 +19,11 @@ export type StageTerminal = {
 
 export function sha256Text(text: string): string {
   return createHash("sha256").update(text).digest("hex");
+}
+
+/** Strip optional `sha256:` prefix (case-insensitive) before compare. */
+export function normalizeArtifactHash(hash: string): string {
+  return hash.replace(/^sha256:/i, "").trim().toLowerCase();
 }
 
 export function ensureStageAttemptDir(dir: string): string {
@@ -123,7 +128,7 @@ export function inspectStageArtifacts(input: {
       outputRef: input.outputDir,
     };
   }
-  if (terminal.hash && terminal.hash !== sha256Text(text)) {
+  if (terminal.hash && normalizeArtifactHash(terminal.hash) !== sha256Text(text)) {
     return {
       status: "unknown",
       error: "stage terminal hash does not match artifact",
@@ -135,4 +140,20 @@ export function inspectStageArtifacts(input: {
     summary: text.trim(),
     outputRef: artifactPath,
   };
+}
+
+export function inspectReceiptArtifacts(receipt: LaunchReceipt): WorkerTruth | undefined {
+  if (!receipt.outputDir) return undefined;
+  const sourceId = receipt.idempotencyKey;
+  const parts = sourceId.split(":");
+  const attempt = Number(parts[3] ?? "1");
+  return inspectStageArtifacts({
+    stage: parts[2] === "IMPL" || parts[2] === "VERIFY" ? parts[2] : "PLAN",
+    outputDir: receipt.outputDir,
+    idempotencyKey: sourceId,
+    waveId: parts[0] ?? "",
+    ticketId: parts[1] ?? "",
+    attempt: Number.isInteger(attempt) ? attempt : 1,
+    live: false,
+  });
 }

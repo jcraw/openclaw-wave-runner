@@ -10,7 +10,8 @@ export async function runImplVerifyAndCommit(
   if (!worktree || !command) return { fail: "missing_verify" };
   const verify = await ctrl.workspace.verify({ worktree, command });
   if (!verify.ok) {
-    return { proof: verify.proof, fail: `verify failed: ${command} (${verify.proof})` };
+    const classify = verify.classify ?? "product_verify";
+    return { proof: verify.proof, fail: `${classify}: verify failed: ${command} (${verify.proof})` };
   }
   try {
     const committed = await ctrl.workspace.commitVerifiedWorktree({

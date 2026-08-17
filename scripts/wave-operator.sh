@@ -20,7 +20,10 @@ Optional env:
   MAX_WALL_MS        default 0 (no elapsed deadline)
   MAX_TICKS          default 0 (unlimited)
   TICK_SLEEP         default 20
-  STUCK_TICKS        default 20 (0 = disable). Same RUNNING fingerprint → OPERATOR_STOP stuck
+  STUCK_TICKS        default 20 (0 = disable). Frozen RUNNING, no live outbox → OPERATOR_STOP stuck
+  WAVE_PLAN_WALL_MS  default 2700000 (45m). 0 = disable PLAN stage watchdog
+  WAVE_IMPL_WALL_MS  default 5400000 (90m). 0 = disable IMPL stage watchdog
+  WAVE_VERIFY_TIMEOUT_MS  default 300000. Controller verify exec timeout
   PLUGIN_DIR         package root (default: parent of scripts/)
   WAVE_RUNNER_ACP=1  enable ACP spawn path
 
@@ -96,16 +99,33 @@ print(hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).
 PY2
 }
 
+# Same predicate as src/core/operator-loop.ts hasLiveOutbox.
+has_live_outbox() {
+  python3 - "$1" <<'PY2'
+import json,sys
+d=json.load(open(sys.argv[1]))
+live={"CLAIMED","LAUNCHED","RECONCILING"}
+print("1" if any((o.get("state") or "") in live for o in (d.get("outbox") or [])) else "0")
+PY2
+}
+
 note_stuck() {
   local st="$1"
   local json="$2"
   local fp=""
+  local live="0"
   if [[ -n "$json" && -s "$json" ]]; then
     fp="$(fingerprint_of_json "$json" 2>/dev/null || true)"
+    live="$(has_live_outbox "$json" 2>/dev/null || echo 0)"
   fi
   if [[ "$st" != "RUNNING" || -z "$fp" ]]; then
     STUCK_N=0
     PREV_FP=""
+    return 0
+  fi
+  if [[ "$live" == "1" ]]; then
+    STUCK_N=0
+    PREV_FP="$fp"
     return 0
   fi
   if [[ "$fp" == "$PREV_FP" ]]; then

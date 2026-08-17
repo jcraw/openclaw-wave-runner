@@ -6,7 +6,12 @@ import test from "node:test";
 
 import { GrokAcpWorker } from "../src/adapters/acp-worker.js";
 import type { AcpSpawn, AcpSpawnResult, LaunchIntent } from "../src/adapters/ports.js";
-import { stageAttemptDir, stageSessionKey, writeStageTerminal } from "../src/adapters/stage-artifacts.js";
+import {
+  sha256Text,
+  stageAttemptDir,
+  stageSessionKey,
+  writeStageTerminal,
+} from "../src/adapters/stage-artifacts.js";
 
 class FakeAcp implements AcpSpawn {
   launches = 0;
@@ -119,6 +124,29 @@ test("terminal attestation with the wrong stage is rejected", async () => {
   const truth = await worker.inspect(receipt);
   assert.equal(truth.status, "unknown");
   assert.match(truth.error ?? "", /mismatched/);
+});
+
+test("ACP running + matching PLAN terminal/artifact is succeeded (artifact-first)", async () => {
+  const root = mkdtempSync(join(tmpdir(), "wave-acp-artifact-first-"));
+  const acp = new FakeAcp();
+  const worker = new GrokAcpWorker({ acp });
+  const plan = intent(root, "PLAN");
+  const receipt = await worker.launch(plan);
+  const text = "# plan\n";
+  writeFileSync(join(receipt.outputDir!, "PLAN.md"), text, "utf8");
+  writeStageTerminal(receipt.outputDir!, {
+    idempotencyKey: plan.idempotencyKey,
+    waveId: plan.waveId,
+    ticketId: plan.ticketId,
+    stage: "PLAN",
+    attempt: 1,
+    status: "succeeded",
+    hash: `sha256:${sha256Text(text)}`,
+  });
+  acp.status = "running";
+  const truth = await worker.inspect(receipt);
+  assert.equal(truth.status, "succeeded");
+  assert.equal(truth.outputRef, receipt.outputDir);
 });
 
 test("durable stage artifacts win over late ACP cancel/timeout", async () => {

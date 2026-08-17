@@ -129,5 +129,32 @@ Do not late-edit ticket frontmatter after freeze — cancel and recreate.
 `dry-run` is the preflight for the list above. `STUCK_TICKS` (default 20) stops
 `wave-operator.sh` / `run-backlog-wave.sh` with `OPERATOR_STOP stuck` when a `RUNNING`
 fingerprint (`wave.status` + ticket id/status/revision/result + outbox id/state +
-lease key/holder/ticketId) does not change. `AWAITING_PLAN_GATE` is not stuck.
-`STUCK_TICKS=0` disables the stop.
+lease key/holder/ticketId) does not change **and** no outbox is `CLAIMED` /
+`LAUNCHED` / `RECONCILING`. Live in-flight work is not stuck; hung stages are
+the watchdog below. `AWAITING_PLAN_GATE` is not stuck. `STUCK_TICKS=0` disables
+the stop. Do not default it to 0. Lease `expiresAt` is not hashed.
+
+Incident `BL-WR-006-20260816140320` / `PAR-board-remote_root-RRT-013-140320`:
+healthy long IMPL (`IMPLEMENTING` + outbox `LAUNCHED`) was killed as stuck
+because the fingerprint ignored worker liveness.
+
+## Stage watchdog + verify capture (WR-020)
+
+Hung PLAN/IMPL (ACP still `running` with no matching artifacts) is fail-closed
+by wall clocks, not by the stuck detector:
+
+- `WAVE_PLAN_WALL_MS` default `2700000` (45m). `0` disables.
+- `WAVE_IMPL_WALL_MS` default `5400000` (90m). `0` disables.
+
+Age is `outbox.createdAt`. Past the wall: `worker.cancel` then settle
+`failed` with `stage_watchdog: <stage> hung` (WR-010 retry then applies).
+Incident `PAR-prefix-MUD-MUD-037-145205`: PLAN artifacts were already on disk
+(`sha256:` prefix + ACP still running) and the serial lane never settled.
+
+Controller verify writes `WAVE_VERIFY.json` as
+`{ok,command,stdout,stderr,output,exitCode,signal,timedOut,durationMs}`.
+`WAVE_VERIFY_TIMEOUT_MS` default `300000`. Fail snippets are prefixed
+`runner_verify:` (timeout / ENOENT / spawn) or `product_verify:` (nonzero +
+captured body). Full stdout/stderr stay on disk; `ticket.result` is still
+clipped to 500. Incident `PAR-board-rink_rush-RR-070-140320`: WAVE_VERIFY
+kept only `Command failed: bash -lc …` and dropped the body.

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { WaveError } from "../domain/errors.js";
 import type { LandResult, WorkspaceAdapter, WorktreeSpec } from "./ports.js";
 import { enqueueLand, executeLandToMain, git } from "./land-git.js";
+import { runWorkspaceVerify } from "./verify-exec.js";
 import { commitStagedWorktree, resolveRepoIdentity } from "./worktree-commit.js";
 
 export class GitWorkspace implements WorkspaceAdapter {
@@ -42,22 +43,9 @@ export class GitWorkspace implements WorkspaceAdapter {
     return path;
   }
 
-  async verify(input: { worktree: string; command: string }): Promise<{ ok: boolean; proof: string }> {
-    const proof = join(input.worktree, "WAVE_VERIFY.json");
-    let ok = true;
-    let output = "";
-    try {
-      output = execFileSync("bash", ["-lc", input.command], {
-        cwd: input.worktree,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-    } catch (error) {
-      ok = false;
-      output = error instanceof Error ? error.message : String(error);
-    }
-    writeFileSync(proof, JSON.stringify({ ok, command: input.command, output }, null, 2), "utf8");
-    return { ok, proof };
+  async verify(input: { worktree: string; command: string }) {
+    const ran = runWorkspaceVerify(input);
+    return { ok: ran.ok, proof: ran.proof, classify: ran.classify, timedOut: ran.timedOut };
   }
 
   async commitVerifiedWorktree(input: {

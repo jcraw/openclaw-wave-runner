@@ -6,7 +6,7 @@ import type { ReadOnlyTasks } from "../contracts.js";
 import type { AcpSpawn, CancelResult, LaunchIntent, WorkerAdapter } from "./ports.js";
 import {
   ensureStageAttemptDir,
-  inspectStageArtifacts,
+  inspectReceiptArtifacts,
   readJsonFile,
   stageAttemptDir,
   writeJsonAtomic,
@@ -198,6 +198,13 @@ export class GrokAcpWorker implements WorkerAdapter {
       sessionId: receipt.sessionId,
       sourceId,
     });
+    const artifacts = inspectReceiptArtifacts(receipt);
+    // Artifact-first: matching same-stage terminal + required artifact wins
+    // even if ACP is still queued/running (MUD-037). Stale PLAN.md in an IMPL
+    // dir is not IMPL success — inspectReceiptArtifacts requires IMPL_DONE.
+    if (artifacts?.status === "succeeded") {
+      return { ...artifacts, outputRef: receipt.outputDir };
+    }
     if (acpTruth.status === "queued" || acpTruth.status === "running") {
       return { status: "running" as const, outputRef: receipt.outputDir };
     }
@@ -210,32 +217,10 @@ export class GrokAcpWorker implements WorkerAdapter {
       }
       return { status: "unknown" as const, error: "ACP receipt is missing outputDir" };
     }
-    const parts = sourceId.split(":");
-    const ticketId = parts[1] ?? "";
-    const stage = (parts[2] === "IMPL" || parts[2] === "VERIFY" ? parts[2] : "PLAN") as
-      | "PLAN"
-      | "IMPL"
-      | "VERIFY";
-    const attempt = Number(parts[3] ?? "1");
-    const artifacts = inspectStageArtifacts({
-      stage,
-      outputDir: receipt.outputDir,
-      idempotencyKey: sourceId,
-      waveId: parts[0] ?? "",
-      ticketId,
-      attempt: Number.isInteger(attempt) ? attempt : 1,
-      live: false,
-    });
-    // Prefer durable stage attestations over late ACP cancel/timeout races.
-    // Grok often finishes writing PLAN.md/terminal.json just as the host marks
-    // the ACP task cancelled/timed_out; artifacts are the contract truth.
-    if (artifacts.status === "succeeded") {
-      return { ...artifacts, outputRef: receipt.outputDir };
-    }
     if (acpTruth.status === "failed" || acpTruth.status === "cancelled") {
       return acpTruth;
     }
-    return artifacts;
+    return artifacts ?? { status: "unknown" as const, error: "missing stage artifacts", outputRef: receipt.outputDir };
   }
 
   async cancel(receipt: LaunchReceipt) {

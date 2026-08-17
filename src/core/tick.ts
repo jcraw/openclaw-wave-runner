@@ -12,6 +12,7 @@ import {
 } from "./launch.js";
 import { failUnlaunchableApproved, releaseInactiveWriterLeases, writerLeaseBlocksImpl } from "./lease-release.js";
 import { isIdleGateStatus } from "./operator-loop.js";
+import { applyStageWatchdog } from "./stage-watchdog.js";
 import { deriveWriterScope } from "../domain/writer-scope.js";
 import {
   isTerminalTicket,
@@ -222,6 +223,7 @@ export async function tickWave(
   }
   await dispatchPending(ctrl, waveId);
   await observeLaunched(ctrl, waveId);
+  await applyStageWatchdog(ctrl, waveId);
   releaseInactiveWriterLeases(ctrl, waveId);
   await advanceReadyTickets(ctrl, waveId);
   failUnlaunchableApproved(ctrl, waveId);

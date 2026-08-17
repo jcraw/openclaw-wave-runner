@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { nextStuckCount, operatorLoopDecision, progressFingerprint } from "../src/core/operator-loop.js";
+import {
+  hasLiveOutbox,
+  nextStuckCount,
+  operatorLoopDecision,
+  progressFingerprint,
+} from "../src/core/operator-loop.js";
 import { DEFAULT_LIMITS } from "../src/domain/types.js";
 import { createSimulator, seedWave } from "../src/sim/simulator.js";
 
@@ -24,6 +29,18 @@ test("progressFingerprint + nextStuckCount: hash, revision, stuck, plan-gate", (
   assert.deepEqual(nextStuckCount(same, same, 2, 3, "RUNNING"), { count: 3, stuck: true });
   assert.deepEqual(nextStuckCount(same, same, 5, 3, "AWAITING_PLAN_GATE"), { count: 0, stuck: false });
   assert.deepEqual(nextStuckCount(same, same, 5, 0, "RUNNING"), { count: 6, stuck: false });
+  const liveView = {
+    ...view,
+    tickets: [{ ticketId: "FX-001", status: "IMPLEMENTING", revision: 1 }],
+    outbox: [{ outboxId: "obx-1", state: "LAUNCHED" }],
+  };
+  assert.equal(hasLiveOutbox(liveView), true);
+  const liveFp = progressFingerprint(liveView);
+  assert.deepEqual(nextStuckCount(liveFp, liveFp, 2, 3, "RUNNING", hasLiveOutbox(liveView)), {
+    count: 0,
+    stuck: false,
+  });
+  assert.equal(hasLiveOutbox(view), false);
 });
 
 test("operatorLoopDecision: agent-gate stays; human hold stops", () => {

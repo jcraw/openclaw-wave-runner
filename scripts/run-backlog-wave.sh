@@ -82,16 +82,33 @@ print(hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).
 PY
 }
 
+# Same predicate as src/core/operator-loop.ts hasLiveOutbox.
+has_live_outbox() {
+  python3 - "$1" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]))
+live={"CLAIMED","LAUNCHED","RECONCILING"}
+print("1" if any((o.get("state") or "") in live for o in (d.get("outbox") or [])) else "0")
+PY
+}
+
 note_stuck() {
   local st="$1"
   local json="$2"
   local fp=""
+  local live="0"
   if [[ -n "$json" && -s "$json" ]]; then
     fp="$(fingerprint_of_json "$json" 2>/dev/null || true)"
+    live="$(has_live_outbox "$json" 2>/dev/null || echo 0)"
   fi
   if [[ "$st" != "RUNNING" || -z "$fp" ]]; then
     STUCK_N=0
     PREV_FP=""
+    return 0
+  fi
+  if [[ "$live" == "1" ]]; then
+    STUCK_N=0
+    PREV_FP="$fp"
     return 0
   fi
   if [[ "$fp" == "$PREV_FP" ]]; then

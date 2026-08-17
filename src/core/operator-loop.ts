@@ -68,10 +68,19 @@ export function progressFingerprint(view: ProgressView): string {
   });
 }
 
+export const LIVE_OUTBOX_STATES = ["CLAIMED", "LAUNCHED", "RECONCILING"] as const;
+
+/** True when any outbox is still in flight (healthy long IMPL is not stuck). */
+export function hasLiveOutbox(view: ProgressView): boolean {
+  return view.outbox.some((item) =>
+    item.state === "CLAIMED" || item.state === "LAUNCHED" || item.state === "RECONCILING",
+  );
+}
+
 /**
- * Increment only while RUNNING and the fingerprint is unchanged.
- * Non-RUNNING (plan-gate / human hold / paused / terminal) resets.
- * threshold <= 0 disables the stop.
+ * Increment only while RUNNING, fingerprint unchanged, and no live outbox.
+ * Live CLAIMED/LAUNCHED/RECONCILING resets (WR-020). Frozen RUNNING with
+ * no open outbox still stops (WR-019). threshold <= 0 disables the stop.
  */
 export function nextStuckCount(
   prev: string,
@@ -79,8 +88,10 @@ export function nextStuckCount(
   n: number,
   threshold: number,
   status: WaveStatus,
+  live = false,
 ): { count: number; stuck: boolean } {
   if (status !== "RUNNING") return { count: 0, stuck: false };
+  if (live) return { count: 0, stuck: false };
   if (next !== prev) return { count: 0, stuck: false };
   const count = n + 1;
   return { count, stuck: threshold > 0 && count >= threshold };
