@@ -1,20 +1,34 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
 
 const PINNED_MODEL = process.env.GROK_MODEL?.trim() || "grok-4.6";
 const PINNED_THINKING = process.env.GROK_THINKING?.trim() || "medium";
 const GROK_COMMAND = process.env.GROK_COMMAND?.trim() || "grok";
 const DEBUG_LOG = process.env.GROK_ACP_COMPAT_LOG?.trim();
+const DEFAULT_AGENT_PROFILE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "crawmak",
+  "profile.md",
+);
+const AGENT_PROFILE = (() => {
+  const fromEnv = process.env.GROK_AGENT_PROFILE?.trim();
+  if (fromEnv) return fromEnv;
+  return existsSync(DEFAULT_AGENT_PROFILE) ? DEFAULT_AGENT_PROFILE : "";
+})();
 const THINKING_VALUES = ["off", "minimal", "low", "medium", "high", "xhigh"];
 
-const child = spawn(
-  GROK_COMMAND,
-  ["agent", "--model", PINNED_MODEL, "--always-approve", "stdio"],
-  { stdio: ["pipe", "pipe", "inherit"] },
-);
+const agentArgs = ["agent", "--model", PINNED_MODEL, "--always-approve"];
+if (AGENT_PROFILE) agentArgs.push("--agent-profile", AGENT_PROFILE);
+agentArgs.push("stdio");
+
+const child = spawn(GROK_COMMAND, agentArgs, { stdio: ["pipe", "pipe", "inherit"] });
 
 let latestConfigOptions = [];
 
