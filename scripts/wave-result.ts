@@ -5,7 +5,11 @@ import { join, resolve } from "node:path";
 import {
   drainExitCode,
   formatDrainTable,
-  outcomeFromTicket,
+  rowsFromInspect,
+  rowsFromWaveResult,
+  rowsFromWrite,
+  waveResultDoc,
+  type DrainOutcome,
   type DrainTicketRow,
 } from "../src/core/drain-summary.js";
 
@@ -24,49 +28,41 @@ function optional(name: string): string | undefined {
 
 const op = process.argv[2] ?? "help";
 
+function writeWaveResult(out: string, rows: DrainTicketRow[], waveId?: string, lane?: string) {
+  const doc = waveResultDoc(rows, waveId);
+  writeFileSync(out, `${JSON.stringify(doc, null, 2)}\n`, "utf8");
+  if (lane) {
+    for (const row of rows) appendFileSync(resolve(lane), `${JSON.stringify(row)}\n`, "utf8");
+  }
+}
+
 if (op === "write") {
-  const row: DrainTicketRow = {
-    ticketId: arg("ticket"),
-    waveId: optional("wave"),
-    outcome: arg("outcome") as DrainTicketRow["outcome"],
+  const waveId = optional("wave");
+  const rows = rowsFromWrite({
+    ticket: arg("ticket"),
+    waveId,
+    outcome: arg("outcome") as DrainOutcome,
     reason: optional("reason"),
     landOk: arg("land-ok", "0") === "1",
-  };
-  const out = resolve(arg("out"));
-  writeFileSync(out, `${JSON.stringify(row, null, 2)}\n`, "utf8");
-  const lane = optional("lane-summary");
-  if (lane) appendFileSync(resolve(lane), `${JSON.stringify(row)}\n`, "utf8");
+  });
+  writeWaveResult(resolve(arg("out")), rows, waveId, optional("lane-summary"));
   process.exit(0);
 }
 
 if (op === "from-inspect") {
   const inspectPath = resolve(arg("inspect"));
-  const out = resolve(arg("out"));
   const raw = JSON.parse(readFileSync(inspectPath, "utf8")) as {
     wave?: { status?: string; waveId?: string };
     tickets?: Array<{ ticketId: string; status: string; result?: string }>;
   };
   const waveId = raw.wave?.waveId ?? optional("wave");
-  const tickets = raw.tickets ?? [];
-  const rows = tickets.map((t) =>
-    outcomeFromTicket({
-      ticketId: t.ticketId,
-      status: t.status,
-      result: t.result,
-      waveId,
-      waveStatus: raw.wave?.status,
-    }),
-  );
-  const row = rows[0] ?? {
-    ticketId: arg("ticket", "unknown"),
+  const rows = rowsFromInspect({
     waveId,
-    outcome: "FAILED" as const,
-    reason: raw.wave?.status ?? "no tickets",
-    landOk: false,
-  };
-  writeFileSync(out, `${JSON.stringify(row, null, 2)}\n`, "utf8");
-  const lane = optional("lane-summary");
-  if (lane) appendFileSync(resolve(lane), `${JSON.stringify(row)}\n`, "utf8");
+    waveStatus: raw.wave?.status,
+    tickets: raw.tickets,
+    fallbackTicket: optional("ticket"),
+  });
+  writeWaveResult(resolve(arg("out")), rows, waveId, optional("lane-summary"));
   process.exit(0);
 }
 
@@ -86,7 +82,7 @@ if (op === "rollup") {
         walk(p);
       } else if (ent.name === "WAVE_RESULT.json") {
         try {
-          rows.push(JSON.parse(readFileSync(p, "utf8")) as DrainTicketRow);
+          rows.push(...rowsFromWaveResult(JSON.parse(readFileSync(p, "utf8"))));
         } catch {
           /* skip */
         }

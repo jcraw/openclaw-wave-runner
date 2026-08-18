@@ -7,7 +7,14 @@ import test from "node:test";
 
 import { executeLandToMain, git } from "../src/adapters/land-git.js";
 import { selectEligibleTickets } from "../src/adapters/eligible-select.js";
-import { drainExitCode, formatDrainTable, outcomeFromTicket } from "../src/core/drain-summary.js";
+import {
+  drainExitCode,
+  formatDrainTable,
+  outcomeFromTicket,
+  rowsFromInspect,
+  rowsFromWaveResult,
+  rowsFromWrite,
+} from "../src/core/drain-summary.js";
 import { landRecoveryReceipt } from "../src/core/land-recovery.js";
 import { DEFAULT_LIMITS } from "../src/domain/types.js";
 import { scopePaths } from "../src/domain/scope-paths.js";
@@ -274,4 +281,82 @@ test("drain exit: FAILED → 1; best-effort → 0 + table", () => {
   assert.equal(drainExitCode(rows, true), 0);
   assert.equal(drainExitCode([rows[0]!], false), 0);
   assert.match(formatDrainTable(rows), /B CLOSEOUT_DEBT/);
+});
+
+test("WAVE_RESULT from-inspect keeps every ticket, not only the first", () => {
+  const rows = rowsFromInspect({
+    waveId: "SMK-1",
+    waveStatus: "COMPLETED",
+    tickets: [
+      { ticketId: "SMK-001", status: "DONE", result: "verified+landed aaa" },
+      { ticketId: "SMK-002", status: "DONE", result: "verified+landed bbb" },
+    ],
+  });
+  assert.deepEqual(
+    rows.map((r) => r.ticketId),
+    ["SMK-001", "SMK-002"],
+  );
+  assert.ok(rows.every((r) => r.outcome === "DONE" && r.landOk));
+  assert.equal(drainExitCode(rows, false), 0);
+});
+
+test("WAVE_RESULT write splits comma ticket lists", () => {
+  const rows = rowsFromWrite({
+    ticket: "SMK-001,SMK-002",
+    waveId: "SMK-1",
+    outcome: "SKIPPED",
+    reason: "dry-run failed",
+    landOk: false,
+  });
+  assert.equal(rows.length, 2);
+  assert.equal(rows[1]?.ticketId, "SMK-002");
+  assert.equal(rows[1]?.outcome, "SKIPPED");
+});
+
+test("WAVE_RESULT rollup reads tickets[] and legacy single-row files", () => {
+  const multi = rowsFromWaveResult({
+    waveId: "W",
+    tickets: [
+      { ticketId: "A", outcome: "DONE", landOk: true },
+      { ticketId: "B", outcome: "DONE", landOk: true },
+    ],
+  });
+  const legacy = rowsFromWaveResult({
+    ticketId: "C",
+    outcome: "FAILED",
+    reason: "product_verify",
+    landOk: false,
+  });
+  assert.deepEqual(
+    multi.map((r) => r.ticketId),
+    ["A", "B"],
+  );
+  assert.equal(legacy[0]?.ticketId, "C");
+});
+
+test("wave-result CLI from-inspect writes tickets[]", () => {
+  const dir = mkdtempSync(join(tmpdir(), "wr-wave-result-"));
+  const inspect = join(dir, "inspect.json");
+  const out = join(dir, "WAVE_RESULT.json");
+  writeFileSync(
+    inspect,
+    JSON.stringify({
+      wave: { waveId: "SMK-1", status: "COMPLETED" },
+      tickets: [
+        { ticketId: "SMK-001", status: "DONE", result: "verified+landed aaa" },
+        { ticketId: "SMK-002", status: "DONE", result: "verified+landed bbb" },
+      ],
+    }),
+    "utf8",
+  );
+  const cli = join(process.cwd(), "dist/scripts/wave-result.js");
+  execFileSync("node", [cli, "from-inspect", "--inspect", inspect, "--out", out, "--wave", "SMK-1"], {
+    cwd: process.cwd(),
+  });
+  const doc = JSON.parse(readFileSync(out, "utf8")) as { tickets?: Array<{ ticketId: string }> };
+  assert.deepEqual(
+    (doc.tickets ?? []).map((t) => t.ticketId),
+    ["SMK-001", "SMK-002"],
+  );
+  assert.equal("ticketId" in doc, false);
 });

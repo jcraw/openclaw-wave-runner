@@ -59,3 +59,73 @@ export function formatDrainTable(rows: DrainTicketRow[]): string {
     })
     .join("\n");
 }
+
+/** Per-wave receipt. `tickets` is the truth; never persist only the first row. */
+export type WaveResultDoc = {
+  waveId?: string;
+  tickets: DrainTicketRow[];
+};
+
+export function splitTicketIds(raw?: string): string[] {
+  return (raw ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+}
+
+export function rowsFromWrite(input: {
+  ticket: string;
+  waveId?: string;
+  outcome: DrainOutcome;
+  reason?: string;
+  landOk: boolean;
+}): DrainTicketRow[] {
+  const ids = splitTicketIds(input.ticket);
+  const names = ids.length ? ids : ["unknown"];
+  return names.map((ticketId) => ({
+    ticketId,
+    waveId: input.waveId,
+    outcome: input.outcome,
+    reason: input.reason,
+    landOk: input.landOk,
+  }));
+}
+
+export function rowsFromInspect(input: {
+  waveId?: string;
+  waveStatus?: string;
+  tickets?: Array<{ ticketId?: string; status?: string; result?: string }>;
+  fallbackTicket?: string;
+}): DrainTicketRow[] {
+  const listed = (input.tickets ?? []).filter((t) => t.ticketId);
+  if (listed.length) {
+    return listed.map((t) =>
+      outcomeFromTicket({
+        ticketId: t.ticketId!,
+        status: t.status,
+        result: t.result,
+        waveId: input.waveId,
+        waveStatus: input.waveStatus,
+      }),
+    );
+  }
+  return rowsFromWrite({
+    ticket: input.fallbackTicket ?? "unknown",
+    waveId: input.waveId,
+    outcome: "FAILED",
+    reason: input.waveStatus ?? "no tickets",
+    landOk: false,
+  });
+}
+
+export function waveResultDoc(rows: DrainTicketRow[], waveId?: string): WaveResultDoc {
+  return { ...(waveId ? { waveId } : {}), tickets: rows };
+}
+
+export function rowsFromWaveResult(raw: unknown): DrainTicketRow[] {
+  if (Array.isArray(raw)) {
+    return raw.filter((row): row is DrainTicketRow => Boolean(row && typeof row === "object" && "ticketId" in row));
+  }
+  if (!raw || typeof raw !== "object") return [];
+  const doc = raw as { tickets?: unknown; ticketId?: unknown };
+  if (Array.isArray(doc.tickets)) return rowsFromWaveResult(doc.tickets);
+  if (typeof doc.ticketId === "string") return [raw as DrainTicketRow];
+  return [];
+}
