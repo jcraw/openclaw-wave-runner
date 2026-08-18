@@ -47,6 +47,11 @@ const FORBIDDEN = [
 const ALLOW_FILES = new Set([
   // This checker itself mentions pattern names in comments/strings.
   "scripts/check-hygiene.mjs",
+  // Scratch default is the 7.3T data disk; UUID fail-closed lives in these scripts.
+  "scripts/drain-eligible.sh",
+  "scripts/run-backlog-parallel.sh",
+  "scripts/run-backlog-wave.sh",
+  "scripts/cleanup-scratch.sh",
 ]);
 
 function walk(dir, out = []) {

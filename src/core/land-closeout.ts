@@ -6,15 +6,10 @@ import type { LaunchOutbox, TicketRun, WaveRecord } from "../domain/types.js";
 import { deriveWriterScope, landLockKey, writerLeaseKey } from "../domain/writer-scope.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
+import { closeoutDebtReason } from "./land-recovery.js";
 import { acquireLease, canAcquire, releaseLease } from "./lease.js";
+import type { LandResult } from "./ports.js";
 import { TICKET_NEXT, TICKET_OWNERS } from "./state-machine.js";
-
-const REASON_CAP = 500;
-
-function clipReason(text: string): string {
-  const t = text.replace(/\s+/g, " ").trim();
-  return t.length <= REASON_CAP ? t : `${t.slice(0, REASON_CAP - 1)}…`;
-}
 
 function putTicketStatus(
   ctrl: ControllerContext,
@@ -58,7 +53,7 @@ export function implFenceFailure(
 function failLand(ctrl: ControllerContext, waveId: string, ticketId: string, reason: string): void {
   ctrl.db.transaction(() => {
     const ticket = requireTicket(ctrl, waveId, ticketId);
-    putTicketStatus(ctrl, ticket, "FAILED", clipReason(`land failed: ${reason}`));
+    putTicketStatus(ctrl, ticket, "FAILED", closeoutDebtReason(reason));
     refreshCounters(ctrl, waveId);
   });
 }
@@ -145,9 +140,20 @@ export async function finalizeImplLand(
           createdAt: ctrl.clock.now(),
         });
       } else if (land.ok) {
-        putTicketStatus(ctrl, live, "FAILED", clipReason("land failed: missing LAND.json"));
+        putTicketStatus(ctrl, live, "FAILED", closeoutDebtReason("missing LAND.json"));
       } else {
-        putTicketStatus(ctrl, live, "FAILED", clipReason(`land failed: ${land.error ?? "unknown"}`));
+        putTicketStatus(ctrl, live, "FAILED", closeoutDebtReason(land.error ?? "unknown", land.proof));
+        if (land.recovery) {
+          ctrl.db.putArtifact({
+            artifactId: `${waveId}:art:${randomUUID()}`,
+            waveId,
+            ticketId: item.ticketId,
+            kind: "land-recovery",
+            path: land.proof,
+            hash: hashJson(land.recovery),
+            createdAt: ctrl.clock.now(),
+          });
+        }
       }
       refreshCounters(ctrl, waveId);
     });
@@ -168,4 +174,39 @@ export async function finalizeImplLand(
     }
     releaseWriterLeaseAfterLand(ctrl, item);
   }
+}
+
+/** P1: re-run landToMain with no stash. Operator must clear overlap first. */
+export async function retryImplLand(
+  ctrl: ControllerContext,
+  waveId: string,
+  ticketId: string,
+): Promise<LandResult> {
+  const ticket = requireTicket(ctrl, waveId, ticketId);
+  const missing: LandResult = {
+    ok: false,
+    proof: "",
+    error: "land-retry refused: ticket not FAILED with impl worktree",
+  };
+  if (ticket.status !== "FAILED" || !ticket.implWorktree || !ctrl.workspace.landToMain) {
+    return missing;
+  }
+  const item: LaunchOutbox = {
+    outboxId: `${waveId}:obx:land-retry:${ticketId}`,
+    waveId,
+    ticketId,
+    stage: "IMPL",
+    attempt: 1,
+    idempotencyKey: `${waveId}:${ticketId}:LAND_RETRY:1`,
+    state: "SETTLED",
+    fencingGeneration: 1,
+    createdAt: ctrl.clock.now(),
+    updatedAt: ctrl.clock.now(),
+  };
+  await finalizeImplLand(ctrl, item);
+  const live = requireTicket(ctrl, waveId, ticketId);
+  if (live.status === "DONE") {
+    return { ok: true, proof: live.result ?? "", commitSha: live.result };
+  }
+  return { ok: false, proof: "", error: live.result ?? "land-retry failed" };
 }

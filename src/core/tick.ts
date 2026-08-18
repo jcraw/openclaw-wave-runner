@@ -11,6 +11,7 @@ import {
   refreshHeldLeases,
 } from "./launch.js";
 import { failUnlaunchableApproved, releaseInactiveWriterLeases, writerLeaseBlocksImpl } from "./lease-release.js";
+import { failClosedIfPrimaryDirty } from "./primary-dirty-gate.js";
 import { isIdleGateStatus } from "./operator-loop.js";
 import { applyStageWatchdog } from "./stage-watchdog.js";
 import { deriveWriterScope } from "../domain/writer-scope.js";
@@ -145,6 +146,7 @@ export async function advanceReadyTickets(ctrl: ControllerContext, waveId: strin
     const scope = ticket.writerScope || deriveWriterScope(ticket);
     if (busyImplScopes.has(scope)) continue;
     if (writerLeaseBlocksImpl(ctrl, wave, ticket)) continue;
+    if (await failClosedIfPrimaryDirty(ctrl, waveId, ticket.ticketId)) continue;
     try {
       await queueStage(ctrl, waveId, ticket.ticketId, "IMPL");
       busyImplScopes.add(scope);
@@ -168,6 +170,7 @@ export async function advanceReadyTickets(ctrl: ControllerContext, waveId: strin
   for (const ticket of planCandidates) {
     // Skip if this ticket already has open outbox work.
     if (open.some((item) => item.ticketId === ticket.ticketId)) continue;
+    if (await failClosedIfPrimaryDirty(ctrl, waveId, ticket.ticketId)) continue;
     try {
       await queueStage(ctrl, waveId, ticket.ticketId, "PLAN");
       queued += 1;

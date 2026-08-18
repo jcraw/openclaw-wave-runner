@@ -6,6 +6,7 @@ import type {
   UsageResult,
   WorkerTruth,
 } from "../domain/types.js";
+import type { LandRecovery } from "./land-recovery.js";
 
 export type TicketProjection = {
   ticketId: string;
@@ -109,6 +110,7 @@ export type LandResult = {
   commitSha?: string;
   proof: string;
   error?: string;
+  recovery?: LandRecovery;
 };
 
 export interface WorkspaceAdapter {
@@ -135,6 +137,11 @@ export interface WorkspaceAdapter {
   }): Promise<{ sha: string }>;
   recordProof(input: { worktree: string; ticketId: string; proof: string }): Promise<string>;
   primaryDirty(repoPath: string): Promise<boolean>;
+  /** WR-021: dirty primary paths that match writer-scope prefixes. */
+  primaryDirtyOverlap?(input: {
+    repoPath: string;
+    prefixes: string[];
+  }): Promise<{ dirty: string[]; overlap: string[] }>;
   /** WR-013: land verified worktree onto primary main (commit). Optional on mocks. */
   landToMain?(input: {
     repoPath: string;

@@ -31,8 +31,22 @@ node dist/scripts/wave-cli.js backup --dest /path/to/backup.sqlite
 Land push requires explicit `WAVE_LAND_PUSH=1`; repo path never implies push.
 
 `dry-run` is the preflight. It fails closed on missing `verifyCommand` (`missing_verify`) and
-returns `admitBlockers` (warnings: `human_hold`, `shared_writer_scope`). There is no separate
-`preflight` verb.
+returns `admitBlockers` (warnings: `human_hold`, `shared_writer_scope`, `primary_dirty_overlap`).
+Drain `run-backlog-wave.sh` refuses to create/start when `primary_dirty_overlap` is present
+unless `WAVE_PRIMARY_DIRTY=allow`. There is no separate `preflight` verb.
+
+Research / spike tickets must declare a non-empty `verify` / `verify_command` (recipe:
+`test -s path/to/NOTE-or-digest`). Empty string is `missing_verify` at select, dry-run, and
+create. There is no `verify_kind: noop`.
+
+Land dirty-overlap stays fail-closed (no stash). `LAND.json` includes `recovery` (overlap,
+dirty, incoming, worktree, tip, operator actions). Ticket result is prefixed `CLOSEOUT_DEBT:`.
+Recover by committing or stashing **unrelated** dirt, or cleaning primary then rebasing the
+wave tip / `wave-cli land-retry --wave W --ticket T`. Never stash overlapping land paths.
+
+Drain / lane terminal: each wave writes `WAVE_RESULT.json`. Rollup prints a per-ticket table
+and exits **1** unless every kicked ticket is `DONE` with `land.ok`. `WAVE_DRAIN_BEST_EFFORT=1`
+keeps exit 0 after the table. There is no success-only `ALL LANES FINISHED`.
 
 For one-off specialist work without a wave, use:
 
@@ -86,10 +100,14 @@ cp /path/to/backup.sqlite "$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite"
 
 Low-token backlog drain — **no LLM control loop**.
 
+Scratch is pruned daily (~04:15) by `scripts/cleanup-scratch.sh --apply`
+(keep 14 days / 3 newest / skip live waves). Dry-run without `--apply`.
+
 ```bash
 # Daytime / overnight kick (Jason-explicit). Runs until eligible queue empty or human hold.
 REPO=/path/to/game_jam \
-  OUT_ROOT=~/.openclaw/workspace/projects/agent-backlog-wave-runner/tmp/drain-$(date +%Y%m%d) \
+  WR_SCRATCH=$WR_SCRATCH \
+  OUT_ROOT=$WR_SCRATCH/drain-$(date +%Y%m%d) \
   MAX_PARALLEL=5 \
   bash scripts/drain-eligible.sh
 

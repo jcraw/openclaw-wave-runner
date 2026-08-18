@@ -127,6 +127,8 @@ const command: OperatorCommand = (() => {
       return { op, reason: optional("reason") };
     case "backup":
       return { op, destPath: arg("dest") };
+    case "land-retry":
+      return { op, waveId: arg("wave"), ticketId: arg("ticket") };
     default:
       return { op: "capabilities" };
   }

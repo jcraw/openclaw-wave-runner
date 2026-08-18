@@ -1,8 +1,10 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { landRecoveryReceipt } from "../core/land-recovery.js";
 import type { LandResult, WorkspaceAdapter } from "./ports.js";
 import { resolveLandIdentity, type LandIdentity } from "./land-identity.js";
+import { listDirtyPaths, listIncomingPaths, overlapPaths } from "./primary-overlap.js";
 import {
   commitStagedWorktree,
   commitWithIdentity,
@@ -37,24 +39,6 @@ function writeLandProof(durable: string, worktree: string, result: LandResult, e
   try {
     writeFileSync(join(worktree, "LAND.json"), body, "utf8");
   } catch { /* convenience */ }
-}
-
-function listedPaths(text: string): string[] {
-  return text.split("\n").map((line) => line.trim()).filter(Boolean);
-}
-
-function dirtyPaths(repo: string): string[] {
-  const names = new Set<string>();
-  for (const args of [["diff", "--name-only"], ["diff", "--name-only", "--cached"], ["ls-files", "--others", "--exclude-standard"]]) {
-    const got = gitOk(repo, args);
-    if (got.ok) for (const p of listedPaths(got.out)) names.add(p);
-  }
-  return [...names];
-}
-
-function incomingPaths(repo: string, from: string, to: string): string[] {
-  const got = gitOk(repo, ["diff", "--name-only", from, to]);
-  return got.ok ? listedPaths(got.out) : [];
 }
 
 function mainBranch(repo: string): string {
@@ -128,11 +112,13 @@ function closeoutBoard(repo: string, ticketId: string, identity: LandIdentity): 
 export async function executeLandToMain(input: LandToMainInput): Promise<LandResult> {
   const proof = durableProofPath(input);
   const fail = (error: string, extra: Record<string, unknown> = {}): LandResult => {
+    const recovery = extra.recovery as LandResult["recovery"];
     const result: LandResult = {
       ok: false,
       proof,
       error,
       ...(typeof extra.commitSha === "string" ? { commitSha: extra.commitSha } : {}),
+      ...(recovery ? { recovery } : {}),
     };
     writeLandProof(proof, input.worktree, result, extra);
     return result;
@@ -173,10 +159,20 @@ export async function executeLandToMain(input: LandToMainInput): Promise<LandRes
     const skipMerge = alreadyOnPrimary || isAncestor(input.repoPath, tip, primaryHead);
     if (!skipMerge) {
       if (dirty) {
-        const overlap = incomingPaths(input.repoPath, primaryHead, tip).filter((p) =>
-          dirtyPaths(input.repoPath).includes(p),
-        );
-        if (overlap.length) return fail(`primary dirty overlaps land: ${overlap.join(", ")}`);
+        const dirty = listDirtyPaths(input.repoPath);
+        const incoming = listIncomingPaths(input.repoPath, primaryHead, tip);
+        const overlap = overlapPaths(incoming, dirty);
+        if (overlap.length) {
+          return fail(`primary dirty overlaps land: ${overlap.join(", ")}`, {
+            recovery: landRecoveryReceipt({
+              overlap,
+              dirty,
+              incoming,
+              worktree: input.worktree,
+              tip,
+            }),
+          });
+        }
       }
       let merge = gitOk(input.repoPath, ["merge", "--ff-only", tip]);
       if (!merge.ok) {

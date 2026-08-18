@@ -1,10 +1,12 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { overlapWithPrefixes } from "./primary-overlap.js";
 import type { WorkspaceAdapter, WorktreeSpec } from "./ports.js";
 
 export class MockWorkspace implements WorkspaceAdapter {
   primaryIsDirty = false;
+  dirtyPaths: string[] = [];
   heads = new Map<string, string>();
   worktrees: string[] = [];
   verifies = 0;
@@ -71,7 +73,17 @@ export class MockWorkspace implements WorkspaceAdapter {
   }
 
   async primaryDirty(_repoPath: string): Promise<boolean> {
-    return this.primaryIsDirty;
+    return this.primaryIsDirty || this.dirtyPaths.length > 0;
+  }
+
+  async primaryDirtyOverlap(input: {
+    repoPath: string;
+    prefixes: string[];
+  }): Promise<{ dirty: string[]; overlap: string[] }> {
+    return {
+      dirty: [...this.dirtyPaths],
+      overlap: overlapWithPrefixes(this.dirtyPaths, input.prefixes),
+    };
   }
 
   async landToMain(input: {

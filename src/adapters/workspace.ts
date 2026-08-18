@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { WaveError } from "../domain/errors.js";
 import type { LandResult, WorkspaceAdapter, WorktreeSpec } from "./ports.js";
 import { enqueueLand, executeLandToMain, git } from "./land-git.js";
+import { computePrimaryDirtyOverlap } from "./primary-overlap.js";
 import { runWorkspaceVerify } from "./verify-exec.js";
 import { commitStagedWorktree, resolveRepoIdentity } from "./worktree-commit.js";
 
@@ -75,6 +76,13 @@ export class GitWorkspace implements WorkspaceAdapter {
   async primaryDirty(repoPath: string): Promise<boolean> {
     const status = git(repoPath, ["status", "--porcelain"]);
     return status.length > 0;
+  }
+
+  async primaryDirtyOverlap(input: {
+    repoPath: string;
+    prefixes: string[];
+  }): Promise<{ dirty: string[]; overlap: string[] }> {
+    return computePrimaryDirtyOverlap(input.repoPath, input.prefixes);
   }
 
   async landToMain(input: {

@@ -18,7 +18,10 @@ import { countersFromBudgets, failClosedWithoutRates } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
 import { inspect, recordEvent } from "./controller-context.js";
 import { hashManifest, topologicalOrder, validateManifest } from "./manifest.js";
+import { collectDirtyOverlapBlockers, type AdmitBlocker } from "./admit-overlap.js";
 import { TICKET_NEXT, TICKET_OWNERS, WAVE_NEXT, WAVE_OWNERS } from "./state-machine.js";
+
+export type { AdmitBlocker };
 
 export function buildManifest(
   ctrl: ControllerContext,
@@ -79,8 +82,6 @@ export function ticketFromFrozen(waveId: string, ticket: FrozenTicket): TicketRu
     game: ticket.game,
   };
 }
-
-export type AdmitBlocker = { ticketId: string; code: string; message: string };
 
 function verifyMissing(ticket: FrozenTicket): boolean {
   return !ticket.verifyCommand?.trim();
@@ -178,7 +179,10 @@ export async function dryRun(ctrl: ControllerContext, input: CreateWaveInput) {
     ticketIds: input.ticketIds,
     repoPath: input.repoPath,
   });
-  const admitBlockers = collectAdmitBlockers(tickets);
+  const admitBlockers = [
+    ...collectAdmitBlockers(tickets),
+    ...(await collectDirtyOverlapBlockers(ctrl.workspace, input.repoPath, tickets)),
+  ];
   assertTicketsHaveVerify(tickets);
   const baseSha = await ctrl.workspace.currentHead(input.repoPath);
   const manifest = buildManifest(ctrl, input, tickets, baseSha);

@@ -17,6 +17,7 @@ export type OperatorCommand =
   | { op: "project"; outPath?: string }
   | { op: "emergency-stop"; reason?: string }
   | { op: "backup"; destPath: string }
+  | { op: "land-retry"; waveId: string; ticketId: string }
   | { op: "capabilities" };
 
 export async function runOperator(controller: WaveController, command: OperatorCommand): Promise<unknown> {
@@ -63,6 +64,8 @@ export async function runOperator(controller: WaveController, command: OperatorC
       return controller.emergencyStop(command.reason);
     case "backup":
       return controller.backup(command.destPath);
+    case "land-retry":
+      return controller.retryLand(command.waveId, command.ticketId);
     case "capabilities":
       return controller.capabilities();
   }

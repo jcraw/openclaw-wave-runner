@@ -8,11 +8,18 @@
 #
 # tickets file lines: TICKET or TICKET|scopeHint
 # Lanes group by issues/<board>/ when ticket md is found; else ticket prefix.
+# Scratch defaults to the 7.3T data disk (not $HOME). Override with WR_SCRATCH / OUT_ROOT.
 set -euo pipefail
 
 : "${REPO:?REPO required}"
 : "${TICKETS_FILE:?TICKETS_FILE required}"
-OUT_ROOT="${OUT_ROOT:-$(pwd)/tmp/backlog-parallel-$(date +%Y%m%d%H%M%S)}"
+WR_SCRATCH="${WR_SCRATCH:-/run/media/j/866e11e8-6c31-4c0c-a07c-704845033900/ai/wave-runner}"
+_scratch_uuid="$(findmnt -n -o UUID -T "$WR_SCRATCH" 2>/dev/null || true)"
+if [[ "$_scratch_uuid" != "866e11e8-6c31-4c0c-a07c-704845033900" ]]; then
+  echo "error: Wave Runner scratch is not on the 7.3T data disk (unmounted or wrong UUID): $WR_SCRATCH" >&2
+  exit 1
+fi
+OUT_ROOT="${OUT_ROOT:-$WR_SCRATCH/backlog-parallel-$(date +%Y%m%d%H%M%S)}"
 WR="${WR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 MAX_PARALLEL="${MAX_PARALLEL:-5}"
 export OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-http://127.0.0.1:18789}"
@@ -80,20 +87,8 @@ run_lane() {
       export MAX_WALL_MS="${MAX_WALL_MS:-0}"
       export TICK_SLEEP=20
       echo ">> $ticket"
+      export LANE_SUMMARY="$lane_out/LANE_SUMMARY.jsonl"
       if bash "$WR/scripts/run-backlog-wave.sh"; then
-        # mark done on board when completed
-        python3 - "$REPO" "$ticket" <<'PY' || true
-import re, datetime, sys
-from pathlib import Path
-repo, tid = Path(sys.argv[1]), sys.argv[2]
-files=list(repo.joinpath("issues").rglob(f"{tid}-*.md"))
-if not files: raise SystemExit(0)
-p=files[0]; t=p.read_text()
-t=re.sub(r"(?m)^status:\s*\S+","status: done",t,count=1)
-t=re.sub(r"(?m)^updated:\s*\S+",f"updated: {datetime.date.today().isoformat()}",t,count=1)
-p.write_text(t)
-print("marked", p)
-PY
         echo "OK $ticket"
       else
         echo "FAIL $ticket"
@@ -122,5 +117,14 @@ done
 for pid in "${pids[@]}"; do
   wait "$pid" || true
 done
-echo "ALL LANES FINISHED $(date -Iseconds)"
+RESULT_JS="${RESULT_JS:-$WR/dist/scripts/wave-result.js}"
+echo "=== lane rollup $(date -Iseconds) ==="
+if [[ -f "$RESULT_JS" ]]; then
+  node "$RESULT_JS" rollup --root "$OUT_ROOT"
+  rc=$?
+else
+  echo "error: missing $RESULT_JS — cannot prove drain terminals" >&2
+  rc=1
+fi
 ls -la "$OUT_ROOT/run" || true
+exit "$rc"

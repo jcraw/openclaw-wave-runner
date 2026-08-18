@@ -5,10 +5,17 @@
 #
 # AUTO_PLAN_GATE=1 (default): common-sense stamp + approve on AWAITING_PLAN_GATE.
 # AUTO_PLAN_GATE=0: sleep-wait only (external Astra approve).
+# Scratch defaults to the 7.3T data disk (not $HOME). Override with WR_SCRATCH / OUT_DIR.
 set -euo pipefail
 : "${REPO:?}"
 : "${TICKETS:?}"
-OUT_DIR="${OUT_DIR:-$(pwd)/tmp/wave-runs/wave-$(date +%Y%m%d%H%M%S)}"
+WR_SCRATCH="${WR_SCRATCH:-/run/media/j/866e11e8-6c31-4c0c-a07c-704845033900/ai/wave-runner}"
+_scratch_uuid="$(findmnt -n -o UUID -T "$WR_SCRATCH" 2>/dev/null || true)"
+if [[ "$_scratch_uuid" != "866e11e8-6c31-4c0c-a07c-704845033900" ]]; then
+  echo "error: Wave Runner scratch is not on the 7.3T data disk (unmounted or wrong UUID): $WR_SCRATCH" >&2
+  exit 1
+fi
+OUT_DIR="${OUT_DIR:-$WR_SCRATCH/wave-runs/wave-$(date +%Y%m%d%H%M%S)}"
 WAVE_ID="${WAVE_ID:-BL-$(date +%Y%m%d%H%M%S)}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
@@ -123,7 +130,49 @@ note_stuck() {
   fi
 }
 
-bash "$SCRIPT_DIR/wave-operator.sh" dry-run >/dev/null || true
+RESULT_JS="${RESULT_JS:-$PLUGIN_DIR/dist/scripts/wave-result.js}"
+write_skip() {
+  local outcome="$1"
+  local reason="$2"
+  if [[ -f "$RESULT_JS" ]]; then
+    node "$RESULT_JS" write --out "$OUT_DIR/WAVE_RESULT.json" --ticket "$TICKETS" \
+      --wave "$WAVE_ID" --outcome "$outcome" --reason "$reason" --land-ok 0 \
+      ${LANE_SUMMARY:+--lane-summary "$LANE_SUMMARY"} || true
+  fi
+}
+
+write_inspect_result() {
+  local inspect_json="$1"
+  if [[ -f "$RESULT_JS" && -s "$inspect_json" ]]; then
+    node "$RESULT_JS" from-inspect --inspect "$inspect_json" --out "$OUT_DIR/WAVE_RESULT.json" \
+      --wave "$WAVE_ID" --ticket "$TICKETS" \
+      ${LANE_SUMMARY:+--lane-summary "$LANE_SUMMARY"} || true
+  fi
+}
+
+if ! bash "$SCRIPT_DIR/wave-operator.sh" dry-run >/dev/null; then
+  reason="dry-run failed"
+  if [[ -s "$OUT_DIR/cli/dry-run.err" ]] && grep -q missing_verify "$OUT_DIR/cli/dry-run.err"; then
+    reason="missing_verify $TICKETS"
+  fi
+  echo "PREFLIGHT_FAIL $reason" >&2
+  write_skip SKIPPED "$reason"
+  exit 1
+fi
+if [[ "${WAVE_PRIMARY_DIRTY:-}" != "allow" ]]; then
+  if ! python3 - "$OUT_DIR/cli/dry-run.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+hits = [b for b in (d.get("admitBlockers") or []) if b.get("code") == "primary_dirty_overlap"]
+if hits:
+    print("PREFLIGHT_FAIL primary_dirty_overlap " + ",".join(h.get("ticketId") or "?" for h in hits), file=sys.stderr)
+    sys.exit(1)
+PY
+  then
+    write_skip SKIPPED "primary_dirty_overlap $TICKETS"
+    exit 1
+  fi
+fi
 bash "$SCRIPT_DIR/wave-operator.sh" create
 bash "$SCRIPT_DIR/wave-operator.sh" start
 
@@ -134,6 +183,7 @@ while true; do
   printf -v nn "%02d" "$i"
   if (( $(date +%s) - started > 21600 )); then
     echo "FATAL wall"
+    write_skip FAILED "wall clock"
     exit 1
   fi
   bash "$SCRIPT_DIR/wave-operator.sh" tick "$nn" || true
@@ -151,9 +201,21 @@ while true; do
   note_stuck "$st" "$fp_json"
   echo "status=$st"
   case "$st" in
-    COMPLETED) echo WAVE_OK; exit 0 ;;
-    FAILED|CANCELLED|BUDGET_STOPPED|BLOCKED) echo "WAVE_BAD $st"; exit 1 ;;
-    WAITING_APPROVAL) echo "OPERATOR_STOP waiting_human"; exit 0 ;;
+    COMPLETED)
+      write_inspect_result "${fp_json:-$OUT_DIR/cli/inspect.json}"
+      echo WAVE_OK
+      exit 0
+      ;;
+    FAILED|CANCELLED|BUDGET_STOPPED|BLOCKED)
+      write_inspect_result "${fp_json:-$OUT_DIR/cli/inspect.json}"
+      echo "WAVE_BAD $st"
+      exit 1
+      ;;
+    WAITING_APPROVAL)
+      write_inspect_result "${fp_json:-$OUT_DIR/cli/inspect.json}"
+      echo "OPERATOR_STOP waiting_human"
+      exit 0
+      ;;
     AWAITING_PLAN_GATE)
       if [[ "$AUTO_PLAN_GATE" != "1" ]]; then
         sleep "$TICK_SLEEP"

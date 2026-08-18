@@ -23,6 +23,7 @@ import {
   reviseWave,
   startWave,
 } from "./wave-commands.js";
+import { retryImplLand } from "./land-closeout.js";
 import { createWave, defaultCreateInput, dryRun } from "./wave-create.js";
 import { capabilities, project } from "./wave-projection.js";
 
@@ -155,5 +156,9 @@ export class WaveController {
 
   backup(destPath: string): { path: string; schemaVersion: number } {
     return backupWave(this, destPath);
+  }
+
+  async retryLand(waveId: string, ticketId: string) {
+    return retryImplLand(this, waveId, ticketId);
   }
 }
