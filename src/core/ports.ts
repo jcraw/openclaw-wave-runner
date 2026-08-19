@@ -113,6 +113,15 @@ export type LandResult = {
   recovery?: LandRecovery;
 };
 
+export type ApplyResult = {
+  ok: boolean;
+  proof: string;
+  paths: string[];
+  conflicts: string[];
+  error?: string;
+  mode: "apply";
+};
+
 export interface WorkspaceAdapter {
   currentHead(repoPath: string): Promise<string>;
   createImplWorktree(spec: WorktreeSpec): Promise<{ worktree: string; branch: string }>;
@@ -153,6 +162,15 @@ export interface WorkspaceAdapter {
     push?: boolean;
     artifactRoot?: string;
   }): Promise<LandResult>;
+  /** WR-022: copy worktree tip into the primary workdir (no commit). Optional on mocks. */
+  applyToWorkdir?(input: {
+    repoPath: string;
+    worktree: string;
+    ticketId: string;
+    waveId: string;
+    baseSha: string;
+    artifactRoot?: string;
+  }): Promise<ApplyResult>;
 }
 
 export type PolicyDecision = "auto-approve" | "wait";

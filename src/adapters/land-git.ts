@@ -52,7 +52,7 @@ function isAncestor(repo: string, tip: string, head: string): boolean {
   return gitOk(repo, ["merge-base", "--is-ancestor", tip, head]).ok;
 }
 
-function removeImplWorktree(repo: string, worktree: string): void {
+export function removeImplWorktree(repo: string, worktree: string): void {
   if (!gitOk(repo, ["worktree", "remove", "--force", worktree]).ok) return;
   if (!existsSync(worktree)) return;
   try {
@@ -62,7 +62,7 @@ function removeImplWorktree(repo: string, worktree: string): void {
   }
 }
 
-function markBoardDone(repo: string, ticketId: string): string[] {
+export function markBoardDone(repo: string, ticketId: string): string[] {
   const board = join(repo, "issues", "BOARD.md");
   if (!existsSync(board)) return [];
   const text = readFileSync(board, "utf8");
@@ -73,7 +73,7 @@ function markBoardDone(repo: string, ticketId: string): string[] {
   return ["issues/BOARD.md"];
 }
 
-function markIssueDone(repo: string, ticketId: string): string[] {
+export function markIssueDone(repo: string, ticketId: string): string[] {
   const dir = join(repo, "issues");
   if (!existsSync(dir)) return [];
   const changed: string[] = [];

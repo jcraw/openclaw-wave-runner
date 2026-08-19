@@ -3,6 +3,7 @@ import type { CancelResult } from "../core/ports.js";
 
 export type {
   ApprovalWait,
+  ApplyResult,
   CancelResult,
   FlowRef,
   FrozenWave,

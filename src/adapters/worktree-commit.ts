@@ -5,6 +5,7 @@ import { resolveLandIdentity, type LandIdentity } from "./land-identity.js";
 export const COMMIT_NOISE = [
   "WAVE_VERIFY.json",
   "LAND.json",
+  "APPLY.json",
   "PROOF.md",
   "VERIFY.json",
   "WORKTREE",

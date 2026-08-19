@@ -29,6 +29,9 @@ export TICK_SLEEP="${TICK_SLEEP:-20}"
 export STUCK_TICKS="${STUCK_TICKS:-20}"
 export WAVE_RUNNER_ACP="${WAVE_RUNNER_ACP:-1}"
 AUTO_PLAN_GATE="${AUTO_PLAN_GATE:-1}"
+if [[ -z "${WAVE_LAND_MODE:-}" ]]; then
+  export WAVE_LAND_MODE=apply
+fi
 STUCK_N=0
 PREV_FP=""
 mkdir -p "$OUT_DIR/cli"
@@ -160,7 +163,7 @@ if ! bash "$SCRIPT_DIR/wave-operator.sh" dry-run >/dev/null; then
   write_skip SKIPPED "$reason"
   exit 1
 fi
-if [[ "${WAVE_PRIMARY_DIRTY:-}" != "allow" ]]; then
+if [[ "${WAVE_PRIMARY_DIRTY:-}" != "allow" && "${WAVE_LAND_MODE:-}" != "apply" ]]; then
   if ! python3 - "$OUT_DIR/cli/dry-run.json" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1]))

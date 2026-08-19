@@ -95,6 +95,8 @@ export type FrozenTicket = {
   writerScope?: string;
   product?: string;
   game?: string;
+  /** WR-022: ticket `land` / `land_mode`. Omit = resolve from env / default commit. */
+  landMode?: "apply" | "commit";
   satisfiedExternalDeps?: SatisfiedExternalDep[];
 };
 

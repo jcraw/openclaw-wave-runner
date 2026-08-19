@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { resolveHumanHold } from "../core/human-hold.js";
+import { parseCloseoutMode } from "../domain/closeout-mode.js";
 import { hashTicketContent, normalizeSelectedDependencies } from "../core/manifest.js";
 import type { FrozenTicket, TicketSelector } from "../domain/types.js";
 import type { TicketProjection, TrackerAdapter } from "./ports.js";
@@ -20,6 +21,7 @@ export type JsonTicketIngest = {
   eligibility?: string;
   humanHold?: boolean;
   humanHoldReason?: "needs_jason" | "human_gated";
+  landMode?: "apply" | "commit";
 };
 
 function asObject(value: unknown): Record<string, unknown> | undefined {
@@ -73,6 +75,7 @@ function parseJsonTickets(text: string): JsonTicketIngest[] {
       needsJason: obj.needs_jason ?? obj.needsJason,
       eligibility: obj.eligibility,
     });
+    const landMode = parseCloseoutMode(obj.land ?? obj.landMode ?? obj.land_mode);
     return {
       ticketId,
       title: optionalText(obj.title) ?? ticketId,
@@ -85,6 +88,7 @@ function parseJsonTickets(text: string): JsonTicketIngest[] {
       provider: optionalText(obj.provider),
       model: optionalText(obj.model),
       ...hold,
+      ...(landMode ? { landMode } : {}),
     };
   });
 }
@@ -124,6 +128,7 @@ export class JsonTracker implements TrackerAdapter {
         model: ticket.model,
         humanHold: ticket.humanHold,
         humanHoldReason: ticket.humanHoldReason,
+        landMode: ticket.landMode,
       };
     });
     return normalizeSelectedDependencies(

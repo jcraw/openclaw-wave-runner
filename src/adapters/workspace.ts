@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { WaveError } from "../domain/errors.js";
-import type { LandResult, WorkspaceAdapter, WorktreeSpec } from "./ports.js";
+import type { ApplyResult, LandResult, WorkspaceAdapter, WorktreeSpec } from "./ports.js";
+import { applyToWorkdir } from "./apply-workdir.js";
 import { enqueueLand, executeLandToMain, git } from "./land-git.js";
 import { computePrimaryDirtyOverlap } from "./primary-overlap.js";
 import { runWorkspaceVerify } from "./verify-exec.js";
@@ -96,6 +97,17 @@ export class GitWorkspace implements WorkspaceAdapter {
     artifactRoot?: string;
   }): Promise<LandResult> {
     return enqueueLand(input.repoPath, () => executeLandToMain(input));
+  }
+
+  async applyToWorkdir(input: {
+    repoPath: string;
+    worktree: string;
+    ticketId: string;
+    waveId: string;
+    baseSha: string;
+    artifactRoot?: string;
+  }): Promise<ApplyResult> {
+    return enqueueLand(input.repoPath, () => applyToWorkdir(input));
   }
 }
 

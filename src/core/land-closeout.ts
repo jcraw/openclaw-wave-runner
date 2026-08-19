@@ -1,9 +1,11 @@
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
+import { closeoutModeForWaveTicket } from "../domain/closeout-mode.js";
 import { hashJson } from "../domain/hash.js";
 import type { LaunchOutbox, TicketRun, WaveRecord } from "../domain/types.js";
 import { deriveWriterScope, landLockKey, writerLeaseKey } from "../domain/writer-scope.js";
+import { executeApplyCloseout } from "./apply-closeout.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { closeoutDebtReason } from "./land-recovery.js";
@@ -58,6 +60,25 @@ function failLand(ctrl: ControllerContext, waveId: string, ticketId: string, rea
   });
 }
 
+function recordProofArtifact(
+  ctrl: ControllerContext,
+  waveId: string,
+  ticketId: string,
+  path: string,
+  kind: string,
+  hashSource: unknown,
+): void {
+  ctrl.db.putArtifact({
+    artifactId: `${waveId}:art:${randomUUID()}`,
+    waveId,
+    ticketId,
+    kind,
+    path,
+    hash: hashJson(hashSource),
+    createdAt: ctrl.clock.now(),
+  });
+}
+
 export function releaseWriterLeaseAfterLand(ctrl: ControllerContext, item: LaunchOutbox): void {
   const ticket = requireTicket(ctrl, item.waveId, item.ticketId);
   const wave = requireWave(ctrl, item.waveId);
@@ -75,6 +96,34 @@ export function releaseWriterLeaseAfterLand(ctrl: ControllerContext, item: Launc
   } catch {
     // writer release is best-effort after closeout
   }
+}
+
+function recordCommitLand(
+  ctrl: ControllerContext,
+  waveId: string,
+  ticketId: string,
+  land: LandResult,
+): void {
+  ctrl.db.transaction(() => {
+    const live = requireTicket(ctrl, waveId, ticketId);
+    if (land.ok && land.proof && existsSync(land.proof)) {
+      putTicketStatus(
+        ctrl,
+        live,
+        "DONE",
+        land.commitSha ? `verified+landed ${land.commitSha.slice(0, 12)}` : "verified+landed",
+      );
+      recordProofArtifact(ctrl, waveId, ticketId, land.proof, "proof", land.proof);
+    } else if (land.ok) {
+      putTicketStatus(ctrl, live, "FAILED", closeoutDebtReason("missing LAND.json"));
+    } else {
+      putTicketStatus(ctrl, live, "FAILED", closeoutDebtReason(land.error ?? "unknown", land.proof));
+      if (land.recovery) {
+        recordProofArtifact(ctrl, waveId, ticketId, land.proof, "land-recovery", land.recovery);
+      }
+    }
+    refreshCounters(ctrl, waveId);
+  });
 }
 
 export async function finalizeImplLand(
@@ -107,6 +156,11 @@ export async function finalizeImplLand(
       failLand(ctrl, waveId, item.ticketId, "missing impl worktree");
       return;
     }
+    const mode = closeoutModeForWaveTicket(wave.manifestJson, ticket.ticketId);
+    if (mode === "apply") {
+      await executeApplyCloseout(ctrl, item, wave, ticket, { doneOnOk: true });
+      return;
+    }
     if (!ctrl.workspace.landToMain) {
       failLand(ctrl, waveId, item.ticketId, "landToMain missing");
       return;
@@ -121,42 +175,7 @@ export async function finalizeImplLand(
       push: shouldLandPush(),
       ...(ctrl.artifactRoot ? { artifactRoot: ctrl.artifactRoot } : {}),
     });
-    ctrl.db.transaction(() => {
-      const live = requireTicket(ctrl, waveId, item.ticketId);
-      if (land.ok && land.proof && existsSync(land.proof)) {
-        putTicketStatus(
-          ctrl,
-          live,
-          "DONE",
-          land.commitSha ? `verified+landed ${land.commitSha.slice(0, 12)}` : "verified+landed",
-        );
-        ctrl.db.putArtifact({
-          artifactId: `${waveId}:art:${randomUUID()}`,
-          waveId,
-          ticketId: item.ticketId,
-          kind: "proof",
-          path: land.proof,
-          hash: hashJson(land.proof),
-          createdAt: ctrl.clock.now(),
-        });
-      } else if (land.ok) {
-        putTicketStatus(ctrl, live, "FAILED", closeoutDebtReason("missing LAND.json"));
-      } else {
-        putTicketStatus(ctrl, live, "FAILED", closeoutDebtReason(land.error ?? "unknown", land.proof));
-        if (land.recovery) {
-          ctrl.db.putArtifact({
-            artifactId: `${waveId}:art:${randomUUID()}`,
-            waveId,
-            ticketId: item.ticketId,
-            kind: "land-recovery",
-            path: land.proof,
-            hash: hashJson(land.recovery),
-            createdAt: ctrl.clock.now(),
-          });
-        }
-      }
-      refreshCounters(ctrl, waveId);
-    });
+    recordCommitLand(ctrl, waveId, item.ticketId, land);
   } finally {
     const held = ctrl.db.getLease(lockKey);
     if (held && held.generation === lock.generation) {

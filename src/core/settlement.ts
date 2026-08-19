@@ -6,6 +6,7 @@ import { applySettlement, markIndeterminate } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { runImplVerifyAndCommit } from "./impl-verify.js";
+import { applyOnExhaustedImpl } from "./apply-closeout.js";
 import { finalizeImplLand, implFenceFailure } from "./land-closeout.js";
 import { releaseWriterLeaseIfHeld } from "./lease-release.js";
 import { markSettled } from "./outbox.js";
@@ -210,6 +211,11 @@ export async function settleOutbox(
 
   if (item.stage === "IMPL" && status === "succeeded") {
     await finalizeImplLand(ctrl, item);
+  } else if (item.stage === "IMPL" && status !== "succeeded") {
+    const failed = ctrl.db.getTicket(waveId, item.ticketId);
+    if (failed?.status === "FAILED") {
+      await applyOnExhaustedImpl(ctrl, item);
+    }
   }
 
   const ticket = ctrl.db.getTicket(waveId, item.ticketId);

@@ -10,6 +10,7 @@ import {
   markReconciling,
 } from "./outbox.js";
 import { predecessorImplSha } from "./chain-worktree.js";
+import { buildStagePrompt, copyVerifyIntoAttempt } from "./fix-brief.js";
 import type { LaunchIntent } from "./ports.js";
 import { settleOutbox } from "./settlement.js";
 import { stageAttemptDir, stageSessionKey } from "./stage-paths.js";
@@ -49,13 +50,24 @@ export function intentFromOutbox(ctrl: ControllerContext, item: LaunchOutbox): L
     stage: item.stage,
     attempt: item.attempt,
   });
+  if (item.stage === "IMPL") {
+    copyVerifyIntoAttempt(ticket.implWorktree, outputDir, ticket.verifyProof);
+  }
   return {
     idempotencyKey: item.idempotencyKey,
     waveId: item.waveId,
     ticketId: item.ticketId,
     stage: item.stage,
     attempt: item.attempt,
-    prompt: `${item.stage} ${item.ticketId} ${ticket.title}`,
+    prompt: buildStagePrompt({
+      stage: item.stage,
+      ticketId: item.ticketId,
+      title: ticket.title,
+      attempt: item.attempt,
+      worktree: ticket.implWorktree,
+      verifyProof: ticket.verifyProof,
+      verifyCommand: ticket.verifyCommand,
+    }),
     sessionKey: stageSessionKey({
       waveId: item.waveId,
       ticketId: item.ticketId,

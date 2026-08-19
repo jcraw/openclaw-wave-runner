@@ -49,13 +49,18 @@ export function drainExitCode(rows: DrainTicketRow[], bestEffort = false): numbe
   return rows.every((row) => row.outcome === "DONE" && row.landOk) ? 0 : 1;
 }
 
+export function closeoutLabel(row: DrainTicketRow): string {
+  if (!row.landOk) return "land.miss";
+  if ((row.reason ?? "").includes("applied")) return "applied";
+  return "land.ok";
+}
+
 export function formatDrainTable(rows: DrainTicketRow[]): string {
   if (rows.length === 0) return "no tickets";
   return rows
     .map((row) => {
-      const land = row.landOk ? "land.ok" : "land.miss";
       const reason = row.reason ? ` ${row.reason}` : "";
-      return `${row.ticketId} ${row.outcome} ${land}${reason}`;
+      return `${row.ticketId} ${row.outcome} ${closeoutLabel(row)}${reason}`;
     })
     .join("\n");
 }

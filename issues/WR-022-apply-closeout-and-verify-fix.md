@@ -1,10 +1,10 @@
 ---
 id: WR-022
 title: Apply closeout into dirty primary + verify FIX loop
-status: open
+status: done
 priority: crit
 created: 2026-08-18
-updated: 2026-08-18
+updated: 2026-08-19
 source: jason
 assignee: crawmak
 builder: crawmak
@@ -13,7 +13,7 @@ preferred_model: grok
 agent_eligible: true
 eligibility: agent_eligible
 needs_jason: false
-phase: plan
+phase: done
 labels: [p0, closeout, apply, verify, fix, land]
 depends_on: []
 related: [WR-013, WR-017, WR-021, WR-010]
@@ -58,10 +58,10 @@ If path-verify fails, the process **fixes the gates**. Blind IMPL retry then FAI
 
 ## Acceptance
 
-- [ ] Plan stamped (`APPROVED by Astra` or `APPROVED by Jason`)
-- [ ] Fixture: dirty primary + disjoint incoming → apply writes files, **no new commit**, ticket DONE, `APPLY.json` ok
-- [ ] Fixture: same-file dirty vs tip → 3-way into workdir; conflict → files present, not silent overwrite, not DONE
-- [ ] Fixture: `land: commit` / `WAVE_LAND_MODE=commit` still commit-lands (WR-013 tests stay green)
-- [ ] Apply mode: dirty scope does not refuse PLAN/IMPL; commit mode still does
-- [ ] product_verify fail: next IMPL brief contains command + verify output; retries then apply-mode copies worktree into primary
-- [ ] `npm test && npm run quality` 0; pushed; this ticket `land: commit`
+- [x] Plan stamped (`APPROVED by Astra` or `APPROVED by Jason`)
+- [x] Fixture: dirty primary + disjoint incoming → apply writes files, **no new commit**, ticket DONE, `APPLY.json` ok
+- [x] Fixture: same-file dirty vs tip → 3-way into workdir; conflict → files present, not silent overwrite, not DONE
+- [x] Fixture: `land: commit` / `WAVE_LAND_MODE=commit` still commit-lands (WR-013 tests stay green)
+- [x] Apply mode: dirty scope does not refuse PLAN/IMPL; commit mode still does
+- [x] product_verify fail: next IMPL brief contains command + verify output; retries then apply-mode copies worktree into primary
+- [x] `npm test && npm run quality` 0; pushed; this ticket `land: commit`

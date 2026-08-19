@@ -30,23 +30,40 @@ node dist/scripts/wave-cli.js backup --dest /path/to/backup.sqlite
 `--supervised` (CLI) / `supervised: true` (Gateway) launches real workers under hard caps.
 Land push requires explicit `WAVE_LAND_PUSH=1`; repo path never implies push.
 
+Closeout mode is `apply` or `commit`. Ticket `land:` / `land_mode:` wins, then `WAVE_LAND_MODE`,
+then `commit`. Jam drain (`drain-eligible.sh` / `run-backlog-wave.sh`) exports `WAVE_LAND_MODE=apply`
+when unset. Wave Runner self-work keeps `land: commit` (or the caller sets `WAVE_LAND_MODE=commit`).
+**Jam done means the bytes are in the primary working tree, uncommitted.** Jason commits the jam
+desk. `commit` closeout is still `landToMain` (identity, no stash, `WAVE_LAND_PUSH`).
+
+`apply` copies the impl worktree into the primary workdir with a 3-way `git merge-file` (no
+commit, HEAD unchanged). Success writes `APPLY.json` and marks the ticket `verified+applied`.
+Same-file conflict leaves markers in the tree, keeps the worktree, and fails `APPLY_CONFLICT:`
+— not a silent overwrite, not DONE. After verify retries are exhausted, apply-mode still copies
+files in; commit-mode still does not commit red code.
+
 `dry-run` is the preflight. It fails closed on missing `verifyCommand` (`missing_verify`) and
 returns `admitBlockers` (warnings: `human_hold`, `shared_writer_scope`, `primary_dirty_overlap`).
 Drain `run-backlog-wave.sh` refuses to create/start when `primary_dirty_overlap` is present
-unless `WAVE_PRIMARY_DIRTY=allow`. There is no separate `preflight` verb.
+unless `WAVE_PRIMARY_DIRTY=allow` **or** closeout mode is `apply`. There is no separate `preflight`
+verb. Apply mode also skips the PLAN/IMPL dirty fail-closed; commit mode does not.
 
 Research / spike tickets must declare a non-empty `verify` / `verify_command` (recipe:
 `test -s path/to/NOTE-or-digest`). Empty string is `missing_verify` at select, dry-run, and
 create. There is no `verify_kind: noop`.
 
-Land dirty-overlap stays fail-closed (no stash). `LAND.json` includes `recovery` (overlap,
+Commit-mode dirty-overlap stays fail-closed (no stash). `LAND.json` includes `recovery` (overlap,
 dirty, incoming, worktree, tip, operator actions). Ticket result is prefixed `CLOSEOUT_DEBT:`.
 Recover by committing or stashing **unrelated** dirt, or cleaning primary then rebasing the
 wave tip / `wave-cli land-retry --wave W --ticket T`. Never stash overlapping land paths.
 
+A failed product verify rearms IMPL (existing retry cap). The next IMPL brief is FIX-shaped and
+includes the verify command plus `WAVE_VERIFY.json` stdout/stderr. Blind IMPL retry without the
+verify body is not enough.
+
 Drain / lane terminal: each wave writes `WAVE_RESULT.json`. Rollup prints a per-ticket table
-and exits **1** unless every kicked ticket is `DONE` with `land.ok`. `WAVE_DRAIN_BEST_EFFORT=1`
-keeps exit 0 after the table. There is no success-only `ALL LANES FINISHED`.
+and exits **1** unless every kicked ticket is `DONE` with closeout ok (`land.ok` or `applied`).
+`WAVE_DRAIN_BEST_EFFORT=1` keeps exit 0 after the table. There is no success-only `ALL LANES FINISHED`.
 
 For one-off specialist work without a wave, use:
 

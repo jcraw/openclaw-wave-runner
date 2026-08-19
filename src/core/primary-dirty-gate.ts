@@ -1,3 +1,4 @@
+import { closeoutModeForWaveTicket } from "../domain/closeout-mode.js";
 import { deriveWriterScope } from "../domain/writer-scope.js";
 import { scopePaths } from "../domain/scope-paths.js";
 import type { ControllerContext } from "./controller-context.js";
@@ -12,9 +13,10 @@ export async function failClosedIfPrimaryDirty(
   ticketId: string,
 ): Promise<boolean> {
   if (primaryDirtyAllowed()) return false;
+  const wave = requireWave(ctrl, waveId);
+  if (closeoutModeForWaveTicket(wave.manifestJson, ticketId) === "apply") return false;
   const overlapFn = ctrl.workspace.primaryDirtyOverlap;
   if (!overlapFn) return false;
-  const wave = requireWave(ctrl, waveId);
   const ticket = requireTicket(ctrl, waveId, ticketId);
   const scope = ticket.writerScope || deriveWriterScope(ticket);
   const prefixes = scopePaths(scope, ticket.sourcePath);

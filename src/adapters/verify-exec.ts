@@ -119,6 +119,6 @@ export function runWorkspaceVerify(input: {
     timedOut,
     durationMs,
   };
-  writeFileSync(proof, `${JSON.stringify(record, null, 2)}\n`, "utf8");
+  writeFileSync(proof, `${JSON.stringify({ ...record, classify }, null, 2)}\n`, "utf8");
   return { ...record, proof, classify };
 }

@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 
 import { resolveHumanHold } from "../core/human-hold.js";
+import { parseCloseoutMode } from "../domain/closeout-mode.js";
 import { deriveWriterScope } from "../domain/writer-scope.js";
 import { hashTicketContent, normalizeSelectedDependencies } from "../core/manifest.js";
 import type { FrozenTicket, TicketSelector } from "../domain/types.js";
@@ -21,6 +22,7 @@ export type ParsedTicket = {
   product?: string;
   game?: string;
   writerScope?: string;
+  landMode?: "apply" | "commit";
   sourcePath: string;
   body: string;
   raw: string;
@@ -167,6 +169,8 @@ export function parseTicketFile(path: string, repoRoot: string): ParsedTicket | 
     typeof data.writer_scope === "string"
       ? data.writer_scope
       : deriveWriterScope({ ticketId, sourcePath, product, game });
+  const landRaw = firstScalar(data, ["land", "land_mode"]);
+  const landMode = parseCloseoutMode(typeof landRaw === "string" ? landRaw : undefined);
   return {
     ticketId,
     title,
@@ -180,6 +184,7 @@ export function parseTicketFile(path: string, repoRoot: string): ParsedTicket | 
     product,
     game,
     writerScope,
+    ...(landMode ? { landMode } : {}),
     sourcePath,
     body,
     raw,
@@ -225,6 +230,7 @@ export class MarkdownTracker implements TrackerAdapter {
         product: ticket.product,
         game: ticket.game,
         writerScope: ticket.writerScope,
+        landMode: ticket.landMode,
       };
     });
     return normalizeSelectedDependencies(

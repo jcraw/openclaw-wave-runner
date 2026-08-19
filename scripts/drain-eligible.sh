@@ -36,6 +36,10 @@ export MAX_TOKENS="${MAX_TOKENS:-500000}"
 export MAX_WALL_MS="${MAX_WALL_MS:-0}"
 export TICK_SLEEP="${TICK_SLEEP:-20}"
 export AUTO_PLAN_GATE="${AUTO_PLAN_GATE:-1}"
+# Jam drain: files into the primary workdir. Caller/ticket `land: commit` still wins in-process.
+if [[ -z "${WAVE_LAND_MODE:-}" ]]; then
+  export WAVE_LAND_MODE=apply
+fi
 
 mkdir -p "$OUT_ROOT"
 LOG="$OUT_ROOT/drain.log"
