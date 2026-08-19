@@ -1,3 +1,4 @@
+import { needsJasonIsHold } from "../core/human-hold.js";
 import { parseFrontmatter, parseTicketFile } from "./markdown-tracker.js";
 
 export type StudioKind = "game_jam" | "ai_mud" | "generic";
@@ -71,7 +72,7 @@ export function eligibleForBoundedWave(raw: string, mapping: StudioMapping): {
   if (eligibility === "human_gated" || eligibility === "feature_done_gate") {
     return { eligible: false, reason: "human_gated" };
   }
-  if (data.needs_jason) {
+  if (needsJasonIsHold(data.needs_jason)) {
     return { eligible: false, reason: "needs_jason" };
   }
   const flag =
@@ -93,7 +94,7 @@ export function describeReplacementPath(): {
 } {
   return {
     old: "clear the backlog / recurring drain ticks",
-    next: "explicit bounded wave: freeze selected tickets → admit → PLAN → approve → IMPL → verify",
+    next: "explicit bounded wave: freeze selected tickets → admit → PLAN → artifact check → IMPL → verify",
     overnight: "disabled until an operator explicitly revisits",
     drainEverything: false,
   };

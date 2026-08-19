@@ -22,7 +22,7 @@ export function selectEligibleTickets(repoRoot: string, issuesRoot?: string): El
   const files = listMarkdownTickets(root);
   const catalog = new Map<
     string,
-    { status: string; eligible: boolean; deps: string[]; verify: boolean }
+    { status: string; eligible: boolean; deps: string[]; verify: boolean; hold: boolean }
   >();
   for (const path of files) {
     const parsed = parseTicketFile(path, repoRoot);
@@ -33,6 +33,7 @@ export function selectEligibleTickets(repoRoot: string, issuesRoot?: string): El
       eligible: agentEligible(data),
       deps: parsed.dependsOn,
       verify: Boolean(parsed.verifyCommand?.trim()),
+      hold: parsed.humanHold === true,
     });
   }
 
@@ -52,6 +53,10 @@ export function selectEligibleTickets(repoRoot: string, issuesRoot?: string): El
     if (TERMINAL.has(meta.status)) continue;
     if (!["open", "in_progress", "todo", "ready", ""].includes(meta.status)) continue;
     if (!meta.eligible) continue;
+    if (meta.hold) {
+      skipped.push({ ticketId: tid, reason: `needs_jason ${tid}` });
+      continue;
+    }
     if (!depsOk(tid)) continue;
     if (!meta.verify) {
       skipped.push({ ticketId: tid, reason: `missing_verify ${tid}` });

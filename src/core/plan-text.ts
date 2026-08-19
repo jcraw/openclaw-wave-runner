@@ -7,6 +7,7 @@ export function readActualPlanText(input: {
   summary?: string;
   outputRef?: string;
   outputDir?: string;
+  verifyCommand?: string;
 }): string {
   const candidates: string[] = [];
   if (input.outputDir) candidates.push(join(input.outputDir, "PLAN.md"));
@@ -30,5 +31,6 @@ export function readActualPlanText(input: {
       // next candidate
     }
   }
-  return `# PLAN ${input.ticketId}\n\n${input.summary ?? "deterministic plan"}\n\nclass: ${input.planClass ?? "manual"}\n`;
+  const verify = input.verifyCommand?.trim() ? `\nverify: ${input.verifyCommand.trim()}\n` : "";
+  return `# PLAN ${input.ticketId}\n\n${input.summary ?? "deterministic plan"}\n\nclass: ${input.planClass ?? "manual"}${verify}\n`;
 }

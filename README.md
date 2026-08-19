@@ -46,8 +46,7 @@ explicit start
     → freeze immutable manifest (ticket ids, deps, limits, hash)
     → admit under budgets + repo writer lease
     → PLAN (fresh worker)
-    → approve / revise / block
-    → IMPL (fresh worker, isolated worktree)
+    → artifact check (script) → IMPL (fresh worker), or WAITING_APPROVAL if needs_jason: true
     → verify / settle
     → next admitted ticket or TERMINAL summary
 ```

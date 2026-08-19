@@ -113,17 +113,14 @@ test("INDETERMINATE fail-closed usage keeps full reservation", async () => {
     maxLaunches: 2,
   });
   await controller.start("wave-indet");
-  await controller.runUntilIdle("wave-indet");
+  await assert.rejects(() => controller.runUntilIdle("wave-indet"), /Admission denied|token ceiling/);
   const waiting = controller.inspect("wave-indet");
-  assert.equal(waiting.wave.status, "AWAITING_PLAN_GATE");
+  assert.notEqual(waiting.wave.status, "AWAITING_PLAN_GATE");
   const budget = waiting.budgets[0];
   assert.ok(budget);
   assert.equal(budget.state, "INDETERMINATE");
   assert.equal(budget.tokensReserved, 8_000);
   assert.equal(waiting.wave.counters.indeterminateTokens, 8_000);
-  const ticket = waiting.tickets[0]!;
-  controller.approve("wave-indet", ticket.ticketId, ticket.revision);
-  await assert.rejects(() => controller.tick("wave-indet"), /Admission denied|token ceiling/);
 });
 
 test("budget admission refuses the next candidate atomically", async () => {
@@ -134,14 +131,13 @@ test("budget admission refuses the next candidate atomically", async () => {
     maxLaunches: 1,
   });
   await controller.start("wave-budget");
-  await controller.runUntilIdle("wave-budget");
+  await assert.rejects(
+    () => controller.runUntilIdle("wave-budget"),
+    /Admission denied|max_launches|token ceiling/,
+  );
   const view = controller.inspect("wave-budget");
   assert.ok(view.outbox.length >= 1, "first stage must be admitted");
   assert.ok(view.wave.counters.launches >= 1);
-  const ticket = view.tickets[0]!;
-  if (ticket.status === "PLAN_REVIEW") {
-    controller.approve("wave-budget", ticket.ticketId, ticket.revision);
-  }
   await assert.rejects(() => controller.tick("wave-budget"), /Admission denied|max_launches|token ceiling/);
   const after = controller.inspect("wave-budget");
   assert.equal(after.wave.counters.launches, view.wave.counters.launches);
@@ -158,17 +154,6 @@ const CHAIN_LIMITS = {
 async function driveFx001ToDone(controller: Awaited<ReturnType<typeof seedWave>>, waveId: string) {
   await controller.start(waveId);
   await controller.runUntilIdle(waveId);
-  const waiting = controller.inspect(waveId);
-  assert.equal(waiting.wave.status, "AWAITING_PLAN_GATE");
-  const first = waiting.tickets.find((t) => t.ticketId === "FX-001");
-  assert.ok(first);
-  controller.approve(waveId, first.ticketId, first.revision);
-  for (let i = 0; i < 8; i += 1) {
-    if (controller.inspect(waveId).tickets.find((t) => t.ticketId === "FX-001")?.status === "DONE") {
-      return;
-    }
-    await controller.tick(waveId);
-  }
   assert.equal(controller.inspect(waveId).tickets.find((t) => t.ticketId === "FX-001")?.status, "DONE");
 }
 
@@ -178,6 +163,7 @@ async function killFx002Plan(
   waveId: string,
   status: "cancelled" | "failed",
 ) {
+  sim.worker.hangPrefix = ":FX-002:PLAN:";
   await driveFx001ToDone(controller, waveId);
   sim.worker.completeOnInspect = false;
   const key = `${waveId}:FX-002:PLAN:1`;
@@ -187,6 +173,7 @@ async function killFx002Plan(
   const row = sim.worker.byKey.get(key);
   assert.ok(row, "FX-002 PLAN must have launched");
   row.status = status;
+  sim.worker.hangPrefix = undefined;
   await controller.runUntilIdle(waveId);
 }
 
@@ -290,6 +277,7 @@ test("operator cancel-all stays CANCELLED before any ticket is DONE", async () =
 test("operator cancel after a DONE ticket stays CANCELLED", async () => {
   const sim = createSimulator("p1-op-cancel-done");
   const controller = await seedWave(sim, "wave-op-cancel-done", ["FX-001", "FX-002", "FX-003"], CHAIN_LIMITS);
+  sim.worker.hangPrefix = ":FX-002:PLAN:";
   await driveFx001ToDone(controller, "wave-op-cancel-done");
   controller.cancel("wave-op-cancel-done");
   const view = controller.inspect("wave-op-cancel-done");

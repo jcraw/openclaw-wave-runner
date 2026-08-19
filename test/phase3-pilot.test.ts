@@ -16,30 +16,10 @@ test("Phase 3: 3-ticket dependency wave with serial writer and mixed approval", 
   await controller.start("wave-3");
   await controller.runUntilIdle("wave-3");
   let view = controller.inspect("wave-3");
-  assert.equal(view.wave.status, "AWAITING_PLAN_GATE");
   assert.equal(view.tickets[0]?.ticketId, "FX-001");
-  const first = view.tickets[0]!;
-  controller.approve("wave-3", first.ticketId, first.revision);
-  await controller.runUntilIdle("wave-3");
-  view = controller.inspect("wave-3");
   assert.equal(view.tickets.find((t) => t.ticketId === "FX-001")?.status, "DONE");
-  // FX-002 is safe-policy and should auto-approve through PLAN.
-  const second = view.tickets.find((t) => t.ticketId === "FX-002");
-  assert.ok(second);
-  if (second.status === "PLAN_REVIEW") {
-    controller.approve("wave-3", second.ticketId, second.revision);
-    await controller.runUntilIdle("wave-3");
-  } else {
-    await controller.runUntilIdle("wave-3");
-  }
   view = controller.inspect("wave-3");
-  const third = view.tickets.find((t) => t.ticketId === "FX-003");
-  if ((view.wave.status === "AWAITING_PLAN_GATE" || view.wave.status === "WAITING_APPROVAL") && third?.status === "PLAN_REVIEW") {
-    controller.approve("wave-3", third.ticketId, third.revision);
-    await controller.runUntilIdle("wave-3");
-  }
-  view = controller.inspect("wave-3");
-  assert.ok(["COMPLETED", "AWAITING_PLAN_GATE", "WAITING_APPROVAL", "RUNNING"].includes(view.wave.status));
+  assert.ok(["COMPLETED", "RUNNING"].includes(view.wave.status));
   assert.ok(view.leases.filter((l) => l.resourceKey.startsWith("writer:")).length <= 1);
   const projection = controller.project();
   assert.equal(projection.authoritative, false);
@@ -109,7 +89,11 @@ test("Phase 3: synthetic MUD-034 plus fourteen children stops at budget/manifest
     },
   });
   await controller.start("wave-mud");
-  await controller.runUntilIdle("wave-mud");
+  try {
+    await controller.runUntilIdle("wave-mud");
+  } catch (err) {
+    assert.match(String(err), /Admission denied|max_launches|token ceiling/);
+  }
   const view = controller.inspect("wave-mud");
   assert.ok(view.wave.counters.launches <= 2);
   assert.ok(

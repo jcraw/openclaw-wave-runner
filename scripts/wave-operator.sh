@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Wave Runner supervised operator (restored 2026-08-15).
 # Real workers only via --supervised. No unrestricted drain. No overnight here.
-# Plan-gate (AWAITING_PLAN_GATE): stay alive; do NOT exit; do NOT bash-stamp APPROVED.
+# Plan-gate (AWAITING_PLAN_GATE): leftover wait; stay alive; do NOT bash-stamp APPROVED.
+# Agent tickets auto-approve in the controller (WR-023). Do not invent Astra.
 # Human hold (WAITING_APPROVAL): OPERATOR_STOP waiting_human; exit 0.
 set -euo pipefail
 

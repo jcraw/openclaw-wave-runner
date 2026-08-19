@@ -128,6 +128,8 @@ export class MockWorker implements WorkerAdapter {
   readonly byKey = new Map<string, { receipt: LaunchReceipt; status: "running" | "succeeded" | "failed" | "cancelled"; output?: string }>();
   failNext = false;
   completeOnInspect = true;
+  /** Keep matching launches running (WR-023: park FX-002 PLAN while FX-001 finishes). */
+  hangPrefix?: string;
 
   async launch(intent: LaunchIntent): Promise<LaunchReceipt> {
     this.intents.push(intent);
@@ -162,7 +164,8 @@ export class MockWorker implements WorkerAdapter {
   }> {
     const row = this.byKey.get(receipt.idempotencyKey);
     if (!row) return { status: "unknown" };
-    if (row.status === "running" && this.completeOnInspect) {
+    const hung = this.hangPrefix && receipt.idempotencyKey.includes(this.hangPrefix);
+    if (row.status === "running" && this.completeOnInspect && !hung) {
       row.status = "succeeded";
     }
     return {

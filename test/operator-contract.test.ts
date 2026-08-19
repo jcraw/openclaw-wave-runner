@@ -51,7 +51,7 @@ test("operatorLoopDecision: agent-gate stays; human hold stops", () => {
   assert.equal(operatorLoopDecision("PAUSED"), "stop_paused");
 });
 
-test("A1/A5 agent-gate emits plan_gate_wake receipt", async () => {
+test("A1 agent PLAN auto-continues; no Astra wake", async () => {
   const sim = createSimulator("op-agent-gate");
   const controller = await seedWave(sim, "wave-agent", ["FX-001"], {
     maxTokens: 80_000,
@@ -60,20 +60,12 @@ test("A1/A5 agent-gate emits plan_gate_wake receipt", async () => {
   await controller.start("wave-agent");
   await controller.runUntilIdle("wave-agent");
   const view = controller.inspect("wave-agent");
-  assert.equal(view.wave.status, "AWAITING_PLAN_GATE");
+  assert.notEqual(view.wave.status, "AWAITING_PLAN_GATE");
+  assert.notEqual(view.wave.status, "WAITING_APPROVAL");
   const ticket = view.tickets[0]!;
-  assert.equal(ticket.status, "PLAN_REVIEW");
-  const wakes = view.events.filter((e) => e.type === "plan_gate_wake");
-  assert.equal(wakes.length, 1);
-  const payload = JSON.parse(wakes[0]!.payloadJson) as {
-    ticketId: string;
-    revision: number;
-    planPath?: string;
-  };
-  assert.equal(payload.ticketId, "FX-001");
-  assert.equal(payload.revision, ticket.revision);
-  assert.ok(payload.planPath);
-  assert.equal(operatorLoopDecision(view.wave.status), "wait_plan_gate");
+  assert.equal(ticket.status, "DONE");
+  assert.equal(view.events.filter((e) => e.type === "plan_gate_wake").length, 0);
+  assert.ok(view.events.some((e) => e.type === "plan_gate_auto"));
 });
 
 test("A4 human-hold uses WAITING_APPROVAL and no wake", async () => {
@@ -103,9 +95,8 @@ test("A4 human-hold uses WAITING_APPROVAL and no wake", async () => {
   assert.equal(operatorLoopDecision(view.wave.status), "stop_human");
 });
 
-test("A3 approve is not a wake; second manual ticket gets a new wake", async () => {
+test("A3 second manual ticket auto-continues; no wakes", async () => {
   const sim = createSimulator("op-second");
-  // Override FX-002 to manual so second hop also waits.
   sim.tracker.seed({
     ticketId: "FX-002",
     title: "Fixture two manual",
@@ -124,29 +115,13 @@ test("A3 approve is not a wake; second manual ticket gets a new wake", async () 
   });
   await controller.start("wave-two");
   await controller.runUntilIdle("wave-two");
-  let view = controller.inspect("wave-two");
-  assert.equal(view.wave.status, "AWAITING_PLAN_GATE");
-  const firstWakes = view.events.filter((e) => e.type === "plan_gate_wake").length;
-  assert.equal(firstWakes, 1);
-  const t1 = view.tickets.find((t) => t.ticketId === "FX-001")!;
-  controller.approve("wave-two", t1.ticketId, t1.revision);
-  view = controller.inspect("wave-two");
-  assert.equal(view.events.filter((e) => e.type === "plan_gate_wake").length, firstWakes);
-  for (let i = 0; i < 16; i += 1) {
-    await controller.tick("wave-two");
-    view = controller.inspect("wave-two");
-    const t2 = view.tickets.find((t) => t.ticketId === "FX-002");
-    if (view.wave.status === "AWAITING_PLAN_GATE" && t2?.status === "PLAN_REVIEW") break;
-    if (view.wave.status === "COMPLETED") break;
-  }
-  view = controller.inspect("wave-two");
-  const t2 = view.tickets.find((t) => t.ticketId === "FX-002")!;
-  assert.equal(t2.status, "PLAN_REVIEW");
-  assert.equal(view.wave.status, "AWAITING_PLAN_GATE");
-  const wakes = view.events.filter((e) => e.type === "plan_gate_wake");
-  assert.ok(wakes.length >= 2, `expected second wake, got ${wakes.length}`);
-  const last = JSON.parse(wakes.at(-1)!.payloadJson) as { ticketId: string };
-  assert.equal(last.ticketId, "FX-002");
+  const view = controller.inspect("wave-two");
+  assert.equal(view.wave.status, "COMPLETED");
+  assert.equal(view.tickets.find((t) => t.ticketId === "FX-001")?.status, "DONE");
+  assert.equal(view.tickets.find((t) => t.ticketId === "FX-002")?.status, "DONE");
+  assert.equal(view.events.filter((e) => e.type === "plan_gate_wake").length, 0);
+  const autos = view.events.filter((e) => e.type === "plan_gate_auto");
+  assert.ok(autos.length >= 2, `expected auto receipts, got ${autos.length}`);
 });
 
 test("safe-policy still auto-approves with no gate/wake", async () => {

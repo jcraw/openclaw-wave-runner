@@ -3,8 +3,9 @@
 # Usage:
 #   REPO=/path/to/repo TICKETS=A-001 OUT_DIR=/tmp/wave ./scripts/run-backlog-wave.sh
 #
-# AUTO_PLAN_GATE=1 (default): common-sense stamp + approve on AWAITING_PLAN_GATE.
-# AUTO_PLAN_GATE=0: sleep-wait only (external Astra approve).
+# AUTO_PLAN_GATE=1 (default): ledger approve if a wave still sits on AWAITING_PLAN_GATE.
+# Never bash-stamp APPROVED by Astra. Agent tickets auto-approve in the controller (WR-023).
+# AUTO_PLAN_GATE=0: sleep-wait only (external approve).
 # Scratch defaults to the 7.3T data disk (not $HOME). Override with WR_SCRATCH / OUT_DIR.
 set -euo pipefail
 : "${REPO:?}"
@@ -228,13 +229,6 @@ while true; do
       if [[ -z "$tid" || -z "$rev" ]]; then
         echo "FATAL no plan-review rev"
         exit 1
-      fi
-      plan="$(find "$OUT_DIR" -name PLAN.md 2>/dev/null | head -1 || true)"
-      if [[ -n "${plan:-}" && -f "$plan" ]]; then
-        if ! grep -q "APPROVED by Astra" "$plan"; then
-          printf '\n\nStatus: APPROVED by Astra %s (auto plan-gate)\n' \
-            "$(date '+%Y-%m-%d %H:%M %Z')" >>"$plan"
-        fi
       fi
       bash "$SCRIPT_DIR/wave-operator.sh" approve "$tid" "$rev"
       sleep 2

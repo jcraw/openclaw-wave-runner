@@ -21,7 +21,7 @@ test("Phase 4: studio mappings and replacement path keep drain disabled", () => 
   assert.throws(() => assertBoundedWaveRequest({ overnight: true, ticketIds: ["X-1"] }), /overnight/);
   assert.throws(() => assertBoundedWaveRequest({ ticketIds: [] }), /explicit ticket selection/);
   const gated = eligibleForBoundedWave(
-    "---\nid: GJ-1\nstatus: open\nneeds_jason: opinion\n---\n",
+    "---\nid: GJ-1\nstatus: open\nneeds_jason: true\n---\n",
     GAME_JAM,
   );
   assert.equal(gated.eligible, false);

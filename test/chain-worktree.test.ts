@@ -66,9 +66,6 @@ test("mock chain: successor worktree uses predecessor implSha", async () => {
   });
   await controller.start("wave-chain");
   await controller.runUntilIdle("wave-chain");
-  const first = controller.inspect("wave-chain").tickets.find((t) => t.ticketId === "FX-001")!;
-  controller.approve("wave-chain", first.ticketId, first.revision);
-  await controller.runUntilIdle("wave-chain");
   const view = controller.inspect("wave-chain");
   const a = view.tickets.find((t) => t.ticketId === "FX-001")!;
   const b = view.tickets.find((t) => t.ticketId === "FX-002")!;
@@ -97,9 +94,6 @@ test("verify-fail does not commit or set implSha", async () => {
   const controller = await seedWave(sim, "wave-fail", ["FX-001"], { maxRetriesPerStage: 0 });
   await controller.start("wave-fail");
   await controller.runUntilIdle("wave-fail");
-  const first = controller.inspect("wave-fail").tickets.find((t) => t.ticketId === "FX-001")!;
-  controller.approve("wave-fail", first.ticketId, first.revision);
-  await controller.runUntilIdle("wave-fail");
   const t = controller.inspect("wave-fail").tickets.find((t) => t.ticketId === "FX-001")!;
   assert.equal(sim.workspace.commits, 0);
   assert.equal(t.implSha, undefined);
@@ -111,9 +105,6 @@ test("empty commit sha is controller-fail and does not land", async () => {
   sim.workspace.commitVerifiedWorktree = async () => ({ sha: "  " });
   const controller = await seedWave(sim, "wave-empty", ["FX-001"], { maxRetriesPerStage: 0 });
   await controller.start("wave-empty");
-  await controller.runUntilIdle("wave-empty");
-  const first = controller.inspect("wave-empty").tickets.find((t) => t.ticketId === "FX-001")!;
-  controller.approve("wave-empty", first.ticketId, first.revision);
   await controller.runUntilIdle("wave-empty");
   const t = controller.inspect("wave-empty").tickets.find((t) => t.ticketId === "FX-001")!;
   assert.equal(t.implSha, undefined);
@@ -129,9 +120,6 @@ test("commit throw is controller-fail and does not land", async () => {
   };
   const controller = await seedWave(sim, "wave-cfail", ["FX-001"], { maxRetriesPerStage: 0 });
   await controller.start("wave-cfail");
-  await controller.runUntilIdle("wave-cfail");
-  const first = controller.inspect("wave-cfail").tickets.find((t) => t.ticketId === "FX-001")!;
-  controller.approve("wave-cfail", first.ticketId, first.revision);
   await controller.runUntilIdle("wave-cfail");
   const t = controller.inspect("wave-cfail").tickets.find((t) => t.ticketId === "FX-001")!;
   assert.equal(t.implSha, undefined);

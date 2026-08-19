@@ -262,15 +262,24 @@ test("Phase 5: fixture simulation duplicate start does not launch twice", async 
     operatorAction: true,
   });
   const first = worker.launches;
-  assert.equal(first, 1);
-  await controller.start("sup-dup", undefined, undefined, {
-    supervisedOneTicket: true,
-    operatorAction: true,
-  });
-  await controller.runUntilIdle("sup-dup", 32, {
-    supervisedOneTicket: true,
-    operatorAction: true,
-  });
+  assert.ok(first >= 1, "first idle must launch PLAN (and IMPL if auto-approved)");
+  const after = controller.inspect("sup-dup");
+  try {
+    await controller.start("sup-dup", undefined, undefined, {
+      supervisedOneTicket: true,
+      operatorAction: true,
+    });
+    await controller.runUntilIdle("sup-dup", 32, {
+      supervisedOneTicket: true,
+      operatorAction: true,
+    });
+  } catch (err) {
+    if (after.wave.status === "COMPLETED" || after.wave.status === "FAILED") {
+      assert.match(String(err), /terminal|already/);
+    } else {
+      throw err;
+    }
+  }
   assert.equal(worker.launches, first);
 });
 

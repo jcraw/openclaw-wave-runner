@@ -82,19 +82,19 @@ cp /path/to/backup.sqlite "$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite"
 - deploy/push as a product mode (`SAFETY.deployPushEnabled`); operator may set `WAVE_LAND_PUSH=1`
 - autonomous overnight / recurring LLM polling
 
-## Agent plan-gate vs human hold (WR-008)
+## Agent plan-gate vs human hold (WR-023)
 
-- **Default after PLAN** (agent-eligible tickets): wave status `AWAITING_PLAN_GATE`.
-  Operator loop **stays running** and waits. Astra reads `PLAN.md` and runs
-  `wave-operator.sh approve <ticket> <revision>`. Ledger event `plan_gate_wake`
-  is the durable receipt. Do **not** bash-stamp `APPROVED`.
-- **Human hold** (`needs_jason` / `eligibility: human_gated`): wave status
+- **Default after PLAN** (agent-eligible, no human hold): script checks the
+  plan artifact, ledger-approves, IMPL starts. Event `plan_gate_auto`. Wave
+  stays `RUNNING`. No Astra. Do **not** bash-stamp `APPROVED by Astra`.
+- **Human hold** (`needs_jason: true` / `eligibility: human_gated`): wave status
   `WAITING_APPROVAL`. Operator prints `OPERATOR_STOP waiting_human` and exits.
+  `needs_jason: pick` (and other annotations) are **not** holds.
 - **Supervised launch is ON** for explicit `--supervised` CLI / `wave-operator.sh`.
   Unrestricted drain, overnight, merge/push remain disabled.
 - **Run a backlog slice:**
   `REPO=... TICKETS=A,B OUT_DIR=... ./scripts/run-backlog-wave.sh`
-  Keep an Astra session watching plan-gate wakes until the wave completes.
+  No Astra session is required for agent tickets.
 
 ## Operator drain (WR-014 / WR-015)
 
@@ -134,7 +134,7 @@ forever, and the operator burned 100+ no-op ticks while the wave stayed `RUNNING
 Before `create` / `start`:
 
 1. Every ticket has `verify` / `verify_command` in frontmatter (explicit `"true"` is a fixture only).
-2. `agent_eligible` is set when the ticket should take the agent plan-gate.
+2. `agent_eligible` is set when the ticket should auto-continue after PLAN.
 3. No stale writer lease on the same `writerScope` / game.
 4. Caps are set (`MAX_LAUNCHES`, `MAX_TOKENS`, optional `MAX_WALL_MS`).
 

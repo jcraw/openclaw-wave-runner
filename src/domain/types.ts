@@ -88,7 +88,7 @@ export type FrozenTicket = {
   verifyCommand?: string;
   provider?: string;
   model?: string;
-  /** True when Jason/human must approve (needs_jason / human_gated). Omit = agent plan-gate. */
+  /** True when Jason/human must approve (needs_jason: true / human_gated). Omit = auto-continue after PLAN. */
   humanHold?: boolean;
   humanHoldReason?: "needs_jason" | "human_gated";
   /** Writer lease scope (WR-011). Disjoint scopes may IMPL in parallel. */

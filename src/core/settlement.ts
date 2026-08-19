@@ -84,6 +84,7 @@ export async function settleOutbox(
       summary,
       outputRef,
       outputDir: receipt.outputDir,
+      verifyCommand: ticket.verifyCommand,
     });
     planPath = await ctrl.workspace.writePlanArtifact({
       repoPath: requireWave(ctrl, waveId).repoPath,
