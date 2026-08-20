@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { applyToWorkdir } from "../src/adapters/apply-workdir.js";
+import { applyToWorkdir, isBoardProjection } from "../src/adapters/apply-workdir.js";
 import { git } from "../src/adapters/land-git.js";
 import { MarkdownTracker } from "../src/adapters/markdown-tracker.js";
 import { GitWorkspace } from "../src/adapters/workspace.js";
@@ -129,6 +129,36 @@ test("apply 3-way clean: both edits kept; DONE-shaped proof", async () => {
   assert.equal(applied.ok, true, applied.error);
   assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
   assert.equal(readFileSync(join(repo, "product.txt"), "utf8"), "alpha-ours\nbeta\ngamma-theirs\n");
+});
+
+test("isBoardProjection: only issues/BOARD.md", () => {
+  assert.equal(isBoardProjection("issues/BOARD.md"), true);
+  assert.equal(isBoardProjection("issues/mud/BOARD.md"), true);
+  assert.equal(isBoardProjection("issues/MUD-039-zero.md"), false);
+  assert.equal(isBoardProjection("docs/BOARD.md"), false);
+});
+
+test("apply skips dirty BOARD 3-way; marks ticket done on primary board", async () => {
+  const repo = initRepo();
+  const { worktree, baseSha } = await makeTree(repo);
+  writeFileSync(join(repo, "issues", "BOARD.md"), "- **FX-101 open** fixture\n- **FX-999 open** jason-desk\n", "utf8");
+  writeFileSync(join(worktree, "issues", "BOARD.md"), "- **FX-101 done** worker-rewrote-whole-board\n", "utf8");
+  writeFileSync(join(worktree, "incoming.txt"), "from-wt\n", "utf8");
+  const applied = await applyToWorkdir({
+    repoPath: repo,
+    worktree,
+    ticketId: "FX-101",
+    waveId: "w1",
+    baseSha,
+  });
+  assert.equal(applied.ok, true, applied.error);
+  assert.equal((applied.conflicts ?? []).includes("issues/BOARD.md"), false);
+  assert.equal(readFileSync(join(repo, "incoming.txt"), "utf8"), "from-wt\n");
+  const board = readFileSync(join(repo, "issues", "BOARD.md"), "utf8");
+  assert.match(board, /FX-101 done/);
+  assert.match(board, /FX-999 open/);
+  assert.doesNotMatch(board, /worker-rewrote-whole-board/);
+  assert.doesNotMatch(board, /<<<<<<</);
 });
 
 test("apply conflict: markers, APPLY_CONFLICT, worktree kept, no silent overwrite", async () => {

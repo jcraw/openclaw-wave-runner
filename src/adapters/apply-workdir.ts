@@ -51,6 +51,11 @@ export function isApplyNoise(path: string): boolean {
   return normalized === "tmp" || normalized.startsWith("tmp/");
 }
 
+/** BOARD.md is a projection, not product. Never 3-way it (WR-024 / MUD-039 APPLY_CONFLICT). */
+export function isBoardProjection(path: string): boolean {
+  return /(^|\/)issues\/(?:.*\/)?BOARD\.md$/i.test(path.replaceAll("\\", "/"));
+}
+
 function listedPaths(text: string): string[] {
   return text.split("\n").map((line) => line.trim()).filter(Boolean);
 }
@@ -185,11 +190,12 @@ export async function applyToWorkdir(input: ApplyToWorkdirInput): Promise<ApplyR
   try {
     const primaryHead = gitOk(input.repoPath, ["rev-parse", "HEAD"]).out || input.baseSha;
     const incoming = listApplyIncoming(input.worktree, input.baseSha);
+    const product = incoming.filter((path) => !isBoardProjection(path));
     const conflicts: string[] = [];
     const paths: string[] = [];
     const scratch = mkdtempSync(join(tmpdir(), "wave-apply-"));
     try {
-      for (const relPath of incoming) {
+      for (const relPath of product) {
         const outcome = applyOnePath({
           repoPath: input.repoPath,
           worktree: input.worktree,

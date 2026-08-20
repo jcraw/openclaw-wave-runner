@@ -38,7 +38,8 @@ desk. `commit` closeout is still `landToMain` (identity, no stash, `WAVE_LAND_PU
 
 `apply` copies the impl worktree into the primary workdir with a 3-way `git merge-file` (no
 commit, HEAD unchanged). Success writes `APPLY.json` and marks the ticket `verified+applied`.
-Same-file conflict leaves markers in the tree, keeps the worktree, and fails `APPLY_CONFLICT:`
+Same-file conflict leaves markers in the tree, keeps the worktree, and fails `APPLY_CONFLICT:`.
+`issues/BOARD.md` is a projection (WR-024): apply never 3-ways it; `markBoardDone` edits primary after product paths succeed.
 — not a silent overwrite, not DONE. After verify retries are exhausted, apply-mode still copies
 files in; commit-mode still does not commit red code.
 
