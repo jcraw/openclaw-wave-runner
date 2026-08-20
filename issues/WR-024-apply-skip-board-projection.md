@@ -13,7 +13,7 @@ preferred_model: grok
 agent_eligible: true
 eligibility: agent_eligible
 needs_jason: false
-phase: implementing
+phase: done
 labels: [p0, apply, board, closeout]
 depends_on: [WR-022]
 related: [WR-016, WR-022, WR-023]
