@@ -12,6 +12,7 @@ import type {
 } from "../domain/types.js";
 import { WaveDatabase } from "../store/database.js";
 import { countersFromBudgets } from "./budget.js";
+import type { AuthorityPort } from "./authority.js";
 import type { ProcessIdentity } from "./lease.js";
 import type { OutboxBoundary } from "./outbox.js";
 import type {
@@ -44,6 +45,8 @@ export type ControllerOptions = {
   policy: PolicyAdapter;
   wake?: WakePort;
   process: ProcessIdentity;
+  authority?: AuthorityPort;
+  sleep?: (ms: number) => Promise<void>;
   leaseTtlMs?: number;
   crashAt?: OutboxBoundary | null;
   llmCalls?: { count: number };
@@ -65,6 +68,8 @@ export type ControllerContext = {
   readonly policy: PolicyAdapter;
   readonly wake?: WakePort;
   readonly process: ProcessIdentity;
+  readonly authority: AuthorityPort;
+  readonly sleep: (ms: number) => Promise<void>;
   readonly leaseTtlMs: number;
   crashAt: OutboxBoundary | null;
   readonly llmCalls: { count: number };

@@ -30,8 +30,38 @@ function holderTicket(ctrl: ControllerContext, lease: LeaseRecord, waveId: strin
   return ctrl.db.getTicket(id, lease.ticketId);
 }
 
+function authorityKind(resourceKey: string): "writer" | "land" {
+  return resourceKey.startsWith("land:") ? "land" : "writer";
+}
+
+function writerScopeFromKey(resourceKey: string, repoPath: string): string | undefined {
+  const prefix = `writer:${repoPath}:`;
+  if (!resourceKey.startsWith(prefix)) return undefined;
+  return resourceKey.slice(prefix.length);
+}
+
+export function releaseAuthorityForLease(ctrl: ControllerContext, lease: LeaseRecord): void {
+  const wave = lease.waveId ? ctrl.db.getWave(lease.waveId) : undefined;
+  if (!wave || !lease.ticketId || !lease.waveId) return;
+  const kind = authorityKind(lease.resourceKey);
+  const scope = kind === "writer" ? writerScopeFromKey(lease.resourceKey, wave.repoPath) : undefined;
+  try {
+    ctrl.authority.release({
+      repoPath: wave.repoPath,
+      kind,
+      ...(scope ? { scope } : {}),
+      resourceKey: lease.resourceKey,
+      ticketId: lease.ticketId,
+      waveId: lease.waveId,
+    });
+  } catch {
+    /* authority then sqlite */
+  }
+}
+
 function tryRelease(ctrl: ControllerContext, lease: LeaseRecord): boolean {
   if (!weHold(ctrl, lease)) return false;
+  releaseAuthorityForLease(ctrl, lease);
   try {
     releaseLease({
       current: lease,
@@ -72,14 +102,24 @@ export function releaseInactiveWriterLeases(ctrl: ControllerContext, waveId: str
  */
 export function writerLeaseBlocksImpl(ctrl: ControllerContext, wave: WaveRecord, ticket: TicketRun): boolean {
   const scope = ticket.writerScope || deriveWriterScope(ticket);
-  const lease = ctrl.db.getLease(writerLeaseKey(wave.repoPath, scope));
-  if (!lease || lease.ticketId === ticket.ticketId) return false;
-  const holder = holderTicket(ctrl, lease, wave.waveId);
-  if (weHold(ctrl, lease) && (!holder || isTerminalTicket(holder.status))) {
-    tryRelease(ctrl, lease);
-    return false;
+  const resourceKey = writerLeaseKey(wave.repoPath, scope);
+  const lease = ctrl.db.getLease(resourceKey);
+  if (lease && lease.ticketId && lease.ticketId !== ticket.ticketId) {
+    const holder = holderTicket(ctrl, lease, wave.waveId);
+    if (weHold(ctrl, lease) && (!holder || isTerminalTicket(holder.status))) {
+      tryRelease(ctrl, lease);
+    } else {
+      return true;
+    }
   }
-  return true;
+  const held = ctrl.authority.heldBy({
+    repoPath: wave.repoPath,
+    kind: "writer",
+    scope,
+    resourceKey,
+    now: ctrl.clock.now(),
+  });
+  return Boolean(held && held.ticketId !== ticket.ticketId && held.expiresAt > ctrl.clock.now());
 }
 
 function liveForeignOrSiblingLease(

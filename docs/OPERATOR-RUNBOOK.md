@@ -36,12 +36,19 @@ when unset. Wave Runner self-work keeps `land: commit` (or the caller sets `WAVE
 **Jam done means the bytes are in the primary working tree, uncommitted.** Jason commits the jam
 desk. `commit` closeout is still `landToMain` (identity, no stash, `WAVE_LAND_PUSH`).
 
-`apply` copies the impl worktree into the primary workdir with a 3-way `git merge-file` (no
-commit, HEAD unchanged). Success writes `APPLY.json` and marks the ticket `verified+applied`.
-Same-file conflict leaves markers in the tree, keeps the worktree, and fails `APPLY_CONFLICT:`.
-`issues/BOARD.md` is a projection (WR-024): apply never 3-ways it; `markBoardDone` edits primary after product paths succeed.
-— not a silent overwrite, not DONE. After verify retries are exhausted, apply-mode still copies
-files in; commit-mode still does not commit red code.
+`apply` copies the impl worktree into the primary workdir as **bytes** (no commit, HEAD
+unchanged). Text paths still 3-way with `git merge-file`. Binary paths (NUL in the first 8KiB
+or a failed UTF-8 round-trip) never merge-file: identical-to-base copies theirs, same-file
+divergence leaves ours and fails `APPLY_CONFLICT` with no conflict markers. Success writes
+`APPLY.json` and marks the ticket `verified+applied`. `issues/BOARD.md` is a projection
+(WR-024): apply never 3-ways it; `markBoardDone` edits primary after product paths succeed.
+After verify retries are exhausted, apply-mode still copies files in; commit-mode still does
+not commit red code.
+
+Writer and land/apply mutexes are **host-local** under `<git-common-dir>/wave-runner/locks/`
+(`writer-<scope>.lock`, `land.lock`). Parallel drain lanes with separate `$OUT_DIR/wave.sqlite`
+still share them. Stale locks (dead pid, `/proc` start-time mismatch, or TTL) are harvested
+on the next acquire. Do not delete a live lock. Cross-host / NFS locks are out of scope.
 
 `dry-run` is the preflight. It fails closed on missing `verifyCommand` (`missing_verify`) and
 returns `admitBlockers` (warnings: `human_hold`, `shared_writer_scope`, `primary_dirty_overlap`).

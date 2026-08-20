@@ -390,19 +390,27 @@ test("lease is held through land; land lock serializes", async () => {
     release = resolve;
   });
   const landOrig = lockCtrl.workspace.landToMain!.bind(lockCtrl.workspace);
+  let inLand = 0;
+  let maxInLand = 0;
   lockCtrl.workspace.landToMain = async (input) => {
-    if (input.ticketId === "FX-001") await gate;
-    return landOrig(input);
+    inLand += 1;
+    maxInLand = Math.max(maxInLand, inLand);
+    try {
+      if (input.ticketId === "FX-001") await gate;
+      return landOrig(input);
+    } finally {
+      inLand -= 1;
+    }
   };
   const p1 = finalizeImplLand(lockCtrl, outbox("wave-lock", "FX-001"));
   await Promise.resolve();
   assert.ok(lockCtrl.db.getLease(landLockKey("/tmp/wave-fixture-repo")));
-  await finalizeImplLand(lockCtrl, outbox("wave-lock", "FX-002"));
-  assert.equal(lockCtrl.db.getTicket("wave-lock", "FX-002")?.status, "FAILED");
-  assert.match(lockCtrl.db.getTicket("wave-lock", "FX-002")?.result ?? "", /land lock held/);
+  const p2 = finalizeImplLand(lockCtrl, outbox("wave-lock", "FX-002"));
   release();
-  await p1;
+  await Promise.all([p1, p2]);
   assert.equal(lockCtrl.db.getTicket("wave-lock", "FX-001")?.status, "DONE");
+  assert.equal(lockCtrl.db.getTicket("wave-lock", "FX-002")?.status, "DONE");
+  assert.equal(maxInLand, 1);
 });
 
 test("push fail through closeout does not DONE; mock still writes worktree LAND.json", async () => {

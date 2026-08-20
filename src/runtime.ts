@@ -15,6 +15,7 @@ import { OpenClawGatewayAcpSpawn } from "./adapters/openclaw-acp.js";
 import type { AcpSpawn, TrackerAdapter, WorkerAdapter } from "./adapters/ports.js";
 import { ManagedTaskFlowBackend, NativeSubagentWorker } from "./adapters/taskflow.js";
 import { FailClosedUsage } from "./adapters/usage.js";
+import { GitRepoAuthority } from "./adapters/repo-authority.js";
 import { GitWorkspace } from "./adapters/workspace.js";
 import type { WaveRunnerPorts } from "./contracts.js";
 import { OWNER_SESSION_KEY } from "./controller.js";
@@ -171,6 +172,7 @@ export function openWaveController(input: {
       processIdentity: "wave-runner-operator",
       pid: process.pid,
     },
+    authority: new GitRepoAuthority(),
     worktreeRoot: isolatedRoot,
     artifactRoot,
     launchMode: input.launchMode ?? "supervised-bounded",
@@ -216,6 +218,7 @@ export function openCliController(input: {
         processIdentity: "cli-operator",
         pid: process.pid,
       },
+      authority: new GitRepoAuthority(),
       worktreeRoot: isolatedRoot,
       artifactRoot,
       launchMode: "mock",
@@ -242,6 +245,7 @@ export function openCliController(input: {
       processIdentity: "cli-supervised-operator",
       pid: process.pid,
     },
+    authority: new GitRepoAuthority(),
     worktreeRoot: isolatedRoot,
     artifactRoot,
     launchMode: "supervised-bounded",

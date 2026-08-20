@@ -1,18 +1,9 @@
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { execFileSync } from "node:child_process";
 
 import type { ApplyResult, WorkspaceAdapter } from "./ports.js";
+import { applyOnePath } from "./apply-bytes.js";
 import { markBoardDone, markIssueDone, removeImplWorktree } from "./land-git.js";
 import { formatGitError, gitOk } from "./worktree-commit.js";
 
@@ -71,113 +62,6 @@ export function listApplyIncoming(worktree: string, baseSha: string): string[] {
     if (got.ok) for (const path of listedPaths(got.out)) names.add(path);
   }
   return [...names].filter((path) => !isApplyNoise(path));
-}
-
-function blobAt(repo: string, sha: string, path: string): string | undefined {
-  try {
-    return execFileSync("git", ["-C", repo, "show", `${sha}:${path}`], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch {
-    return undefined;
-  }
-}
-
-function readIfFile(abs: string): string | undefined {
-  try {
-    if (!existsSync(abs) || !statSync(abs).isFile()) return undefined;
-    return readFileSync(abs, "utf8");
-  } catch {
-    return undefined;
-  }
-}
-
-function writeWorkdirFile(abs: string, contents: string): void {
-  mkdirSync(dirname(abs), { recursive: true });
-  writeFileSync(abs, contents, "utf8");
-}
-
-function unlinkIfFile(abs: string): void {
-  try {
-    if (existsSync(abs) && statSync(abs).isFile()) unlinkSync(abs);
-  } catch {
-    /* best-effort */
-  }
-}
-
-function conflictText(ours: string, theirsLabel: string, theirs: string): string {
-  return `<<<<<<< ours\n${ours}=======\n${theirs}>>>>>>> ${theirsLabel}\n`;
-}
-
-function mergeFile(oursPath: string, basePath: string, theirsPath: string): { conflict: boolean } {
-  try {
-    execFileSync("git", ["merge-file", "-L", "ours", "-L", "base", "-L", "theirs", oursPath, basePath, theirsPath], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    return { conflict: false };
-  } catch (error) {
-    const status = (error as { status?: number }).status;
-    if (typeof status === "number" && status > 0) return { conflict: true };
-    return { conflict: true };
-  }
-}
-
-function applyOnePath(input: {
-  repoPath: string;
-  worktree: string;
-  baseSha: string;
-  primaryHead: string;
-  relPath: string;
-  scratch: string;
-}): "ok" | "conflict" {
-  const rel = input.relPath;
-  const primaryAbs = join(input.repoPath, rel);
-  const worktreeAbs = join(input.worktree, rel);
-  const baseText = blobAt(input.worktree, input.baseSha, rel);
-  const theirsText = readIfFile(worktreeAbs);
-  const oursWorkdir = readIfFile(primaryAbs);
-  const oursText = oursWorkdir !== undefined ? oursWorkdir : blobAt(input.repoPath, input.primaryHead, rel);
-
-  if (theirsText === undefined && oursText === undefined) return "ok";
-
-  if (theirsText === undefined) {
-    if (oursText === baseText) {
-      unlinkIfFile(primaryAbs);
-      return "ok";
-    }
-    writeWorkdirFile(primaryAbs, conflictText(oursText ?? "", "theirs (deleted)", ""));
-    return "conflict";
-  }
-
-  if (oursText === undefined) {
-    if (baseText === undefined || theirsText === baseText) {
-      writeWorkdirFile(primaryAbs, theirsText);
-      return "ok";
-    }
-    writeWorkdirFile(primaryAbs, conflictText("", "theirs", theirsText));
-    return "conflict";
-  }
-
-  if (oursText === theirsText || theirsText === baseText) {
-    if (oursWorkdir === undefined) writeWorkdirFile(primaryAbs, oursText);
-    return "ok";
-  }
-  if (oursText === baseText) {
-    writeWorkdirFile(primaryAbs, theirsText);
-    return "ok";
-  }
-
-  const oursTmp = join(input.scratch, "ours");
-  const baseTmp = join(input.scratch, "base");
-  const theirsTmp = join(input.scratch, "theirs");
-  writeFileSync(oursTmp, oursText, "utf8");
-  writeFileSync(baseTmp, baseText ?? "", "utf8");
-  writeFileSync(theirsTmp, theirsText, "utf8");
-  const merged = mergeFile(oursTmp, baseTmp, theirsTmp);
-  writeWorkdirFile(primaryAbs, readFileSync(oursTmp, "utf8"));
-  return merged.conflict ? "conflict" : "ok";
 }
 
 export async function applyToWorkdir(input: ApplyToWorkdirInput): Promise<ApplyResult> {

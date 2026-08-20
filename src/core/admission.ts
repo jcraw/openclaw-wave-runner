@@ -3,11 +3,19 @@ import { randomUUID } from "node:crypto";
 import { WaveError } from "../domain/errors.js";
 import type { StageName } from "../domain/types.js";
 import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
+import { claimantFields } from "./authority.js";
 import { admitReservation, reservationCeiling } from "./budget.js";
 import { CrashInjectedError, type ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { acquireLease } from "./lease.js";
 import { assertTicketTransition, TICKET_NEXT, TICKET_OWNERS } from "./state-machine.js";
+
+class AuthorityBusy extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+    this.name = "AuthorityBusy";
+  }
+}
 
 export async function queueStage(
   ctrl: ControllerContext,
@@ -39,6 +47,8 @@ export async function queueStage(
   const idempotencyKey = `${waveId}:${ticketId}:${stage}:${attempt}`;
   if (ctrl.db.getOutboxByIdempotency(idempotencyKey)) return;
 
+  let writerAuth: { resourceKey: string; scope: string } | undefined;
+  try {
   ctrl.db.transaction(() => {
     const live = requireWave(ctrl, waveId);
     if (live.cancelRequested) throw new WaveError("Cancellation forbids new child tasks.", "cancelled");
@@ -63,6 +73,19 @@ export async function queueStage(
         waveId,
         ticketId,
       });
+      const auth = ctrl.authority.tryAcquire({
+        repoPath: live.repoPath,
+        kind: "writer",
+        scope,
+        resourceKey,
+        waveId,
+        ticketId,
+        now: ctrl.clock.now(),
+        ttlMs: ctrl.leaseTtlMs,
+        ...claimantFields(ctrl.process),
+      });
+      if (!auth.ok) throw new AuthorityBusy(auth.reason);
+      writerAuth = { resourceKey, scope };
       ctrl.db.putLease(lease);
     }
     const now = ctrl.clock.now();
@@ -126,6 +149,24 @@ export async function queueStage(
     ctrl.db.putWave(live);
     refreshCounters(ctrl, waveId);
   });
+  } catch (err) {
+    if (writerAuth) {
+      try {
+        ctrl.authority.release({
+          repoPath: wave.repoPath,
+          kind: "writer",
+          scope: writerAuth.scope,
+          resourceKey: writerAuth.resourceKey,
+          ticketId,
+          waveId,
+        });
+      } catch {
+        /* rollback pair */
+      }
+    }
+    if (err instanceof AuthorityBusy) return;
+    throw err;
+  }
 
   if (ctrl.crashAt === "after_reservation") {
     throw new CrashInjectedError("after_reservation");

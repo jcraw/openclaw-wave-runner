@@ -54,6 +54,10 @@ export function repoWriterKey(repoPath: string): string {
   return `repo-writer:${repoPath}`;
 }
 
-function sanitize(value: string): string {
+export function sanitizeWriterToken(value: string): string {
   return value.replace(/[^a-zA-Z0-9._:-]+/g, "-").replace(/^-+|-+$/g, "") || "default";
+}
+
+function sanitize(value: string): string {
+  return sanitizeWriterToken(value);
 }

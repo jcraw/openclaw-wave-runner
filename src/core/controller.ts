@@ -4,6 +4,7 @@ import type {
   SupervisedStartOptions,
   WaveView,
 } from "../domain/types.js";
+import { MemoryAuthority, defaultSleep } from "./authority.js";
 import {
   CrashInjectedError,
   type ControllerOptions,
@@ -42,6 +43,8 @@ export class WaveController {
   readonly policy;
   readonly wake;
   readonly process;
+  readonly authority;
+  readonly sleep;
   readonly leaseTtlMs;
   crashAt;
   readonly llmCalls;
@@ -63,6 +66,8 @@ export class WaveController {
     this.policy = opts.policy;
     this.wake = opts.wake;
     this.process = opts.process;
+    this.authority = opts.authority ?? new MemoryAuthority();
+    this.sleep = opts.sleep ?? defaultSleep;
     this.leaseTtlMs = opts.leaseTtlMs ?? 60_000;
     this.crashAt = opts.crashAt ?? null;
     this.llmCalls = opts.llmCalls ?? { count: 0 };

@@ -1,8 +1,10 @@
 import type { LaunchOutbox, LaunchReceipt } from "../domain/types.js";
+import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
+import { claimantFields } from "./authority.js";
 import { CrashInjectedError, type ControllerContext } from "./controller-context.js";
 import { requireTicket, requireWave } from "./controller-context.js";
 import { isLeaseStale } from "./lease.js";
-import { isImplActive } from "./lease-release.js";
+import { isImplActive, releaseAuthorityForLease } from "./lease-release.js";
 import {
   claimOutbox,
   markFailed,
@@ -17,6 +19,7 @@ import { stageAttemptDir, stageSessionKey } from "./stage-paths.js";
 
 export function refreshHeldLeases(ctrl: ControllerContext, waveId: string): void {
   const now = ctrl.clock.now();
+  const wave = ctrl.db.getWave(waveId);
   for (const lease of ctrl.db.listLeases(waveId)) {
     if (lease.holder !== ctrl.process.holder || lease.processIdentity !== ctrl.process.processIdentity) {
       continue;
@@ -24,18 +27,30 @@ export function refreshHeldLeases(ctrl: ControllerContext, waveId: string): void
     const ticket = lease.ticketId ? ctrl.db.getTicket(waveId, lease.ticketId) : undefined;
     if (!ticket || !isImplActive(ticket.status)) continue;
     ctrl.db.putLease({ ...lease, expiresAt: now + ctrl.leaseTtlMs });
+    if (!wave || !lease.resourceKey.startsWith("writer:")) continue;
+    const scope = ticket.writerScope || deriveWriterScope(ticket);
+    ctrl.authority.tryAcquire({
+      repoPath: wave.repoPath,
+      kind: "writer",
+      scope,
+      resourceKey: writerLeaseKey(wave.repoPath, scope),
+      waveId,
+      ticketId: ticket.ticketId,
+      now,
+      ttlMs: ctrl.leaseTtlMs,
+      ...claimantFields(ctrl.process),
+    });
   }
 }
 
 export function expireStaleLeases(ctrl: ControllerContext): number {
   ctrl.watchdogFires += 1;
-  // Deterministic watchdog: never call an LLM.
   let expired = 0;
   for (const lease of ctrl.db.listLeases()) {
-    if (isLeaseStale(lease, ctrl.clock.now())) {
-      ctrl.db.deleteLease(lease.resourceKey);
-      expired += 1;
-    }
+    if (!isLeaseStale(lease, ctrl.clock.now())) continue;
+    releaseAuthorityForLease(ctrl, lease);
+    ctrl.db.deleteLease(lease.resourceKey);
+    expired += 1;
   }
   return expired;
 }

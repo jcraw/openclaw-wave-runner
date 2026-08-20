@@ -12,6 +12,7 @@ import {
 } from "../adapters/mocks.js";
 import { FakeClock, SequentialIds } from "../domain/clock.js";
 import { DEFAULT_LIMITS } from "../domain/types.js";
+import { MemoryAuthority, defaultSleep } from "../core/authority.js";
 import { CrashInjectedError, WaveController } from "../core/controller.js";
 import type { OutboxBoundary } from "../core/outbox.js";
 import { WaveDatabase } from "../store/database.js";
@@ -27,6 +28,8 @@ export type SimHarness = {
   workspace: MockWorkspace;
   policy: SafePolicy;
   llmCalls: { count: number };
+  authority: MemoryAuthority;
+  sleep: (ms: number) => Promise<void>;
   open(): WaveController;
 };
 
@@ -42,6 +45,8 @@ export function createSimulator(label = "wave-sim"): SimHarness {
   const workspace = new MockWorkspace();
   const policy = new SafePolicy();
   const llmCalls = { count: 0 };
+  const authority = new MemoryAuthority();
+  const sleep = defaultSleep;
   tracker.seed({
     ticketId: "FX-001",
     title: "Fixture one",
@@ -76,7 +81,7 @@ export function createSimulator(label = "wave-sim"): SimHarness {
     body: "three",
   });
 
-  return {
+  const harness: SimHarness = {
     dbPath,
     clock,
     ids,
@@ -87,6 +92,8 @@ export function createSimulator(label = "wave-sim"): SimHarness {
     workspace,
     policy,
     llmCalls,
+    authority,
+    sleep,
     open() {
       return new WaveController({
         db: new WaveDatabase(dbPath),
@@ -98,12 +105,15 @@ export function createSimulator(label = "wave-sim"): SimHarness {
         usage,
         workspace,
         policy,
-        process: { holder: "sim", processIdentity: "sim-1" },
+        process: { holder: "sim", processIdentity: "sim-1", pid: process.pid },
+        authority: harness.authority,
+        sleep: harness.sleep,
         llmCalls,
         worktreeRoot: join(dir, "worktrees"),
       });
     },
   };
+  return harness;
 }
 
 export async function seedWave(

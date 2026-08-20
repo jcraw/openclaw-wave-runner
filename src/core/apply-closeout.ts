@@ -4,11 +4,10 @@ import { randomUUID } from "node:crypto";
 import { closeoutModeForWaveTicket } from "../domain/closeout-mode.js";
 import { hashJson } from "../domain/hash.js";
 import type { LaunchOutbox, TicketRun, WaveRecord } from "../domain/types.js";
-import { landLockKey } from "../domain/writer-scope.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
+import { acquireExclusiveLandLock, releaseExclusiveLandLock } from "./land-lock.js";
 import { clipReason } from "./land-recovery.js";
-import { acquireLease, canAcquire, releaseLease } from "./lease.js";
 import type { ApplyResult } from "./ports.js";
 import { TICKET_NEXT, TICKET_OWNERS } from "./state-machine.js";
 
@@ -105,38 +104,13 @@ export async function applyOnExhaustedImpl(ctrl: ControllerContext, item: Launch
   const ticket = requireTicket(ctrl, item.waveId, item.ticketId);
   if (ticket.status !== "FAILED" || !ticket.implWorktree) return;
   if (closeoutModeForWaveTicket(wave.manifestJson, ticket.ticketId) !== "apply") return;
-  const lockKey = landLockKey(wave.repoPath);
-  const now = ctrl.clock.now();
-  const current = ctrl.db.getLease(lockKey);
-  if (canAcquire(current, now, ctrl.process) !== "acquire") return;
-  const lock = acquireLease({
-    current,
-    resourceKey: lockKey,
-    now,
-    ttlMs: ctrl.leaseTtlMs,
-    claimant: ctrl.process,
-    waveId: item.waveId,
-    ticketId: item.ticketId,
-  });
-  ctrl.db.putLease(lock);
+  const got = await acquireExclusiveLandLock(ctrl, wave, item.ticketId);
+  if (!got.ok) return;
   try {
     const live = requireTicket(ctrl, item.waveId, item.ticketId);
     if (live.status !== "FAILED" || !live.implWorktree) return;
     await executeApplyCloseout(ctrl, item, wave, live, { doneOnOk: false });
   } finally {
-    const held = ctrl.db.getLease(lockKey);
-    if (held && held.generation === lock.generation) {
-      try {
-        releaseLease({
-          current: held,
-          claimant: ctrl.process,
-          expectedGeneration: held.generation,
-          now: ctrl.clock.now(),
-        });
-        ctrl.db.deleteLease(lockKey);
-      } catch {
-        /* land lock must not leak */
-      }
-    }
+    releaseExclusiveLandLock(ctrl, wave, item.ticketId, got.generation);
   }
 }
