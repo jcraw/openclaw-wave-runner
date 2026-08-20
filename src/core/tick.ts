@@ -1,4 +1,3 @@
-import { AdmissionDeniedError } from "../domain/errors.js";
 import type { SupervisedStartOptions, TicketRun, WaveRecord, WaveView } from "../domain/types.js";
 import { queueStage } from "./admission.js";
 import { assertBudgetStatesForTerminal, markIndeterminate } from "./budget.js";
@@ -154,7 +153,6 @@ export async function advanceReadyTickets(ctrl: ControllerContext, waveId: strin
       busyImplScopes.add(scope);
       queued += 1;
     } catch (err) {
-      if (err instanceof AdmissionDeniedError) continue;
       // Preserve fail-closed admission errors when nothing is in flight.
       if (queued === 0 && open.length === 0) throw err;
       break;
