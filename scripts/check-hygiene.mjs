@@ -17,6 +17,9 @@ const SKIP_DIRS = new Set([
   ".c8_output",
 ]);
 
+/** Gitignored verify capture; stdout includes host worktree paths. */
+const SKIP_NAMES = new Set(["WAVE_VERIFY.json"]);
+
 const TEXT_EXT = new Set([
   ".ts",
   ".js",
@@ -56,7 +59,7 @@ const ALLOW_FILES = new Set([
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
-    if (SKIP_DIRS.has(name)) continue;
+    if (SKIP_DIRS.has(name) || SKIP_NAMES.has(name)) continue;
     const p = join(dir, name);
     const st = statSync(p);
     if (st.isDirectory()) walk(p, out);

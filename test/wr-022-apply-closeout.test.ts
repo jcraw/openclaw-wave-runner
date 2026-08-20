@@ -77,6 +77,24 @@ test("resolveCloseoutMode: ticket wins, env wins, default commit", () => {
   assert.equal(resolveCloseoutMode({ ticketLand: "nope", env: {} }), "commit");
 });
 
+test("test process does not inherit drain WAVE_LAND_MODE", () => {
+  assert.equal(resolveCloseoutMode({}), "commit");
+});
+
+test("isolate-test-env strips inherited WAVE_LAND_MODE", () => {
+  const out = execFileSync(
+    process.execPath,
+    [
+      "--import",
+      join(process.cwd(), "scripts/isolate-test-env.mjs"),
+      "-e",
+      "process.stdout.write(String(process.env.WAVE_LAND_MODE ?? \"\"))",
+    ],
+    { encoding: "utf8", env: { ...process.env, WAVE_LAND_MODE: "apply" } },
+  );
+  assert.equal(out, "");
+});
+
 test("ticket land: commit beats drain default apply", () => {
   assert.equal(
     resolveCloseoutMode({ ticketLand: "commit", env: { WAVE_LAND_MODE: "apply" } }),
