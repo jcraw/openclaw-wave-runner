@@ -1,7 +1,7 @@
 ---
 id: WR-025
 title: Binary-safe apply and cross-wave writer/land authority
-status: open
+status: done
 priority: crit
 created: 2026-08-20
 updated: 2026-08-20
