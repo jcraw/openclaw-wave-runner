@@ -20,7 +20,6 @@ related: [WR-011, WR-017, WR-022, WR-024]
 verify: npm test && npm run quality
 verify_command: npm test && npm run quality
 worker_out_dir: tmp/workers/WR-026
-worker_pid: "704940"
 plan: plans/2026-08-19-wr-026-p0-binary-apply-global-locks.md
 land: commit
 ---
