@@ -15,6 +15,9 @@ Required env:
   WAVE_ID   REPO   OUT_DIR
 
 Optional env:
+  WAVE_DB            explicit shared sqlite (else $WR_SCRATCH/ledgers/<canonical>.sqlite)
+  WAVE_RUNNER_OPERATOR_ID  stable per-wave identity (default cli-wave:$WAVE_ID)
+  WR_SCRATCH         scratch root for shared ledgers (UUID fail-closed)
   TICKETS            comma ids (create)
   MAX_LAUNCHES       default 10
   MAX_TOKENS         default 500000
@@ -53,6 +56,27 @@ if [[ ! -f "$CLI_JS" ]]; then
 fi
 
 mkdir -p "$OUT_DIR/cli" "$OUT_DIR/ticks" "$OUT_DIR/worktrees" "$OUT_DIR/artifacts"
+
+WR_SCRATCH_DEFAULT="/run/media/j/866e11e8-6c31-4c0c-a07c-704845033900/ai/wave-runner"
+EXPECTED_UUID="866e11e8-6c31-4c0c-a07c-704845033900"
+LEDGER_JS="${LEDGER_JS:-$PLUGIN_DIR/dist/scripts/wave-ledger.js}"
+if [[ -z "${WAVE_DB:-}" ]]; then
+  WR_SCRATCH="${WR_SCRATCH:-$WR_SCRATCH_DEFAULT}"
+  _scratch_uuid="$(findmnt -n -o UUID -T "$WR_SCRATCH" 2>/dev/null || true)"
+  if [[ "$_scratch_uuid" != "$EXPECTED_UUID" ]]; then
+    echo "error: Wave Runner scratch is not on the 7.3T data disk (unmounted or wrong UUID): $WR_SCRATCH" >&2
+    exit 1
+  fi
+fi
+if [[ ! -f "$LEDGER_JS" ]]; then
+  echo "error: missing $LEDGER_JS — run npm run build in $PLUGIN_DIR" >&2
+  exit 2
+fi
+eval "$(node "$LEDGER_JS" env --repo "$REPO" ${WAVE_DB:+--db "$WAVE_DB"} ${WR_SCRATCH:+--scratch "$WR_SCRATCH"} --wave "$WAVE_ID")"
+: "${WAVE_DB:?WAVE_DB required}"
+: "${WAVE_RUNNER_OPERATOR_ID:?WAVE_RUNNER_OPERATOR_ID required}"
+export WAVE_DB WAVE_RUNNER_OPERATOR_ID
+mkdir -p "$(dirname "$WAVE_DB")"
 
 MAX_LAUNCHES="${MAX_LAUNCHES:-10}"
 MAX_TOKENS="${MAX_TOKENS:-500000}"
@@ -100,13 +124,18 @@ print(hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).
 PY2
 }
 
-# Same predicate as src/core/operator-loop.ts hasLiveOutbox.
+# Same predicate as src/core/operator-loop.ts hasLiveWork (outbox + VERIFYING closeout).
 has_live_outbox() {
   python3 - "$1" <<'PY2'
 import json,sys
 d=json.load(open(sys.argv[1]))
 live={"CLAIMED","LAUNCHED","RECONCILING"}
-print("1" if any((o.get("state") or "") in live for o in (d.get("outbox") or [])) else "0")
+if any((o.get("state") or "") in live for o in (d.get("outbox") or [])):
+    print("1")
+elif any((t.get("status") or "") == "VERIFYING" for t in (d.get("tickets") or [])):
+    print("1")
+else:
+    print("0")
 PY2
 }
 
@@ -146,7 +175,7 @@ run_cli() {
   local out_json="$OUT_DIR/cli/${op}.json"
   local err_file="$OUT_DIR/cli/${op}.err"
   local args=(node "$CLI_JS" "$op"
-    --db "$OUT_DIR/wave.sqlite"
+    --db "$WAVE_DB"
     --repo "$REPO"
     --worktree-root "$OUT_DIR/worktrees"
     --artifact-root "$OUT_DIR/artifacts"

@@ -36,14 +36,21 @@ export function deriveWriterScope(input: WriterScopeInput): string {
   return `prefix:${sanitize(prefix)}`;
 }
 
+/** Strip trailing slashes. Canonical git identity is applied at create / CLI. */
+export function normalizeRepoPath(repoPath: string): string {
+  if (!repoPath) return repoPath;
+  const trimmed = repoPath.replace(/[\\/]+$/, "");
+  return trimmed || "/";
+}
+
 /** Full lease resource key. */
 export function writerLeaseKey(repoPath: string, scope: string): string {
-  return `writer:${repoPath}:${scope}`;
+  return `writer:${normalizeRepoPath(repoPath)}:${scope}`;
 }
 
 /** Exclusive land lock for one primary repo (WR-017). */
 export function landLockKey(repoPath: string): string {
-  return `land:${repoPath}`;
+  return `land:${normalizeRepoPath(repoPath)}`;
 }
 
 /**

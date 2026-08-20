@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
 import { closeoutModeForWaveTicket } from "../domain/closeout-mode.js";
@@ -6,6 +6,7 @@ import { hashJson } from "../domain/hash.js";
 import type { LaunchOutbox, TicketRun, WaveRecord } from "../domain/types.js";
 import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import { executeApplyCloseout } from "./apply-closeout.js";
+import { durableTicketProofPath, readDurableOk } from "./closeout-proof.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { acquireExclusiveLandLock, releaseExclusiveLandLock } from "./land-lock.js";
@@ -114,27 +115,95 @@ function recordCommitLand(
   });
 }
 
+function landProofPath(ctrl: ControllerContext, wave: WaveRecord, ticket: TicketRun): string {
+  return durableTicketProofPath({
+    repoPath: wave.repoPath,
+    ...(ctrl.artifactRoot ? { artifactRoot: ctrl.artifactRoot } : {}),
+    waveId: wave.waveId,
+    ticketId: ticket.ticketId,
+    file: "LAND.json",
+  });
+}
+
+function applyProofPath(ctrl: ControllerContext, wave: WaveRecord, ticket: TicketRun): string {
+  return durableTicketProofPath({
+    repoPath: wave.repoPath,
+    ...(ctrl.artifactRoot ? { artifactRoot: ctrl.artifactRoot } : {}),
+    waveId: wave.waveId,
+    ticketId: ticket.ticketId,
+    file: "APPLY.json",
+  });
+}
+
+function finishFromDurableProof(
+  ctrl: ControllerContext,
+  item: LaunchOutbox,
+  wave: WaveRecord,
+  ticket: TicketRun,
+): boolean {
+  const mode = closeoutModeForWaveTicket(wave.manifestJson, ticket.ticketId);
+  if (mode === "apply") {
+    const proof = applyProofPath(ctrl, wave, ticket);
+    if (!readDurableOk(proof)) return false;
+    ctrl.db.transaction(() => {
+      const live = requireTicket(ctrl, item.waveId, item.ticketId);
+      if (live.status === "DONE") return;
+      putTicketStatus(ctrl, live, "DONE", "verified+applied");
+      recordProofArtifact(ctrl, item.waveId, item.ticketId, proof, "proof", proof);
+      refreshCounters(ctrl, item.waveId);
+    });
+    releaseWriterLeaseAfterLand(ctrl, item);
+    return true;
+  }
+  const proof = landProofPath(ctrl, wave, ticket);
+  if (!readDurableOk(proof)) return false;
+  let parsed: { commitSha?: string } = {};
+  try {
+    parsed = JSON.parse(readFileSync(proof, "utf8")) as { commitSha?: string };
+  } catch {
+    parsed = {};
+  }
+  ctrl.db.transaction(() => {
+    const live = requireTicket(ctrl, item.waveId, item.ticketId);
+    if (live.status === "DONE") return;
+    putTicketStatus(
+      ctrl,
+      live,
+      "DONE",
+      parsed.commitSha ? `verified+landed ${parsed.commitSha.slice(0, 12)}` : "verified+landed",
+    );
+    recordProofArtifact(ctrl, item.waveId, item.ticketId, proof, "proof", proof);
+    refreshCounters(ctrl, item.waveId);
+  });
+  releaseWriterLeaseAfterLand(ctrl, item);
+  return true;
+}
+
 export async function finalizeImplLand(
   ctrl: ControllerContext,
   item: LaunchOutbox,
 ): Promise<void> {
   const waveId = item.waveId;
   const wave = requireWave(ctrl, waveId);
+  const ticket = requireTicket(ctrl, waveId, item.ticketId);
+  if (ticket.status === "DONE") return;
+  if (finishFromDurableProof(ctrl, item, wave, ticket)) return;
   const got = await acquireExclusiveLandLock(ctrl, wave, item.ticketId);
   if (!got.ok) {
-    failLand(ctrl, waveId, item.ticketId, got.reason);
-    releaseWriterLeaseAfterLand(ctrl, item);
+    // Deferred: keep VERIFYING and the writer lease. Tick retries.
     return;
   }
   try {
-    const ticket = requireTicket(ctrl, waveId, item.ticketId);
-    if (!ticket.implWorktree) {
+    const live = requireTicket(ctrl, waveId, item.ticketId);
+    if (live.status === "DONE") return;
+    if (finishFromDurableProof(ctrl, item, wave, live)) return;
+    if (!live.implWorktree) {
       failLand(ctrl, waveId, item.ticketId, "missing impl worktree");
       return;
     }
-    const mode = closeoutModeForWaveTicket(wave.manifestJson, ticket.ticketId);
+    const mode = closeoutModeForWaveTicket(wave.manifestJson, live.ticketId);
     if (mode === "apply") {
-      await executeApplyCloseout(ctrl, item, wave, ticket, { doneOnOk: true });
+      await executeApplyCloseout(ctrl, item, wave, live, { doneOnOk: true });
       return;
     }
     if (!ctrl.workspace.landToMain) {
@@ -143,9 +212,9 @@ export async function finalizeImplLand(
     }
     const land = await ctrl.workspace.landToMain({
       repoPath: wave.repoPath,
-      worktree: ticket.implWorktree,
-      branch: ticket.implBranch,
-      ticketId: ticket.ticketId,
+      worktree: live.implWorktree,
+      branch: live.implBranch,
+      ticketId: live.ticketId,
       waveId,
       baseSha: wave.baseSha,
       push: shouldLandPush(),
@@ -154,7 +223,10 @@ export async function finalizeImplLand(
     recordCommitLand(ctrl, waveId, item.ticketId, land);
   } finally {
     releaseExclusiveLandLock(ctrl, wave, item.ticketId, got.generation);
-    releaseWriterLeaseAfterLand(ctrl, item);
+    const after = ctrl.db.getTicket(waveId, item.ticketId);
+    if (after && after.status !== "VERIFYING") {
+      releaseWriterLeaseAfterLand(ctrl, item);
+    }
   }
 }
 

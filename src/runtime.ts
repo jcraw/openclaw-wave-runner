@@ -23,6 +23,7 @@ import { SystemClock } from "./domain/clock.js";
 import { SAFETY } from "./domain/safety.js";
 import type { LaunchMode } from "./domain/types.js";
 import { WaveController } from "./core/controller.js";
+import { resolveCliOperatorIdentity } from "./core/repo-identity.js";
 import { WaveDatabase } from "./store/database.js";
 
 export function resolvePluginStorePath(stateDir: string): string {
@@ -185,6 +186,7 @@ export function openCliController(input: {
   dbPath: string;
   repoPath: string;
   supervised: boolean;
+  waveId?: string;
   worktreeRoot?: string;
   artifactRoot?: string;
   launcherPath?: string;
@@ -242,7 +244,11 @@ export function openCliController(input: {
     policy: new SafePolicy(),
     process: {
       holder: "cli-supervised",
-      processIdentity: "cli-supervised-operator",
+      processIdentity: resolveCliOperatorIdentity({
+        supervised: true,
+        waveId: input.waveId,
+        env: input.env,
+      }),
       pid: process.pid,
     },
     authority: new GitRepoAuthority(),

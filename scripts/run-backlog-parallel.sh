@@ -78,7 +78,7 @@ run_lane() {
       [[ -z "$ticket" ]] && continue
       local wave_out="$lane_out/waves/$ticket"
       mkdir -p "$wave_out"
-      export WAVE_ID="PAR-${lane_name}-${ticket}-$(date +%H%M%S)"
+      export WAVE_ID="PAR-${lane_name}-${ticket}-$(date +%Y%m%d%H%M%S%N)-$$"
       export REPO
       export OUT_DIR="$wave_out"
       export TICKETS="$ticket"

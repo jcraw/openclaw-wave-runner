@@ -19,6 +19,7 @@ import type { ControllerContext } from "./controller-context.js";
 import { inspect, recordEvent } from "./controller-context.js";
 import { hashManifest, topologicalOrder, validateManifest } from "./manifest.js";
 import { collectDirtyOverlapBlockers, type AdmitBlocker } from "./admit-overlap.js";
+import { canonicalRepoIdentity } from "./repo-identity.js";
 import { TICKET_NEXT, TICKET_OWNERS, WAVE_NEXT, WAVE_OWNERS } from "./state-machine.js";
 
 export type { AdmitBlocker };
@@ -175,17 +176,18 @@ export async function dryRun(ctrl: ControllerContext, input: CreateWaveInput) {
       limits: input.limits,
     });
   }
+  const repoPath = canonicalRepoIdentity(input.repoPath);
   const tickets = await ctrl.tracker.snapshot({
     ticketIds: input.ticketIds,
-    repoPath: input.repoPath,
+    repoPath,
   });
   const admitBlockers = [
     ...collectAdmitBlockers(tickets),
-    ...(await collectDirtyOverlapBlockers(ctrl.workspace, input.repoPath, tickets)),
+    ...(await collectDirtyOverlapBlockers(ctrl.workspace, repoPath, tickets)),
   ];
   assertTicketsHaveVerify(tickets);
-  const baseSha = await ctrl.workspace.currentHead(input.repoPath);
-  const manifest = buildManifest(ctrl, input, tickets, baseSha);
+  const baseSha = await ctrl.workspace.currentHead(repoPath);
+  const manifest = buildManifest(ctrl, { ...input, repoPath }, tickets, baseSha);
   validateManifest(manifest);
   return {
     ok: true,
@@ -221,11 +223,12 @@ export async function createWave(
       );
     }
   }
+  const repoPath = canonicalRepoIdentity(input.repoPath);
   const existing = ctrl.db.getWave(input.waveId);
   if (existing) {
     const frozen = JSON.parse(existing.manifestJson) as FrozenManifest;
     if (
-      frozen.repoPath !== input.repoPath ||
+      frozen.repoPath !== repoPath ||
       JSON.stringify(frozen.tickets.map((ticket) => ticket.ticketId)) !== JSON.stringify(input.ticketIds)
     ) {
       throw new SafetyGateError(
@@ -236,11 +239,11 @@ export async function createWave(
   }
   const tickets = await ctrl.tracker.snapshot({
     ticketIds: input.ticketIds,
-    repoPath: input.repoPath,
+    repoPath,
   });
   assertTicketsHaveVerify(tickets);
-  const baseSha = await ctrl.workspace.currentHead(input.repoPath);
-  const manifest = buildManifest(ctrl, input, tickets, baseSha);
+  const baseSha = await ctrl.workspace.currentHead(repoPath);
+  const manifest = buildManifest(ctrl, { ...input, repoPath }, tickets, baseSha);
   validateManifest(manifest);
   const now = ctrl.clock.now();
   const manifestJson = JSON.stringify(manifest);
@@ -250,7 +253,7 @@ export async function createWave(
       waveId: input.waveId,
       manifestJson,
       manifestHash: hashManifest(manifest),
-      repoPath: input.repoPath,
+      repoPath,
       baseSha,
       status: "DRAFT",
       revision: 0,

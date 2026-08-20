@@ -6,6 +6,7 @@ import { runOperator, type OperatorCommand } from "../src/cli/operations.js";
 import { resolveCliTicketSource } from "../src/cli/ticket-source.js";
 import { DEFAULT_LIMITS, SUPERVISED_PILOT_LIMITS } from "../src/domain/types.js";
 import { SafetyGateError } from "../src/domain/errors.js";
+import { resolveCliOperatorIdentity, resolveSupervisedWaveDb } from "../src/core/repo-identity.js";
 import { cliControllerAcpFields, openCliController } from "../src/runtime.js";
 
 function arg(name: string, fallback?: string): string {
@@ -22,9 +23,28 @@ function optional(name: string): string | undefined {
 }
 
 const op = process.argv[2] ?? "capabilities";
-const dbPath = resolve(arg("db", `${process.cwd()}/tmp/wave-runner/wave.sqlite`));
 const repoPath = optional("repo") ?? process.cwd();
 const supervised = process.argv.includes("--supervised");
+const waveIdFlag = optional("wave");
+if (op === "resolve-ledger") {
+  const resolved = resolveSupervisedWaveDb({ repoPath, env: process.env });
+  if (process.argv.includes("--json")) {
+    process.stdout.write(`${JSON.stringify(resolved)}\n`);
+  } else {
+    process.stdout.write(`${resolved.dbPath}\n`);
+  }
+  process.exit(0);
+}
+const explicitDb = optional("db");
+const dbPath = resolve(
+  explicitDb ??
+    (supervised && (process.env.WAVE_DB || process.env.WR_SCRATCH)
+      ? resolveSupervisedWaveDb({ repoPath, env: process.env }).dbPath
+      : `${process.cwd()}/tmp/wave-runner/wave.sqlite`),
+);
+if (supervised) {
+  resolveCliOperatorIdentity({ supervised: true, waveId: waveIdFlag, env: process.env });
+}
 const simulate = process.argv.includes("--simulate");
 const disableAcp =
   process.argv.includes("--no-acp") || process.argv.includes("--disable-acp");
@@ -47,6 +67,7 @@ const controller = openCliController({
   dbPath,
   repoPath,
   supervised,
+  ...(waveIdFlag ? { waveId: waveIdFlag } : {}),
   worktreeRoot: optional("worktree-root"),
   artifactRoot: optional("artifact-root"),
   launcherPath: optional("launcher"),

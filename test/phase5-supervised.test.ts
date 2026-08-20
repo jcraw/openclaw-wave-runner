@@ -461,6 +461,7 @@ test("Phase 5: supervised CLI create stamps singleton flags; mock create does no
     dbPath: join(isolated, "supervised.sqlite"),
     repoPath: repo,
     supervised: true,
+    waveId: "cli-sup",
     worktreeRoot: join(isolated, "worktrees"),
     artifactRoot: join(isolated, "artifacts"),
     launcherPath: "/bin/true",
@@ -506,6 +507,7 @@ test("Phase 5: sequential CLI processes share a stable operator identity for lea
     dbPath: join(isolated, "wave.sqlite"),
     repoPath: repo,
     supervised: true,
+    waveId: "seq-cli",
     worktreeRoot: join(isolated, "worktrees"),
     launcherPath: "/bin/true",
   });
@@ -513,12 +515,23 @@ test("Phase 5: sequential CLI processes share a stable operator identity for lea
     dbPath: join(isolated, "wave.sqlite"),
     repoPath: repo,
     supervised: true,
+    waveId: "seq-cli",
     worktreeRoot: join(isolated, "worktrees"),
     launcherPath: "/bin/true",
   });
-  assert.equal(first.process.processIdentity, "cli-supervised-operator");
+  const other = openCliController({
+    dbPath: join(isolated, "wave.sqlite"),
+    repoPath: repo,
+    supervised: true,
+    waveId: "other-wave",
+    worktreeRoot: join(isolated, "worktrees"),
+    launcherPath: "/bin/true",
+  });
+  assert.equal(first.process.processIdentity, "cli-wave:seq-cli");
   assert.equal(second.process.processIdentity, first.process.processIdentity);
   assert.equal(first.process.holder, second.process.holder);
+  assert.equal(other.process.processIdentity, "cli-wave:other-wave");
+  assert.notEqual(other.process.processIdentity, first.process.processIdentity);
   first.db.putLease({
     resourceKey: "repo-writer:fixture",
     generation: 1,
@@ -537,6 +550,26 @@ test("Phase 5: sequential CLI processes share a stable operator identity for lea
     expectedGeneration: 1,
     now: second.clock.now(),
   });
+  first.db.putLease({
+    resourceKey: "repo-writer:fixture",
+    generation: 1,
+    holder: first.process.holder,
+    processIdentity: first.process.processIdentity,
+    pid: 111,
+    pidStartTime: "start-a",
+    expiresAt: first.clock.now() + 60_000,
+    createdAt: first.clock.now(),
+    waveId: "seq-cli",
+    ticketId: "EX-002",
+  });
+  assert.throws(() =>
+    releaseLease({
+      current: first.db.getLease("repo-writer:fixture")!,
+      claimant: other.process,
+      expectedGeneration: 1,
+      now: other.clock.now(),
+    }),
+  );
 });
 
 test("Phase 5: native child prompt stays bounded and tool-free", () => {

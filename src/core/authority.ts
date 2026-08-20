@@ -86,7 +86,12 @@ export function claimantFields(process: ProcessIdentity): Pick<
   };
 }
 
-/** In-memory map. Host-local file locks live in adapters/repo-authority.ts. */
+/**
+ * In-memory map for tests/simulators. Supervised CLI waves share one SQLite
+ * ledger per canonical repo (`WR_SCRATCH/ledgers/`). Host-local file locks
+ * in adapters/repo-authority.ts are leftover pairing, not the cross-wave
+ * authority.
+ */
 export class MemoryAuthority implements AuthorityPort {
   private readonly locks = new Map<string, AuthorityLockRecord>();
 

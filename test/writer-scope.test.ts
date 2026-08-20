@@ -24,6 +24,11 @@ test("writerLeaseKey is repo+scope", () => {
     "writer:/repo/game_jam:board:godstones",
   );
   assert.equal(landLockKey("/repo/game_jam"), "land:/repo/game_jam");
+  assert.equal(landLockKey("/repo/game_jam/"), "land:/repo/game_jam");
+  assert.equal(
+    writerLeaseKey("/repo/game_jam/", "board:godstones"),
+    "writer:/repo/game_jam:board:godstones",
+  );
 });
 
 test("WR-011: two different scopes can IMPL in parallel inside one wave", async () => {

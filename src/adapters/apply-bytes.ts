@@ -3,12 +3,17 @@ import { dirname, join } from "node:path";
 import { execFileSync } from "node:child_process";
 
 const MAX_BLOB = 32 * 1024 * 1024;
-const NUL_SCAN = 8 * 1024;
+
+/** Mergeable text: valid UTF-8 round-trip and no NUL. Missing blobs are not non-text. */
+export function isMergeableText(buf: Buffer | undefined): boolean {
+  if (!buf) return true;
+  if (buf.includes(0)) return false;
+  return Buffer.from(buf.toString("utf8"), "utf8").equals(buf);
+}
 
 export function isBinaryBuffer(buf: Buffer | undefined): boolean {
   if (!buf) return false;
-  if (buf.subarray(0, NUL_SCAN).includes(0)) return true;
-  return !Buffer.from(buf.toString("utf8"), "utf8").equals(buf);
+  return !isMergeableText(buf);
 }
 
 export function bytesEqual(a: Buffer | undefined, b: Buffer | undefined): boolean {
@@ -82,7 +87,7 @@ function applyBinaryPath(input: {
   oursWorkdir: Buffer | undefined;
   theirs: Buffer | undefined;
   base: Buffer | undefined;
-}): "ok" | "conflict" {
+}): "ok" | "binary-conflict" {
   const { primaryAbs, ours, oursWorkdir, theirs, base } = input;
   if (theirs === undefined && ours === undefined) return "ok";
   if (theirs === undefined) {
@@ -90,14 +95,14 @@ function applyBinaryPath(input: {
       unlinkIfFile(primaryAbs);
       return "ok";
     }
-    return "conflict";
+    return "binary-conflict";
   }
   if (ours === undefined) {
     if (base === undefined || bytesEqual(theirs, base)) {
       writeWorkdirBytes(primaryAbs, theirs);
       return "ok";
     }
-    return "conflict";
+    return "binary-conflict";
   }
   if (bytesEqual(ours, theirs) || bytesEqual(theirs, base)) {
     if (oursWorkdir === undefined) writeWorkdirBytes(primaryAbs, ours);
@@ -107,7 +112,7 @@ function applyBinaryPath(input: {
     writeWorkdirBytes(primaryAbs, theirs);
     return "ok";
   }
-  return "conflict";
+  return "binary-conflict";
 }
 
 function applyTextPath(input: {
@@ -164,15 +169,16 @@ export function applyOnePath(input: {
   primaryHead: string;
   relPath: string;
   scratch: string;
-}): "ok" | "conflict" {
+}): "ok" | "conflict" | "binary-conflict" {
   const primaryAbs = join(input.repoPath, input.relPath);
   const worktreeAbs = join(input.worktree, input.relPath);
   const base = blobAtBytes(input.worktree, input.baseSha, input.relPath);
   const theirs = readWorkdirBytes(worktreeAbs);
   const oursWorkdir = readWorkdirBytes(primaryAbs);
   const ours = oursWorkdir !== undefined ? oursWorkdir : blobAtBytes(input.repoPath, input.primaryHead, input.relPath);
-  const binary = isBinaryBuffer(base) || isBinaryBuffer(ours) || isBinaryBuffer(theirs);
-  if (binary) {
+  const mergeable =
+    isMergeableText(base) && isMergeableText(ours) && isMergeableText(theirs);
+  if (!mergeable) {
     return applyBinaryPath({ primaryAbs, ours, oursWorkdir, theirs, base });
   }
   return applyTextPath({ primaryAbs, scratch: input.scratch, ours, oursWorkdir, theirs, base });

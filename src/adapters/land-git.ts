@@ -21,6 +21,7 @@ type LandToMainInput = NonNullable<Parameters<NonNullable<WorkspaceAdapter["land
 
 const landTails = new Map<string, Promise<void>>();
 
+/** In-process queue only. Cross-process land/apply authority is the shared sqlite lease. */
 export function enqueueLand<T>(repoPath: string, fn: () => Promise<T>): Promise<T> {
   const prev = landTails.get(repoPath) ?? Promise.resolve();
   const run = prev.then(fn, fn);

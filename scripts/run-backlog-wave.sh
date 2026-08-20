@@ -16,8 +16,8 @@ if [[ "$_scratch_uuid" != "866e11e8-6c31-4c0c-a07c-704845033900" ]]; then
   echo "error: Wave Runner scratch is not on the 7.3T data disk (unmounted or wrong UUID): $WR_SCRATCH" >&2
   exit 1
 fi
-OUT_DIR="${OUT_DIR:-$WR_SCRATCH/wave-runs/wave-$(date +%Y%m%d%H%M%S)}"
-WAVE_ID="${WAVE_ID:-BL-$(date +%Y%m%d%H%M%S)}"
+OUT_DIR="${OUT_DIR:-$WR_SCRATCH/wave-runs/wave-$(date +%Y%m%d%H%M%S%N)}"
+WAVE_ID="${WAVE_ID:-BL-$(date +%Y%m%d%H%M%S%N)-$$}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 export WR="${WR:-$PLUGIN_DIR}"
@@ -93,13 +93,18 @@ print(hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).
 PY
 }
 
-# Same predicate as src/core/operator-loop.ts hasLiveOutbox.
+# Same predicate as src/core/operator-loop.ts hasLiveWork (outbox + VERIFYING closeout).
 has_live_outbox() {
   python3 - "$1" <<'PY'
 import json,sys
 d=json.load(open(sys.argv[1]))
 live={"CLAIMED","LAUNCHED","RECONCILING"}
-print("1" if any((o.get("state") or "") in live for o in (d.get("outbox") or [])) else "0")
+if any((o.get("state") or "") in live for o in (d.get("outbox") or [])):
+    print("1")
+elif any((t.get("status") or "") == "VERIFYING" for t in (d.get("tickets") or [])):
+    print("1")
+else:
+    print("0")
 PY
 }
 

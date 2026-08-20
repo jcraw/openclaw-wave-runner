@@ -1,6 +1,5 @@
 import { existsSync, linkSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 
 import type {
@@ -13,26 +12,16 @@ import type {
   AuthorityRef,
 } from "../core/authority.js";
 import { pidAlive } from "../core/authority.js";
+import { gitCommonDir } from "../core/repo-identity.js";
 import { sanitizeWriterToken } from "../domain/writer-scope.js";
+
+export { gitCommonDir } from "../core/repo-identity.js";
 
 export function readPidStartTime(pid: number): string | undefined {
   try {
     const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
     const rest = stat.slice(stat.lastIndexOf(")") + 1).trim().split(/\s+/);
     return rest[19];
-  } catch {
-    return undefined;
-  }
-}
-
-export function gitCommonDir(repoPath: string): string | undefined {
-  try {
-    const out = execFileSync("git", ["-C", repoPath, "rev-parse", "--git-common-dir"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
-    if (!out) return undefined;
-    return out.startsWith("/") ? out : join(repoPath, out);
   } catch {
     return undefined;
   }

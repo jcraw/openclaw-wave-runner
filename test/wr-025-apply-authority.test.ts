@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
 import { applyToWorkdir } from "../src/adapters/apply-workdir.js";
-import { bytesEqual, isBinaryBuffer } from "../src/adapters/apply-bytes.js";
+import { bytesEqual, isBinaryBuffer, isMergeableText } from "../src/adapters/apply-bytes.js";
 import { git } from "../src/adapters/land-git.js";
 import { GitRepoAuthority, gitCommonDir } from "../src/adapters/repo-authority.js";
 import { GitWorkspace } from "../src/adapters/workspace.js";
@@ -21,6 +21,7 @@ import { applyOnExhaustedImpl } from "../src/core/apply-closeout.js";
 import { MemoryAuthority } from "../src/core/authority.js";
 import { WaveController } from "../src/core/controller.js";
 import { finalizeImplLand, shouldLandPush } from "../src/core/land-closeout.js";
+import { advancePendingCloseouts } from "../src/core/pending-closeout.js";
 import { FakeClock, SequentialIds } from "../src/domain/clock.js";
 import { DEFAULT_LIMITS } from "../src/domain/types.js";
 import type { LaunchOutbox } from "../src/domain/types.js";
@@ -96,6 +97,9 @@ test("isBinaryBuffer: NUL and utf8 round-trip", () => {
   assert.equal(isBinaryBuffer(PNG), true);
   assert.equal(isBinaryBuffer(PNG_CLEAN), true);
   assert.equal(isBinaryBuffer(JPEG), true);
+  assert.equal(isMergeableText(PNG), false);
+  assert.equal(isMergeableText(Buffer.from("hello\n", "utf8")), true);
+  assert.equal(isMergeableText(undefined), true);
   assert.equal(isBinaryBuffer(Buffer.from("hello\n", "utf8")), false);
   assert.equal(bytesEqual(PNG, Buffer.from(PNG)), true);
   assert.equal(bytesEqual(PNG, JPEG), false);
@@ -145,7 +149,7 @@ test("apply binary no-NUL JPEG still round-trips", async () => {
   assert.equal(Buffer.compare(readFileSync(join(repo, "photo.jpg")), next), 0);
 });
 
-test("apply binary conflict: ours unchanged, no markers, APPLY_CONFLICT", async () => {
+test("apply binary conflict: ours unchanged, no markers, APPLY_BINARY_CONFLICT", async () => {
   const repo = initRepo();
   const { worktree, baseSha } = await makeTree(repo);
   const ours = Buffer.concat([PNG, Buffer.from([0x11])]);
@@ -160,8 +164,10 @@ test("apply binary conflict: ours unchanged, no markers, APPLY_CONFLICT", async 
     baseSha,
   });
   assert.equal(applied.ok, false);
-  assert.match(applied.error ?? "", /APPLY_CONFLICT/);
+  assert.match(applied.error ?? "", /APPLY_BINARY_CONFLICT/);
+  assert.doesNotMatch(applied.error ?? "", /^APPLY_CONFLICT:/);
   assert.ok(applied.conflicts.includes("sprite.png"));
+  assert.deepEqual(applied.binaryConflicts, ["sprite.png"]);
   assert.equal(Buffer.compare(readFileSync(join(repo, "sprite.png")), ours), 0);
   const raw = readFileSync(join(repo, "sprite.png"));
   assert.equal(raw.includes(Buffer.from("<<<<<<<")), false);
@@ -268,6 +274,47 @@ test("writer disjoint scopes still IMPL together", async () => {
   assert.equal(controller.inspect("wave-par").tickets.filter((t) => t.status === "DONE").length, 2);
 });
 
+test("apply binary add/delete preserve exact bytes", async () => {
+  const repo = initRepo();
+  const { worktree, baseSha } = await makeTree(repo);
+  const added = Buffer.concat([PNG, Buffer.from([0xab, 0xcd])]);
+  writeFileSync(join(worktree, "new-sprite.png"), added);
+  unlinkSync(join(worktree, "photo.jpg"));
+  const before = git(repo, ["rev-parse", "HEAD"]);
+  const applied = await applyToWorkdir({
+    repoPath: repo,
+    worktree,
+    ticketId: "FX-101",
+    waveId: "w1",
+    baseSha,
+  });
+  assert.equal(applied.ok, true, applied.error);
+  assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.equal(Buffer.compare(readFileSync(join(repo, "new-sprite.png")), added), 0);
+  assert.equal(existsSync(join(repo, "photo.jpg")), false);
+});
+
+test("apply binary modify-vs-delete is APPLY_BINARY_CONFLICT", async () => {
+  const repo = initRepo();
+  const { worktree, baseSha } = await makeTree(repo);
+  const ours = Buffer.concat([PNG, Buffer.from([0x33])]);
+  writeFileSync(join(repo, "sprite.png"), ours);
+  unlinkSync(join(worktree, "sprite.png"));
+  const applied = await applyToWorkdir({
+    repoPath: repo,
+    worktree,
+    ticketId: "FX-101",
+    waveId: "w1",
+    baseSha,
+  });
+  assert.equal(applied.ok, false);
+  assert.match(applied.error ?? "", /APPLY_BINARY_CONFLICT/);
+  assert.equal(Buffer.compare(readFileSync(join(repo, "sprite.png")), ours), 0);
+  assert.equal(readFileSync(join(repo, "sprite.png")).includes(Buffer.from("<<<<<<<")), false);
+  const listed = execFileSync("git", ["-C", repo, "worktree", "list"], { encoding: "utf8" });
+  assert.ok(listed.includes(worktree));
+});
+
 test("land serialize two DBs: both product files and BOARD rows", async () => {
   const repo = initRepo((dir) => {
     writeFileSync(join(dir, "a.txt"), "base-a\n", "utf8");
@@ -287,7 +334,7 @@ land: apply
       "utf8",
     );
   });
-  const authority = new GitRepoAuthority();
+  const dbPath = join(repo, "tmp", "shared.sqlite");
   const make = (dbName: string, ticketId: string) => {
     const tracker = new MockTracker();
     tracker.seed({
@@ -304,7 +351,7 @@ land: apply
       body: ticketId,
     });
     return new WaveController({
-      db: new WaveDatabase(join(repo, "tmp", dbName)),
+      db: new WaveDatabase(dbPath),
       clock: new FakeClock(),
       ids: new SequentialIds(),
       tracker,
@@ -314,7 +361,6 @@ land: apply
       workspace: new GitWorkspace(),
       policy: new SafePolicy(),
       process: { holder: dbName, processIdentity: dbName, pid: process.pid },
-      authority,
       sleep: fastSleep,
       worktreeRoot: join(repo, "tmp", "worktrees"),
     });
@@ -355,10 +401,11 @@ land: apply
   ctrlA.db.putTicket({ ...ta, status: "VERIFYING", implWorktree: treeA.worktree });
   const tb = ctrlB.db.getTicket("wb", "FX-102")!;
   ctrlB.db.putTicket({ ...tb, status: "VERIFYING", implWorktree: treeB.worktree });
-  await Promise.all([
-    finalizeImplLand(ctrlA, outbox("wa", "FX-101")),
-    finalizeImplLand(ctrlB, outbox("wb", "FX-102")),
-  ]);
+  await finalizeImplLand(ctrlA, outbox("wa", "FX-101"));
+  await finalizeImplLand(ctrlB, outbox("wb", "FX-102"));
+  if (ctrlB.db.getTicket("wb", "FX-102")?.status === "VERIFYING") {
+    await ctrlB.tick("wb");
+  }
   assert.equal(ctrlA.db.getTicket("wa", "FX-101")?.status, "DONE");
   assert.equal(ctrlB.db.getTicket("wb", "FX-102")?.status, "DONE");
   assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "from-a\n");
@@ -368,7 +415,7 @@ land: apply
   assert.match(board, /FX-102 done/);
 });
 
-test("exhaust apply waits for land lock then copies", async () => {
+test("exhaust apply defers on land lock then copies", async () => {
   const sim = createSimulator("wr025-exhaust");
   sim.sleep = fastSleep;
   sim.tracker.seed({
@@ -390,35 +437,29 @@ test("exhaust apply waits for land lock then copies", async () => {
   writeFileSync(join(wt, "APPLY.json"), "{}\n", "utf8");
   controller.db.putTicket({ ...ticket, status: "FAILED", result: "product_verify", implWorktree: wt });
   const resourceKey = landLockKey("/tmp/wave-fixture-repo");
-  sim.authority.tryAcquire({
-    repoPath: "/tmp/wave-fixture-repo",
-    kind: "land",
+  controller.db.putLease({
     resourceKey,
+    generation: 1,
+    holder: "other",
+    processIdentity: "other-1",
+    expiresAt: sim.clock.now() + 60_000,
+    createdAt: sim.clock.now(),
     waveId: "other",
     ticketId: "FX-999",
-    holder: "other",
-    now: sim.clock.now(),
-    ttlMs: 60_000,
-    pid: process.pid,
   });
   const item = outbox("wave-ex", "FX-001");
-  const pending = applyOnExhaustedImpl(controller, item);
-  await new Promise((r) => setTimeout(r, 5));
-  sim.authority.release({
-    repoPath: "/tmp/wave-fixture-repo",
-    kind: "land",
-    resourceKey,
-    ticketId: "FX-999",
-    waveId: "other",
-  });
-  await pending;
+  await applyOnExhaustedImpl(controller, item);
+  assert.equal(sim.workspace.applies, 0);
+  assert.equal(controller.db.getTicket("wave-ex", "FX-001")?.status, "FAILED");
+  controller.db.deleteLease(resourceKey);
+  await applyOnExhaustedImpl(controller, item);
   const live = controller.db.getTicket("wave-ex", "FX-001");
   assert.equal(live?.status, "FAILED");
   assert.match(live?.result ?? "", /applied/);
   assert.equal(sim.workspace.applies, 1);
 });
 
-test("land lock timeout when live holder is expired", async () => {
+test("foreign land lock defers VERIFYING without failing", async () => {
   const sim = createSimulator("wr025-timeout");
   sim.sleep = fastSleep;
   sim.tracker.seed({
@@ -437,22 +478,20 @@ test("land lock timeout when live holder is expired", async () => {
   const wt = join(tmpdir(), "wr025-to-wt");
   mkdirSync(wt, { recursive: true });
   controller.db.putTicket({ ...t, status: "VERIFYING", implWorktree: wt });
-  sim.authority.tryAcquire({
-    repoPath: "/tmp/wave-fixture-repo",
-    kind: "land",
+  controller.db.putLease({
     resourceKey: landLockKey("/tmp/wave-fixture-repo"),
+    generation: 1,
+    holder: "other",
+    processIdentity: "other-1",
+    expiresAt: sim.clock.now() + 60_000,
+    createdAt: sim.clock.now(),
     waveId: "other",
     ticketId: "FX-999",
-    holder: "other",
-    now: sim.clock.now(),
-    ttlMs: 1,
-    pid: process.pid,
   });
-  sim.clock.advance(10);
   await finalizeImplLand(controller, outbox("wave-to", "FX-001"));
   const live = controller.db.getTicket("wave-to", "FX-001");
-  assert.equal(live?.status, "FAILED");
-  assert.match(live?.result ?? "", /land lock timeout/);
+  assert.equal(live?.status, "VERIFYING");
+  assert.doesNotMatch(live?.result ?? "", /land lock/);
 });
 
 test("commit-land push stays explicit", () => {

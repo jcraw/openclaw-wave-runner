@@ -1,13 +1,13 @@
+import { AdmissionDeniedError } from "../domain/errors.js";
 import type { WaveRecord } from "../domain/types.js";
 import { landLockKey } from "../domain/writer-scope.js";
-import {
-  LAND_LOCK_POLL_MS,
-  claimantFields,
-  pidAlive,
-  type AuthorityAcquireInput,
-} from "./authority.js";
+import { claimantFields, type AuthorityAcquireInput } from "./authority.js";
 import type { ControllerContext } from "./controller-context.js";
-import { acquireLease, releaseLease } from "./lease.js";
+import { acquireLease, canAcquire, releaseLease } from "./lease.js";
+
+export type LandLockAcquire =
+  | { ok: true; generation: number }
+  | { ok: false; deferred: true; reason: string };
 
 function landInput(
   ctrl: ControllerContext,
@@ -28,56 +28,63 @@ function landInput(
 }
 
 /**
- * Wait until land sqlite + authority are free. Never steal via same-process "hold".
- * Live holder past expiresAt → land lock timeout (keep land-retry). Dead pid is harvested.
+ * Single-attempt land lock. Same-operator same-ticket `hold` refreshes.
+ * Foreign `deny` or a different ticket on this operator is deferred — not FAILED.
+ * Shared sqlite is the authority; host file locks are a best-effort extra fence.
  */
 export async function acquireExclusiveLandLock(
   ctrl: ControllerContext,
   wave: WaveRecord,
   ticketId: string,
-): Promise<{ ok: true; generation: number } | { ok: false; reason: string }> {
+): Promise<LandLockAcquire> {
+  return ctrl.db.transaction(() => acquireLandLockSync(ctrl, wave, ticketId));
+}
+
+function acquireLandLockSync(
+  ctrl: ControllerContext,
+  wave: WaveRecord,
+  ticketId: string,
+): LandLockAcquire {
   const resourceKey = landLockKey(wave.repoPath);
-  for (;;) {
-    const now = ctrl.clock.now();
-    const current = ctrl.db.getLease(resourceKey);
-    const held = ctrl.authority.heldBy({
-      repoPath: wave.repoPath,
-      kind: "land",
+  const now = ctrl.clock.now();
+  const current = ctrl.db.getLease(resourceKey);
+  const decision = canAcquire(current, now, ctrl.process);
+  if (decision === "deny") {
+    return {
+      ok: false,
+      deferred: true,
+      reason: `land lock held by ${current?.holder ?? "unknown"}`,
+    };
+  }
+  if (decision === "hold" && current?.ticketId && current.ticketId !== ticketId) {
+    return {
+      ok: false,
+      deferred: true,
+      reason: `land lock held by ${current.ticketId}`,
+    };
+  }
+  try {
+    const lock = acquireLease({
+      current,
       resourceKey,
       now,
+      ttlMs: ctrl.leaseTtlMs,
+      claimant: ctrl.process,
+      waveId: wave.waveId,
+      ticketId,
     });
-    if (held && held.ticketId !== ticketId) {
-      if (held.expiresAt > now) {
-        await ctrl.sleep(LAND_LOCK_POLL_MS);
-        continue;
-      }
-      if (pidAlive(held.pid)) return { ok: false, reason: "land lock timeout" };
-    }
-    if (current && current.ticketId !== ticketId && current.expiresAt > now) {
-      await ctrl.sleep(LAND_LOCK_POLL_MS);
-      continue;
-    }
+    ctrl.db.putLease(lock);
     try {
-      const lock = acquireLease({
-        current,
-        resourceKey,
-        now,
-        ttlMs: ctrl.leaseTtlMs,
-        claimant: ctrl.process,
-        waveId: wave.waveId,
-        ticketId,
-      });
-      const auth = ctrl.authority.tryAcquire(landInput(ctrl, wave, ticketId, now));
-      if (!auth.ok) {
-        if (auth.reason.includes("git-common-dir")) return { ok: false, reason: auth.reason };
-        await ctrl.sleep(LAND_LOCK_POLL_MS);
-        continue;
-      }
-      ctrl.db.putLease(lock);
-      return { ok: true, generation: lock.generation };
+      ctrl.authority.tryAcquire(landInput(ctrl, wave, ticketId, now));
     } catch {
-      await ctrl.sleep(LAND_LOCK_POLL_MS);
+      /* sqlite is the land authority */
     }
+    return { ok: true, generation: lock.generation };
+  } catch (err) {
+    if (err instanceof AdmissionDeniedError) {
+      return { ok: false, deferred: true, reason: err.message };
+    }
+    throw err;
   }
 }
 

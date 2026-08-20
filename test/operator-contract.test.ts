@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   hasLiveOutbox,
+  hasLiveWork,
+  hasPendingCloseout,
   nextStuckCount,
   operatorLoopDecision,
   progressFingerprint,
@@ -41,6 +43,19 @@ test("progressFingerprint + nextStuckCount: hash, revision, stuck, plan-gate", (
     stuck: false,
   });
   assert.equal(hasLiveOutbox(view), false);
+  const verifying = {
+    ...view,
+    tickets: [{ ticketId: "FX-001", status: "VERIFYING", revision: 2, result: "" }],
+    outbox: [{ outboxId: "obx-1", state: "SETTLED" }],
+  };
+  assert.equal(hasLiveOutbox(verifying), false);
+  assert.equal(hasPendingCloseout(verifying), true);
+  assert.equal(hasLiveWork(verifying), true);
+  const vfp = progressFingerprint(verifying);
+  assert.deepEqual(nextStuckCount(vfp, vfp, 20, 3, "RUNNING", hasLiveWork(verifying)), {
+    count: 0,
+    stuck: false,
+  });
 });
 
 test("operatorLoopDecision: agent-gate stays; human hold stops", () => {

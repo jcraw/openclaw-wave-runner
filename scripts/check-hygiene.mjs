@@ -54,6 +54,7 @@ const ALLOW_FILES = new Set([
   "scripts/drain-eligible.sh",
   "scripts/run-backlog-parallel.sh",
   "scripts/run-backlog-wave.sh",
+  "scripts/wave-operator.sh",
   "scripts/cleanup-scratch.sh",
 ]);
 

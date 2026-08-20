@@ -118,6 +118,7 @@ export type ApplyResult = {
   proof: string;
   paths: string[];
   conflicts: string[];
+  binaryConflicts?: string[];
   error?: string;
   mode: "apply";
 };

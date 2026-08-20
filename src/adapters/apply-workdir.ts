@@ -76,6 +76,7 @@ export async function applyToWorkdir(input: ApplyToWorkdirInput): Promise<ApplyR
     const incoming = listApplyIncoming(input.worktree, input.baseSha);
     const product = incoming.filter((path) => !isBoardProjection(path));
     const conflicts: string[] = [];
+    const binaryConflicts: string[] = [];
     const paths: string[] = [];
     const scratch = mkdtempSync(join(tmpdir(), "wave-apply-"));
     try {
@@ -89,20 +90,29 @@ export async function applyToWorkdir(input: ApplyToWorkdirInput): Promise<ApplyR
           scratch,
         });
         paths.push(relPath);
-        if (outcome === "conflict") conflicts.push(relPath);
+        if (outcome === "binary-conflict") {
+          binaryConflicts.push(relPath);
+          conflicts.push(relPath);
+        } else if (outcome === "conflict") {
+          conflicts.push(relPath);
+        }
       }
     } finally {
       rmSync(scratch, { recursive: true, force: true });
     }
 
     if (conflicts.length) {
+      const error = binaryConflicts.length
+        ? `APPLY_BINARY_CONFLICT: ${binaryConflicts.join(", ")}`
+        : `APPLY_CONFLICT: ${conflicts.join(", ")}`;
       return finish(
         {
           ok: false,
           proof,
           paths,
           conflicts,
-          error: `APPLY_CONFLICT: ${conflicts.join(", ")}`,
+          ...(binaryConflicts.length ? { binaryConflicts } : {}),
+          error,
           mode: "apply",
         },
         false,

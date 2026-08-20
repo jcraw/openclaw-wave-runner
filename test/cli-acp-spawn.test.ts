@@ -48,6 +48,7 @@ function supervisedController(
     worktreeRoot: worktreeRoot ?? join(root, "worktrees"),
     artifactRoot: artifactRoot ?? join(root, "artifacts"),
     env: env ?? isolatedEnv,
+    waveId: "cli-acp",
     ...rest,
     supervised: true,
   });

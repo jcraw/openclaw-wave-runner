@@ -5,7 +5,9 @@ Supervised CLI (`--supervised`) and Gateway `wave_runner.start` / `tick` with `s
 
 ## Surfaces
 
-- Plugin-owned ledger: `$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite` (or the path your CLI `--db` uses)
+- Plugin-owned ledger: `$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite` (plugin Gateway path; **not** shared with CLI drain)
+- Supervised CLI/drain ledger: `$WR_SCRATCH/ledgers/<sha256(canonical-repo-identity)>.sqlite` for one canonical repository (working-tree realpath; git common-dir fallback). Parallel lanes and independent drains on the same repo share it. Override with `WAVE_DB`. Explicit CLI `--db` is fixture/direct-CLI only.
+- Old per-wave `$OUT_DIR/wave.sqlite` files remain inspectable by path (`sqlite3 "$OUT_DIR/wave.sqlite"`). New supervised runs do not write there. No destructive migration.
 - Public JSON projection: path you pass to `project` (dashboards may read this file)
 - Gateway methods: `wave_runner.*` plus preserved `wave_runner_m0.*`
 - CLI (after `npm run build`):
@@ -37,18 +39,31 @@ when unset. Wave Runner self-work keeps `land: commit` (or the caller sets `WAVE
 desk. `commit` closeout is still `landToMain` (identity, no stash, `WAVE_LAND_PUSH`).
 
 `apply` copies the impl worktree into the primary workdir as **bytes** (no commit, HEAD
-unchanged). Text paths still 3-way with `git merge-file`. Binary paths (NUL in the first 8KiB
-or a failed UTF-8 round-trip) never merge-file: identical-to-base copies theirs, same-file
-divergence leaves ours and fails `APPLY_CONFLICT` with no conflict markers. Success writes
-`APPLY.json` and marks the ticket `verified+applied`. `issues/BOARD.md` is a projection
-(WR-024): apply never 3-ways it; `markBoardDone` edits primary after product paths succeed.
-After verify retries are exhausted, apply-mode still copies files in; commit-mode still does
-not commit red code.
+unchanged). Text paths still 3-way with `git merge-file`. Binary paths (NUL anywhere, or a
+failed UTF-8 round-trip) never merge-file: one-sided add/update/delete copies or unlinks
+bytes; both-changed non-text (including modify-vs-delete) leaves ours unchanged, keeps the
+worktree, and fails `APPLY_BINARY_CONFLICT` with no conflict markers. Text conflicts stay
+`APPLY_CONFLICT`. Success writes `APPLY.json` and marks the ticket `verified+applied`.
+`issues/BOARD.md` is a projection (WR-024): apply never 3-ways it; `markBoardDone` edits
+primary after product paths succeed. After verify retries are exhausted, apply-mode still
+copies files in; commit-mode still does not commit red code.
 
-Writer and land/apply mutexes are **host-local** under `<git-common-dir>/wave-runner/locks/`
-(`writer-<scope>.lock`, `land.lock`). Parallel drain lanes with separate `$OUT_DIR/wave.sqlite`
-still share them. Stale locks (dead pid, `/proc` start-time mismatch, or TTL) are harvested
-on the next acquire. Do not delete a live lock. Cross-host / NFS locks are out of scope.
+Writer and land/apply mutexes live in the **shared SQLite ledger** for that canonical repo
+(`writer:<identity>:<scope>` and `land:<identity>`). Each supervised wave has a distinct
+stable `WAVE_RUNNER_OPERATOR_ID` (`cli-wave:<WAVE_ID>`) so sequential CLI processes of one
+wave can refresh/release, and another wave cannot impersonate it. Same-scope IMPL is
+exclusive across waves; disjoint scopes may IMPL together. Land/apply closeout is exclusive
+per repo: lock contention **defers** (ticket stays `VERIFYING`, writer lease kept) and the
+next tick retries. Same-operator same-ticket `hold` refreshes. Durable `APPLY.json` /
+`LAND.json` with `ok: true` can finish DONE even if the impl worktree is already gone.
+`enqueueLand` is in-process only and is not the cross-wave authority.
+
+Plugin `$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite` stays a separate store. Mixing plugin
+IMPL with CLI drain on the same primary is still split-brain; do not do that.
+
+`scripts/cleanup-scratch.sh` is unchanged. `$WR_SCRATCH/ledgers/` is durable state. Cleanup
+`--apply` can delete an unprotected top-level `ledgers/` directory (follow-up, not this
+ticket). Back up ledgers before pruning. Cross-host / NFS locks are out of scope.
 
 `dry-run` is the preflight. It fails closed on missing `verifyCommand` (`missing_verify`) and
 returns `admitBlockers` (warnings: `human_hold`, `shared_writer_scope`, `primary_dirty_overlap`).
@@ -172,10 +187,11 @@ Do not late-edit ticket frontmatter after freeze — cancel and recreate.
 `dry-run` is the preflight for the list above. `STUCK_TICKS` (default 20) stops
 `wave-operator.sh` / `run-backlog-wave.sh` with `OPERATOR_STOP stuck` when a `RUNNING`
 fingerprint (`wave.status` + ticket id/status/revision/result + outbox id/state +
-lease key/holder/ticketId) does not change **and** no outbox is `CLAIMED` /
-`LAUNCHED` / `RECONCILING`. Live in-flight work is not stuck; hung stages are
-the watchdog below. `AWAITING_PLAN_GATE` is not stuck. `STUCK_TICKS=0` disables
-the stop. Do not default it to 0. Lease `expiresAt` is not hashed.
+lease key/holder/ticketId) does not change **and** there is no live work: outbox
+`CLAIMED` / `LAUNCHED` / `RECONCILING`, **or** a `VERIFYING` ticket awaiting
+land/apply closeout. Live in-flight work and closeout waits are not stuck; hung
+stages are the watchdog below. `AWAITING_PLAN_GATE` is not stuck. `STUCK_TICKS=0`
+disables the stop. Do not default it to 0. Lease `expiresAt` is not hashed.
 
 Incident `BL-WR-006-20260816140320` / `PAR-board-remote_root-RRT-013-140320`:
 healthy long IMPL (`IMPLEMENTING` + outbox `LAUNCHED`) was killed as stuck

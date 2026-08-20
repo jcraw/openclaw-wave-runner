@@ -77,10 +77,19 @@ export function hasLiveOutbox(view: ProgressView): boolean {
   );
 }
 
+/** VERIFYING closeout wait is live work (land-lock defer / restart). */
+export function hasPendingCloseout(view: ProgressView): boolean {
+  return view.tickets.some((ticket) => ticket.status === "VERIFYING");
+}
+
+export function hasLiveWork(view: ProgressView): boolean {
+  return hasLiveOutbox(view) || hasPendingCloseout(view);
+}
+
 /**
- * Increment only while RUNNING, fingerprint unchanged, and no live outbox.
- * Live CLAIMED/LAUNCHED/RECONCILING resets (WR-020). Frozen RUNNING with
- * no open outbox still stops (WR-019). threshold <= 0 disables the stop.
+ * Increment only while RUNNING, fingerprint unchanged, and no live work.
+ * Live CLAIMED/LAUNCHED/RECONCILING or VERIFYING closeout resets (WR-020 / WR-026).
+ * Frozen RUNNING with no open outbox still stops (WR-019). threshold <= 0 disables.
  */
 export function nextStuckCount(
   prev: string,

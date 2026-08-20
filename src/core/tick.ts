@@ -1,3 +1,4 @@
+import { AdmissionDeniedError } from "../domain/errors.js";
 import type { SupervisedStartOptions, TicketRun, WaveRecord, WaveView } from "../domain/types.js";
 import { queueStage } from "./admission.js";
 import { assertBudgetStatesForTerminal, markIndeterminate } from "./budget.js";
@@ -13,6 +14,7 @@ import {
 import { failUnlaunchableApproved, releaseInactiveWriterLeases, writerLeaseBlocksImpl } from "./lease-release.js";
 import { failClosedIfPrimaryDirty } from "./primary-dirty-gate.js";
 import { isIdleGateStatus } from "./operator-loop.js";
+import { advancePendingCloseouts } from "./pending-closeout.js";
 import { applyStageWatchdog } from "./stage-watchdog.js";
 import { deriveWriterScope } from "../domain/writer-scope.js";
 import {
@@ -152,6 +154,7 @@ export async function advanceReadyTickets(ctrl: ControllerContext, waveId: strin
       busyImplScopes.add(scope);
       queued += 1;
     } catch (err) {
+      if (err instanceof AdmissionDeniedError) continue;
       // Preserve fail-closed admission errors when nothing is in flight.
       if (queued === 0 && open.length === 0) throw err;
       break;
@@ -227,6 +230,7 @@ export async function tickWave(
   await dispatchPending(ctrl, waveId);
   await observeLaunched(ctrl, waveId);
   await applyStageWatchdog(ctrl, waveId);
+  await advancePendingCloseouts(ctrl, waveId);
   releaseInactiveWriterLeases(ctrl, waveId);
   await advanceReadyTickets(ctrl, waveId);
   failUnlaunchableApproved(ctrl, waveId);
