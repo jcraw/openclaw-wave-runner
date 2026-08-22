@@ -135,6 +135,10 @@ export class OpenClawGatewayAcpSpawn implements AcpSpawn {
         cwd: input.cwd,
         label,
         taskName: `wave-${label.slice("wave-runner:".length, "wave-runner:".length + 24)}`,
+        timeoutSeconds:
+          typeof input.timeoutMs === "number" && Number.isFinite(input.timeoutMs)
+            ? Math.max(1, Math.ceil(input.timeoutMs / 1000))
+            : 90 * 60,
       },
     });
     if (invoked.ok !== true) {

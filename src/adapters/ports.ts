@@ -35,6 +35,8 @@ export type AcpSpawnRequest = {
   sourceId: string;
   /** Optional only for ACP agents that implement runtime model switching. Grok is pinned in argv. */
   model?: string;
+  /** ACP turn/run timeout. OpenClaw default is 3600s and kills long IMPL. */
+  timeoutMs?: number;
 };
 
 export type AcpSpawnResult = {

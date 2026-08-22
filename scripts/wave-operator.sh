@@ -162,6 +162,7 @@ note_stuck() {
     STUCK_N=$((STUCK_N + 1))
     if [[ "$STUCK_TICKS" =~ ^[0-9]+$ && "$STUCK_TICKS" -gt 0 && "$STUCK_N" -ge "$STUCK_TICKS" ]]; then
       echo "OPERATOR_STOP stuck" >&2
+      write_wave_result "${json:-$OUT_DIR/cli/inspect.json}"
       exit 1
     fi
   else
@@ -224,6 +225,22 @@ run_cli() {
   return 0
 }
 
+write_wave_result() {
+  local inspect="${1:-$OUT_DIR/cli/inspect.json}"
+  local RESULT_JS="${RESULT_JS:-$PLUGIN_DIR/dist/scripts/wave-result.js}"
+  if [[ ! -f "$RESULT_JS" ]]; then
+    echo "warn: missing $RESULT_JS — no WAVE_RESULT.json" >&2
+    return 0
+  fi
+  if [[ -s "$inspect" ]]; then
+    node "$RESULT_JS" from-inspect --inspect "$inspect" --out "$OUT_DIR/WAVE_RESULT.json" \
+      --wave "$WAVE_ID" --ticket "${TICKETS:-}" || true
+  else
+    node "$RESULT_JS" write --out "$OUT_DIR/WAVE_RESULT.json" --ticket "${TICKETS:-unknown}" \
+      --wave "$WAVE_ID" --outcome FAILED --reason "missing inspect" --land-ok 0 || true
+  fi
+}
+
 case "$PHASE" in
   dry-run|create|start|inspect|cancel)
     run_cli "$PHASE"
@@ -254,14 +271,17 @@ case "$PHASE" in
       note_stuck "$st" "$OUT_DIR/cli/inspect.json"
       case "$st" in
         COMPLETED)
+          write_wave_result "$OUT_DIR/cli/inspect.json"
           echo "WAVE_OK status=$st"
           exit 0
           ;;
         FAILED|CANCELLED|BUDGET_STOPPED|BLOCKED)
+          write_wave_result "$OUT_DIR/cli/inspect.json"
           echo "WAVE_BAD status=$st" >&2
           exit 1
           ;;
         WAITING_APPROVAL)
+          write_wave_result "$OUT_DIR/cli/inspect.json"
           echo "OPERATOR_STOP waiting_human" >&2
           exit 0
           ;;
@@ -290,9 +310,21 @@ case "$PHASE" in
       note_stuck "$st" "$OUT_DIR/cli/tick-${nn}.json"
       echo "status=$st"
       case "$st" in
-        COMPLETED) echo "WAVE_OK"; exit 0 ;;
-        FAILED|CANCELLED|BUDGET_STOPPED|BLOCKED) echo "WAVE_BAD status=$st" >&2; exit 1 ;;
-        WAITING_APPROVAL) echo "OPERATOR_STOP waiting_human" >&2; exit 0 ;;
+        COMPLETED)
+          write_wave_result "$OUT_DIR/cli/tick-${nn}.json"
+          echo "WAVE_OK"
+          exit 0
+          ;;
+        FAILED|CANCELLED|BUDGET_STOPPED|BLOCKED)
+          write_wave_result "$OUT_DIR/cli/tick-${nn}.json"
+          echo "WAVE_BAD status=$st" >&2
+          exit 1
+          ;;
+        WAITING_APPROVAL)
+          write_wave_result "$OUT_DIR/cli/tick-${nn}.json"
+          echo "OPERATOR_STOP waiting_human" >&2
+          exit 0
+          ;;
         AWAITING_PLAN_GATE)
           echo "PLAN_GATE waiting_astra"
           sleep "$TICK_SLEEP"

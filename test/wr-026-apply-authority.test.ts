@@ -121,7 +121,7 @@ test("apply binary add/delete preserve exact bytes; HEAD unchanged", async () =>
   assert.equal(existsSync(join(repo, "sprite.png")), false);
 });
 
-test("apply binary modify-vs-delete is APPLY_BINARY_CONFLICT", async () => {
+test("apply binary modify-vs-delete: incoming delete wins", async () => {
   const repo = initRepo();
   const { worktree, baseSha } = await makeTree(repo);
   const ours = Buffer.concat([PNG, Buffer.from([0x11])]);
@@ -134,11 +134,8 @@ test("apply binary modify-vs-delete is APPLY_BINARY_CONFLICT", async () => {
     waveId: "w1",
     baseSha,
   });
-  assert.equal(applied.ok, false);
-  assert.match(applied.error ?? "", /APPLY_BINARY_CONFLICT/);
-  assert.equal(Buffer.compare(readFileSync(join(repo, "sprite.png")), ours), 0);
-  const listed = execFileSync("git", ["-C", repo, "worktree", "list"], { encoding: "utf8" });
-  assert.ok(listed.includes(worktree));
+  assert.equal(applied.ok, true, applied.error);
+  assert.equal(existsSync(join(repo, "sprite.png")), false);
 });
 
 test("labelApplyError preserves APPLY_BINARY_CONFLICT", () => {

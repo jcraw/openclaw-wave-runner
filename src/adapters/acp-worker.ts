@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type { LaunchReceipt } from "../domain/types.js";
 import type { ReadOnlyTasks } from "../contracts.js";
+import { acpTimeoutSeconds } from "../core/stage-watchdog.js";
 import type { AcpSpawn, CancelResult, LaunchIntent, WorkerAdapter } from "./ports.js";
 import {
   ensureStageAttemptDir,
@@ -149,6 +150,7 @@ export class GrokAcpWorker implements WorkerAdapter {
       cwd: intent.worktree,
       task: brief,
       sourceId: intent.idempotencyKey,
+      timeoutMs: acpTimeoutSeconds(intent.stage) * 1000,
     });
     const receipt: LaunchReceipt = {
       idempotencyKey: intent.idempotencyKey,

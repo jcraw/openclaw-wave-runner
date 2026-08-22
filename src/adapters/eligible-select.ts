@@ -51,7 +51,13 @@ export function selectEligibleTickets(repoRoot: string, issuesRoot?: string): El
   for (const tid of [...catalog.keys()].sort()) {
     const meta = catalog.get(tid)!;
     if (TERMINAL.has(meta.status)) continue;
-    if (!["open", "in_progress", "todo", "ready", ""].includes(meta.status)) continue;
+    if (
+      !["open", "in_progress", "todo", "ready", "plan_review", "planning", "implementing", ""].includes(
+        meta.status,
+      )
+    ) {
+      continue;
+    }
     if (!meta.eligible) continue;
     if (meta.hold) {
       skipped.push({ ticketId: tid, reason: `needs_jason ${tid}` });

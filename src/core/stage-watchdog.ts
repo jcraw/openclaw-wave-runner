@@ -17,6 +17,15 @@ export function stageWallMs(stage: StageName, env: NodeJS.Dict<string> = process
   return parseWallMs(env.WAVE_IMPL_WALL_MS, DEFAULT_IMPL_WALL_MS);
 }
 
+const WEEK_S = 7 * 24 * 60 * 60;
+
+/** Seconds to send on ACP spawn. Wall 0 (disabled watchdog) → 7d so ACP 3600s cannot win. */
+export function acpTimeoutSeconds(stage: StageName, env: NodeJS.Dict<string> = process.env): number {
+  const ms = stageWallMs(stage, env);
+  if (ms === 0) return WEEK_S;
+  return Math.max(1, Math.ceil(ms / 1000));
+}
+
 function receiptOf(item: { idempotencyKey: string; receiptJson?: string }): LaunchReceipt {
   if (!item.receiptJson) return { idempotencyKey: item.idempotencyKey };
   try {

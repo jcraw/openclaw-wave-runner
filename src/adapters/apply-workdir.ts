@@ -1,6 +1,5 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { tmpdir } from "node:os";
 
 import type { ApplyResult, WorkspaceAdapter } from "./ports.js";
 import { applyOnePath } from "./apply-bytes.js";
@@ -72,51 +71,16 @@ export async function applyToWorkdir(input: ApplyToWorkdirInput): Promise<ApplyR
     return result;
   };
   try {
-    const primaryHead = gitOk(input.repoPath, ["rev-parse", "HEAD"]).out || input.baseSha;
     const incoming = listApplyIncoming(input.worktree, input.baseSha);
     const product = incoming.filter((path) => !isBoardProjection(path));
-    const conflicts: string[] = [];
-    const binaryConflicts: string[] = [];
     const paths: string[] = [];
-    const scratch = mkdtempSync(join(tmpdir(), "wave-apply-"));
-    try {
-      for (const relPath of product) {
-        const outcome = applyOnePath({
-          repoPath: input.repoPath,
-          worktree: input.worktree,
-          baseSha: input.baseSha,
-          primaryHead,
-          relPath,
-          scratch,
-        });
-        paths.push(relPath);
-        if (outcome === "binary-conflict") {
-          binaryConflicts.push(relPath);
-          conflicts.push(relPath);
-        } else if (outcome === "conflict") {
-          conflicts.push(relPath);
-        }
-      }
-    } finally {
-      rmSync(scratch, { recursive: true, force: true });
-    }
-
-    if (conflicts.length) {
-      const error = binaryConflicts.length
-        ? `APPLY_BINARY_CONFLICT: ${binaryConflicts.join(", ")}`
-        : `APPLY_CONFLICT: ${conflicts.join(", ")}`;
-      return finish(
-        {
-          ok: false,
-          proof,
-          paths,
-          conflicts,
-          ...(binaryConflicts.length ? { binaryConflicts } : {}),
-          error,
-          mode: "apply",
-        },
-        false,
-      );
+    for (const relPath of product) {
+      applyOnePath({
+        repoPath: input.repoPath,
+        worktree: input.worktree,
+        relPath,
+      });
+      paths.push(relPath);
     }
 
     const board = [...markBoardDone(input.repoPath, input.ticketId), ...markIssueDone(input.repoPath, input.ticketId)];

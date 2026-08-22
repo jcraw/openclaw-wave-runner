@@ -60,6 +60,7 @@ test("Gateway ACP adapter spawns through sessions_spawn and adopts the public ta
   assert.deepEqual((invoke.params?.args as Record<string, unknown>).runtime, "acp");
   assert.deepEqual((invoke.params?.args as Record<string, unknown>).agentId, "grok");
   assert.deepEqual((invoke.params?.args as Record<string, unknown>).cwd, "/tmp/worktree");
+  assert.equal((invoke.params?.args as Record<string, unknown>).timeoutSeconds, 90 * 60);
 });
 
 test("Gateway ACP adapter adopts the ACP row when a wrapper task shares the same runId", async () => {

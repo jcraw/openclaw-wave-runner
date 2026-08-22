@@ -116,6 +116,17 @@ test("selectEligibleTickets: skip boolean hold; keep pick", () => {
   assert.match(skip.reason, /needs_jason/);
 });
 
+test("selectEligibleTickets: plan_review and planning stay eligible", () => {
+  const root = mkdtempSync(join(tmpdir(), "wr029-select-"));
+  writeTicket(root, "RRT-062", `verify: "true"\nstatus: plan_review`);
+  writeTicket(root, "RRT-063", `verify: "true"\nstatus: planning`);
+  writeTicket(root, "RRT-064", `verify: "true"\nstatus: blocked`);
+  const result = selectEligibleTickets(root);
+  assert.ok(result.eligible.includes("RRT-062"));
+  assert.ok(result.eligible.includes("RRT-063"));
+  assert.ok(!result.eligible.includes("RRT-064"));
+});
+
 test("agent PLAN auto-approves and reaches DONE without approve()", async () => {
   const sim = createSimulator("wr023-auto");
   const controller = await seedWave(sim, "wave-auto", ["FX-001"], {

@@ -11,6 +11,7 @@ import {
   formatGitError,
   git,
   gitOk,
+  gitPushOrigin,
   identityArgs,
   readGitConfig,
 } from "./worktree-commit.js";
@@ -195,7 +196,7 @@ export async function executeLandToMain(input: LandToMainInput): Promise<LandRes
 
     let commitSha = git(input.repoPath, ["rev-parse", "HEAD"]);
     if (input.push) {
-      const pushed = gitOk(input.repoPath, ["push", "origin", main]);
+      const pushed = gitPushOrigin(input.repoPath, main);
       if (!pushed.ok) return fail(`push failed: ${pushed.out}`, { commitSha });
     }
 

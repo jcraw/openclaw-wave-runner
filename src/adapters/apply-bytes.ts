@@ -60,126 +60,18 @@ export function blobAtBytes(repo: string, sha: string, path: string): Buffer | u
   }
 }
 
-function asText(buf: Buffer | undefined): string | undefined {
-  return buf === undefined ? undefined : buf.toString("utf8");
-}
-
-function conflictText(ours: string, theirsLabel: string, theirs: string): string {
-  return `<<<<<<< ours\n${ours}=======\n${theirs}>>>>>>> ${theirsLabel}\n`;
-}
-
-function mergeFile(oursPath: string, basePath: string, theirsPath: string): { conflict: boolean } {
-  try {
-    execFileSync("git", ["merge-file", "-L", "ours", "-L", "base", "-L", "theirs", oursPath, basePath, theirsPath], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    return { conflict: false };
-  } catch (error) {
-    const status = (error as { status?: number }).status;
-    return { conflict: typeof status === "number" ? status > 0 : true };
-  }
-}
-
-function applyBinaryPath(input: {
-  primaryAbs: string;
-  ours: Buffer | undefined;
-  oursWorkdir: Buffer | undefined;
-  theirs: Buffer | undefined;
-  base: Buffer | undefined;
-}): "ok" | "binary-conflict" {
-  const { primaryAbs, ours, oursWorkdir, theirs, base } = input;
-  if (theirs === undefined && ours === undefined) return "ok";
-  if (theirs === undefined) {
-    if (bytesEqual(ours, base)) {
-      unlinkIfFile(primaryAbs);
-      return "ok";
-    }
-    return "binary-conflict";
-  }
-  if (ours === undefined) {
-    if (base === undefined || bytesEqual(theirs, base)) {
-      writeWorkdirBytes(primaryAbs, theirs);
-      return "ok";
-    }
-    return "binary-conflict";
-  }
-  if (bytesEqual(ours, theirs) || bytesEqual(theirs, base)) {
-    if (oursWorkdir === undefined) writeWorkdirBytes(primaryAbs, ours);
-    return "ok";
-  }
-  if (bytesEqual(ours, base)) {
-    writeWorkdirBytes(primaryAbs, theirs);
-    return "ok";
-  }
-  return "binary-conflict";
-}
-
-function applyTextPath(input: {
-  primaryAbs: string;
-  scratch: string;
-  ours: Buffer | undefined;
-  oursWorkdir: Buffer | undefined;
-  theirs: Buffer | undefined;
-  base: Buffer | undefined;
-}): "ok" | "conflict" {
-  const oursText = asText(input.ours);
-  const theirsText = asText(input.theirs);
-  const baseText = asText(input.base);
-  if (theirsText === undefined && oursText === undefined) return "ok";
-  if (theirsText === undefined) {
-    if (oursText === baseText) {
-      unlinkIfFile(input.primaryAbs);
-      return "ok";
-    }
-    writeWorkdirBytes(input.primaryAbs, Buffer.from(conflictText(oursText ?? "", "theirs (deleted)", ""), "utf8"));
-    return "conflict";
-  }
-  if (oursText === undefined) {
-    if (baseText === undefined || theirsText === baseText) {
-      writeWorkdirBytes(input.primaryAbs, input.theirs!);
-      return "ok";
-    }
-    writeWorkdirBytes(input.primaryAbs, Buffer.from(conflictText("", "theirs", theirsText), "utf8"));
-    return "conflict";
-  }
-  if (oursText === theirsText || theirsText === baseText) {
-    if (input.oursWorkdir === undefined) writeWorkdirBytes(input.primaryAbs, input.ours!);
-    return "ok";
-  }
-  if (oursText === baseText) {
-    writeWorkdirBytes(input.primaryAbs, input.theirs!);
-    return "ok";
-  }
-  const oursTmp = join(input.scratch, "ours");
-  const baseTmp = join(input.scratch, "base");
-  const theirsTmp = join(input.scratch, "theirs");
-  writeFileSync(oursTmp, oursText, "utf8");
-  writeFileSync(baseTmp, baseText ?? "", "utf8");
-  writeFileSync(theirsTmp, theirsText, "utf8");
-  const merged = mergeFile(oursTmp, baseTmp, theirsTmp);
-  writeWorkdirBytes(input.primaryAbs, readFileSync(oursTmp));
-  return merged.conflict ? "conflict" : "ok";
-}
-
+/** Apply mode: verified worktree wins. Copy or unlink. Never 3-way. Never conflict. */
 export function applyOnePath(input: {
   repoPath: string;
   worktree: string;
-  baseSha: string;
-  primaryHead: string;
   relPath: string;
-  scratch: string;
-}): "ok" | "conflict" | "binary-conflict" {
+}): "ok" {
   const primaryAbs = join(input.repoPath, input.relPath);
-  const worktreeAbs = join(input.worktree, input.relPath);
-  const base = blobAtBytes(input.worktree, input.baseSha, input.relPath);
-  const theirs = readWorkdirBytes(worktreeAbs);
-  const oursWorkdir = readWorkdirBytes(primaryAbs);
-  const ours = oursWorkdir !== undefined ? oursWorkdir : blobAtBytes(input.repoPath, input.primaryHead, input.relPath);
-  const mergeable =
-    isMergeableText(base) && isMergeableText(ours) && isMergeableText(theirs);
-  if (!mergeable) {
-    return applyBinaryPath({ primaryAbs, ours, oursWorkdir, theirs, base });
+  const theirs = readWorkdirBytes(join(input.worktree, input.relPath));
+  if (theirs === undefined) {
+    unlinkIfFile(primaryAbs);
+    return "ok";
   }
-  return applyTextPath({ primaryAbs, scratch: input.scratch, ours, oursWorkdir, theirs, base });
+  writeWorkdirBytes(primaryAbs, theirs);
+  return "ok";
 }

@@ -149,7 +149,7 @@ test("apply binary no-NUL JPEG still round-trips", async () => {
   assert.equal(Buffer.compare(readFileSync(join(repo, "photo.jpg")), next), 0);
 });
 
-test("apply binary conflict: ours unchanged, no markers, APPLY_BINARY_CONFLICT", async () => {
+test("apply binary overwrite: incoming bytes win, no markers", async () => {
   const repo = initRepo();
   const { worktree, baseSha } = await makeTree(repo);
   const ours = Buffer.concat([PNG, Buffer.from([0x11])]);
@@ -163,16 +163,10 @@ test("apply binary conflict: ours unchanged, no markers, APPLY_BINARY_CONFLICT",
     waveId: "w1",
     baseSha,
   });
-  assert.equal(applied.ok, false);
-  assert.match(applied.error ?? "", /APPLY_BINARY_CONFLICT/);
-  assert.doesNotMatch(applied.error ?? "", /^APPLY_CONFLICT:/);
-  assert.ok(applied.conflicts.includes("sprite.png"));
-  assert.deepEqual(applied.binaryConflicts, ["sprite.png"]);
-  assert.equal(Buffer.compare(readFileSync(join(repo, "sprite.png")), ours), 0);
+  assert.equal(applied.ok, true, applied.error);
+  assert.equal(Buffer.compare(readFileSync(join(repo, "sprite.png")), theirs), 0);
   const raw = readFileSync(join(repo, "sprite.png"));
   assert.equal(raw.includes(Buffer.from("<<<<<<<")), false);
-  const listed = execFileSync("git", ["-C", repo, "worktree", "list"], { encoding: "utf8" });
-  assert.ok(listed.includes(worktree));
 });
 
 test("apply text regression: disjoint dirty + 3-way clean + BOARD skip", async () => {
@@ -194,7 +188,7 @@ test("apply text regression: disjoint dirty + 3-way clean + BOARD skip", async (
   });
   assert.equal(applied.ok, true, applied.error);
   assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
-  assert.equal(readFileSync(join(repo, "product.txt"), "utf8"), "alpha-ours\nbeta\ngamma-theirs\n");
+  assert.equal(readFileSync(join(repo, "product.txt"), "utf8"), "alpha\nbeta\ngamma-theirs\n");
   assert.equal(readFileSync(join(repo, "notes.txt"), "utf8"), "jason-desk\n");
   const board = readFileSync(join(repo, "issues", "BOARD.md"), "utf8");
   assert.match(board, /FX-101 done/);
@@ -294,7 +288,7 @@ test("apply binary add/delete preserve exact bytes", async () => {
   assert.equal(existsSync(join(repo, "photo.jpg")), false);
 });
 
-test("apply binary modify-vs-delete is APPLY_BINARY_CONFLICT", async () => {
+test("apply binary modify-vs-delete: incoming delete wins", async () => {
   const repo = initRepo();
   const { worktree, baseSha } = await makeTree(repo);
   const ours = Buffer.concat([PNG, Buffer.from([0x33])]);
@@ -307,12 +301,8 @@ test("apply binary modify-vs-delete is APPLY_BINARY_CONFLICT", async () => {
     waveId: "w1",
     baseSha,
   });
-  assert.equal(applied.ok, false);
-  assert.match(applied.error ?? "", /APPLY_BINARY_CONFLICT/);
-  assert.equal(Buffer.compare(readFileSync(join(repo, "sprite.png")), ours), 0);
-  assert.equal(readFileSync(join(repo, "sprite.png")).includes(Buffer.from("<<<<<<<")), false);
-  const listed = execFileSync("git", ["-C", repo, "worktree", "list"], { encoding: "utf8" });
-  assert.ok(listed.includes(worktree));
+  assert.equal(applied.ok, true, applied.error);
+  assert.equal(existsSync(join(repo, "sprite.png")), false);
 });
 
 test("land serialize two DBs: both product files and BOARD rows", async () => {

@@ -39,14 +39,15 @@ when unset. Wave Runner self-work keeps `land: commit` (or the caller sets `WAVE
 desk. `commit` closeout is still `landToMain` (identity, no stash, `WAVE_LAND_PUSH`).
 
 `apply` copies the impl worktree into the primary workdir as **bytes** (no commit, HEAD
-unchanged). Text paths still 3-way with `git merge-file`. Binary paths (NUL anywhere, or a
-failed UTF-8 round-trip) never merge-file: one-sided add/update/delete copies or unlinks
-bytes; both-changed non-text (including modify-vs-delete) leaves ours unchanged, keeps the
-worktree, and fails `APPLY_BINARY_CONFLICT` with no conflict markers. Text conflicts stay
-`APPLY_CONFLICT`. Success writes `APPLY.json` and marks the ticket `verified+applied`.
-`issues/BOARD.md` is a projection (WR-024): apply never 3-ways it; `markBoardDone` edits
+unchanged). Incoming add/update/delete **overwrites** those primary paths (text and binary).
+There is no `git merge-file` and no `APPLY_CONFLICT` on a dirty jam desk — ticket bytes win.
+`issues/BOARD.md` is a projection (WR-024): apply never copies it; `markBoardDone` edits
 primary after product paths succeed. After verify retries are exhausted, apply-mode still
 copies files in; commit-mode still does not commit red code.
+Land push (`WAVE_LAND_PUSH=1`) runs `git push` with `GH_TOKEN` unset. ACP spawn timeout is
+`WAVE_PLAN_WALL_MS` / `WAVE_IMPL_WALL_MS` (defaults 45m / 90m; `0` → 7d) so the OpenClaw
+3600s turn cap cannot kill a healthy IMPL. Select includes `plan_review` / `planning`.
+`wave-operator.sh` always writes `WAVE_RESULT.json` on terminal.
 
 Writer and land/apply mutexes live in the **shared SQLite ledger** for that canonical repo
 (`writer:<identity>:<scope>` and `land:<identity>`). Each supervised wave has a distinct

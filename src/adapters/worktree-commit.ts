@@ -36,6 +36,26 @@ export function gitOk(repo: string, args: string[]): { ok: boolean; out: string 
   }
 }
 
+/** Session PAT in GH_TOKEN often 403s repo write. Land push must not inherit it. */
+export function landPushEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const next = { ...env };
+  delete next.GH_TOKEN;
+  return next;
+}
+
+export function gitPushOrigin(repo: string, branch: string): { ok: boolean; out: string } {
+  try {
+    const out = execFileSync("git", ["-C", repo, "push", "origin", branch], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: landPushEnv(),
+    }).trim();
+    return { ok: true, out };
+  } catch (error) {
+    return { ok: false, out: formatGitError(error) };
+  }
+}
+
 export function readGitConfig(repo: string, key: "user.name" | "user.email"): string {
   const got = gitOk(repo, ["config", "--get", key]);
   return got.ok ? got.out.trim() : "";

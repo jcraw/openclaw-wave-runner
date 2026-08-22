@@ -131,7 +131,7 @@ test("apply disjoint dirty: HEAD same, incoming in workdir, APPLY.json ok", asyn
   assert.ok(!listed.includes(worktree));
 });
 
-test("apply 3-way clean: both edits kept; DONE-shaped proof", async () => {
+test("apply overwrite: incoming product wins; HEAD unchanged", async () => {
   const repo = initRepo();
   const { worktree, baseSha } = await makeTree(repo);
   writeFileSync(join(repo, "product.txt"), "alpha-ours\nbeta\ngamma\n", "utf8");
@@ -146,7 +146,7 @@ test("apply 3-way clean: both edits kept; DONE-shaped proof", async () => {
   });
   assert.equal(applied.ok, true, applied.error);
   assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
-  assert.equal(readFileSync(join(repo, "product.txt"), "utf8"), "alpha-ours\nbeta\ngamma-theirs\n");
+  assert.equal(readFileSync(join(repo, "product.txt"), "utf8"), "alpha\nbeta\ngamma-theirs\n");
 });
 
 test("isBoardProjection: only issues/BOARD.md", () => {
@@ -179,7 +179,7 @@ test("apply skips dirty BOARD 3-way; marks ticket done on primary board", async 
   assert.doesNotMatch(board, /<<<<<<</);
 });
 
-test("apply conflict: markers, APPLY_CONFLICT, worktree kept, no silent overwrite", async () => {
+test("apply overwrite: incoming wins on dirty primary, HEAD unchanged", async () => {
   const repo = initRepo();
   const { worktree, baseSha } = await makeTree(repo);
   writeFileSync(join(repo, "product.txt"), "alpha-ours\nbeta\ngamma\n", "utf8");
@@ -192,17 +192,12 @@ test("apply conflict: markers, APPLY_CONFLICT, worktree kept, no silent overwrit
     waveId: "w1",
     baseSha,
   });
-  assert.equal(applied.ok, false);
-  assert.match(applied.error ?? "", /APPLY_CONFLICT/);
-  assert.ok(applied.conflicts.includes("product.txt"));
+  assert.equal(applied.ok, true, applied.error);
   assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
-  const merged = readFileSync(join(repo, "product.txt"), "utf8");
-  assert.match(merged, /<<<<<<< ours/);
-  assert.match(merged, /alpha-ours/);
-  assert.match(merged, /alpha-theirs/);
-  assert.doesNotMatch(merged, /^alpha-theirs\nbeta\ngamma\n$/);
+  assert.equal(readFileSync(join(repo, "product.txt"), "utf8"), "alpha-theirs\nbeta\ngamma\n");
+  assert.doesNotMatch(readFileSync(join(repo, "product.txt"), "utf8"), /<<<<<<</);
   const listed = execFileSync("git", ["-C", repo, "worktree", "list"], { encoding: "utf8" });
-  assert.ok(listed.includes(worktree));
+  assert.equal(listed.includes(worktree), false);
 });
 
 test("commit mode still commit-lands; push stays explicit", async () => {
