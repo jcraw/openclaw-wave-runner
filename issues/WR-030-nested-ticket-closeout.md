@@ -13,7 +13,7 @@ preferred_model: grok
 agent_eligible: true
 eligibility: agent_eligible
 needs_jason: false
-phase: planning
+phase: done
 labels: [p0, apply, closeout, select, deps]
 depends_on: [WR-029]
 related: [WR-016, WR-022, WR-024]
@@ -34,10 +34,10 @@ Jason hand-closed the jam tickets. This ticket is so the next nested-board drain
 
 ## Acceptance
 
-- [ ] `markIssueDone` walks `issues/**` (same as `listMarkdownTickets`). After apply, every `issues/**/<id>-*.md` / `<id>.md` on primary is `status: done`, even if the worker left `in_progress`. BOARD skipped.
-- [ ] Duplicate id: if any copy is terminal (`done`/`closed`/…), freeze + select treat the id as terminal.
-- [ ] Preflight SKIPPED reason for this class is `missing_dependency …`, not generic `dry-run failed`.
-- [ ] Tests cover nested path + leftover duplicate. `npm test && npm run quality`. Commit-land + push origin.
+- [x] `markIssueDone` walks `issues/**` (same as `listMarkdownTickets`). After apply, every `issues/**/<id>-*.md` / `<id>.md` on primary is `status: done`, even if the worker left `in_progress`. BOARD skipped.
+- [x] Duplicate id: if any copy is terminal (`done`/`closed`/…), freeze + select treat the id as terminal.
+- [x] Preflight SKIPPED reason for this class is `missing_dependency …`, not generic `dry-run failed`.
+- [x] Tests cover nested path + leftover duplicate. `npm test && npm run quality`. Commit-land + push origin.
 
 ## Out of scope
 
