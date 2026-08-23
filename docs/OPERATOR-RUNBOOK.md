@@ -46,9 +46,14 @@ primary after product paths succeed. `markIssueDone` walks `issues/**` and sets 
 on every `ID.md` / `ID-*.md` (nested boards and leftover duplicate slugs), even if the worker
 left `in_progress`. After verify retries are exhausted, apply-mode still
 copies files in; commit-mode still does not commit red code.
-Land push (`WAVE_LAND_PUSH=1`) runs `git push` with `GH_TOKEN` unset. ACP spawn timeout is
-`WAVE_PLAN_WALL_MS` / `WAVE_IMPL_WALL_MS` (defaults 45m / 90m; `0` → 7d) so the OpenClaw
-3600s turn cap cannot kill a healthy IMPL. Select includes `plan_review` / `planning`.
+Land push (`WAVE_LAND_PUSH=1`) runs `git push` with `GH_TOKEN` unset.
+ACP: `sessions_spawn` does **not** take a per-call timeout (OpenClaw rejects
+`timeoutSeconds`). Long jobs need host OpenClaw
+`agents.defaults.timeoutSeconds` (whole agent run; OpenClaw default 48h) and
+`agents.defaults.subagents.runTimeoutSeconds` (`0` = no subagent kill).
+WR still fail-closes hung stages with `WAVE_PLAN_WALL_MS` / `WAVE_IMPL_WALL_MS`
+(defaults 45m / 90m; `0` disables the WR watchdog). Overnight drain stays off.
+Select includes `plan_review` / `planning`.
 `wave-operator.sh` always writes `WAVE_RESULT.json` on terminal.
 
 Writer and land/apply mutexes live in the **shared SQLite ledger** for that canonical repo
@@ -64,9 +69,8 @@ next tick retries. Same-operator same-ticket `hold` refreshes. Durable `APPLY.js
 Plugin `$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite` stays a separate store. Mixing plugin
 IMPL with CLI drain on the same primary is still split-brain; do not do that.
 
-`scripts/cleanup-scratch.sh` is unchanged. `$WR_SCRATCH/ledgers/` is durable state. Cleanup
-`--apply` can delete an unprotected top-level `ledgers/` directory (follow-up, not this
-ticket). Back up ledgers before pruning. Cross-host / NFS locks are out of scope.
+`scripts/cleanup-scratch.sh` prunes `$WR_SCRATCH` (dry-run default; `--apply` deletes).
+It never deletes `ledgers/` (shared CLI sqlite). Cross-host / NFS locks are out of scope.
 
 `dry-run` is the preflight. It fails closed on missing `verifyCommand` (`missing_verify`) and
 returns `admitBlockers` (warnings: `human_hold`, `shared_writer_scope`, `primary_dirty_overlap`).

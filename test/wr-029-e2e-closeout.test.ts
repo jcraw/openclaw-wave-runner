@@ -19,6 +19,12 @@ test("acpTimeoutSeconds follows IMPL wall; 0 → 7d", () => {
   assert.equal(acpTimeoutSeconds("PLAN", { WAVE_PLAN_WALL_MS: "120000" }), 120);
 });
 
+test("openclaw-acp never sends sessions_spawn timeout fields", () => {
+  const src = readFileSync("src/adapters/openclaw-acp.ts", "utf8");
+  assert.match(src, /rejects per-call timeoutSeconds/);
+  assert.doesNotMatch(src, /timeoutSeconds:\s/);
+});
+
 test("wave-operator writes WAVE_RESULT on WAVE_OK", () => {
   const sh = readFileSync("scripts/wave-operator.sh", "utf8");
   assert.match(sh, /write_wave_result/);
