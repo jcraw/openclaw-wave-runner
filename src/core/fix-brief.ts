@@ -56,7 +56,7 @@ export function copyVerifyIntoAttempt(worktree: string | undefined, outputDir: s
 }
 
 export function buildStagePrompt(input: {
-  stage: "PLAN" | "IMPL" | "VERIFY";
+  stage: "PLAN" | "IMPL" | "VERIFY" | "REVIEW";
   ticketId: string;
   title: string;
   attempt: number;

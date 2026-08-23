@@ -88,7 +88,7 @@ export function expectedCliOutputDir(intent: LaunchIntent, repoPath: string): st
 
 function parseStageFromKey(key: string): { waveId: string; ticketId: string; stage: StageName; attempt: number } {
   const parts = key.split(":");
-  const stage = parts[2] === "IMPL" || parts[2] === "VERIFY" ? parts[2] : "PLAN";
+  const stage = parts[2] === "IMPL" || parts[2] === "VERIFY" || parts[2] === "REVIEW" ? parts[2] : "PLAN";
   const attempt = Number(parts[3] ?? "1");
   return {
     waveId: parts[0] ?? "",

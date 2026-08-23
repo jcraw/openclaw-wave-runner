@@ -13,7 +13,7 @@ export function parseWallMs(raw: string | undefined, fallback: number): number {
 }
 
 export function stageWallMs(stage: StageName, env: NodeJS.Dict<string> = process.env): number {
-  if (stage === "PLAN") return parseWallMs(env.WAVE_PLAN_WALL_MS, DEFAULT_PLAN_WALL_MS);
+  if (stage === "PLAN" || stage === "REVIEW") return parseWallMs(env.WAVE_PLAN_WALL_MS, DEFAULT_PLAN_WALL_MS);
   return parseWallMs(env.WAVE_IMPL_WALL_MS, DEFAULT_IMPL_WALL_MS);
 }
 

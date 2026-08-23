@@ -34,7 +34,7 @@ export type TicketStatus =
   | "BUDGET_STOPPED"
   | "CANCELLED";
 
-export type StageName = "PLAN" | "IMPL" | "VERIFY";
+export type StageName = "PLAN" | "IMPL" | "VERIFY" | "REVIEW";
 
 export type BudgetState = "RESERVED" | "COMMITTED" | "INDETERMINATE" | "RELEASED";
 
@@ -97,6 +97,9 @@ export type FrozenTicket = {
   game?: string;
   /** WR-022: ticket `land` / `land_mode`. Omit = resolve from env / default commit. */
   landMode?: "apply" | "commit";
+  /** WR-028: skip Crawmak review and auto-IMPL after a valid PLAN artifact. */
+  planReviewSkip?: boolean;
+  planReviewReviseCap?: number;
   satisfiedExternalDeps?: SatisfiedExternalDep[];
 };
 
@@ -171,6 +174,8 @@ export type TicketRun = {
   product?: string;
   game?: string;
   result?: string;
+  planReviewSkip?: boolean;
+  planReviewReviseCap?: number;
 };
 
 export type StageRun = {

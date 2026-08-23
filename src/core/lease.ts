@@ -89,3 +89,14 @@ export function releaseLease(input: {
 export function isLeaseStale(lease: LeaseRecord, now: number): boolean {
   return lease.expiresAt <= now;
 }
+
+/** PID gone (ESRCH). EPERM = alive. Missing pid is not orphan. */
+export function pidIsDead(pid: number | undefined): boolean {
+  if (pid === undefined || !Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "ESRCH";
+  }
+}

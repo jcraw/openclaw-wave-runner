@@ -56,6 +56,7 @@ export function createSimulator(label = "wave-sim"): SimHarness {
     sourcePath: "issues/FX-001.md",
     planClass: "manual",
     verifyCommand: "true",
+    planReviewSkip: true,
     body: "one",
   });
   tracker.seed({
@@ -67,6 +68,7 @@ export function createSimulator(label = "wave-sim"): SimHarness {
     sourcePath: "issues/FX-002.md",
     planClass: "safe-policy",
     verifyCommand: "true",
+    planReviewSkip: true,
     body: "two",
   });
   tracker.seed({
@@ -78,6 +80,7 @@ export function createSimulator(label = "wave-sim"): SimHarness {
     sourcePath: "issues/FX-003.md",
     planClass: "manual",
     verifyCommand: "true",
+    planReviewSkip: true,
     body: "three",
   });
 

@@ -31,6 +31,7 @@ status: open
 depends_on: []
 plan_class: manual
 verify: "true"
+plan_review: skip
 ---
 
 # FX-101

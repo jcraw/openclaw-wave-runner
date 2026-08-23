@@ -129,11 +129,16 @@ cp /path/to/backup.sqlite "$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite"
 - deploy/push as a product mode (`SAFETY.deployPushEnabled`); operator may set `WAVE_LAND_PUSH=1`
 - autonomous overnight / recurring LLM polling
 
-## Agent plan-gate vs human hold (WR-023)
+## Agent plan-gate vs human hold (WR-023 / WR-028)
 
-- **Default after PLAN** (agent-eligible, no human hold): script checks the
-  plan artifact, ledger-approves, IMPL starts. Event `plan_gate_auto`. Wave
-  stays `RUNNING`. No Astra. Do **not** bash-stamp `APPROVED by Astra`.
+- **Default after PLAN** (agent-eligible, no skip bit, no human hold): ticket
+  `PLAN_REVIEW`, wave `AWAITING_PLAN_GATE`, one Crawmak REVIEW worker (forge cwd).
+  IMPL waits for `reviews/<ID>.md` (Verdict + cheat-mode + Learn) **and**
+  `APPROVED by Astra` or `APPROVED by Jason` on the plan file. Operator ticks
+  while gated (`waiting_review_or_stamp`). Do **not** bash-stamp Astra.
+- **Skip review** only via YAML `plan_review: skip` (aliases `review: skip`,
+  `review_skip: true`, `jason_skip: true`): PLAN artifact check → ledger
+  `APPROVED` + `plan_gate_auto` → IMPL. Wave stays `RUNNING`.
 - **Human hold** (`needs_jason: true` / `eligibility: human_gated`): wave status
   `WAITING_APPROVAL`. Operator prints `OPERATOR_STOP waiting_human` and exits.
   `needs_jason: pick` (and other annotations) are **not** holds.

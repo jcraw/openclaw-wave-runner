@@ -4,7 +4,8 @@ import { dirname, join } from "node:path";
 import type { ApplyResult, WorkspaceAdapter } from "./ports.js";
 import { applyOnePath } from "./apply-bytes.js";
 import { markBoardDone, markIssueDone, removeImplWorktree } from "./land-git.js";
-import { formatGitError, gitOk } from "./worktree-commit.js";
+import { resolveLandIdentity } from "./land-identity.js";
+import { commitWithIdentity, formatGitError, gitOk, readGitConfig } from "./worktree-commit.js";
 
 export type ApplyToWorkdirInput = NonNullable<
   Parameters<NonNullable<WorkspaceAdapter["applyToWorkdir"]>>[0]
@@ -87,7 +88,51 @@ export async function applyToWorkdir(input: ApplyToWorkdirInput): Promise<ApplyR
     for (const path of board) {
       if (!paths.includes(path)) paths.push(path);
     }
-    return finish({ ok: true, proof, paths, conflicts: [], mode: "apply" }, true);
+    if (paths.length) {
+      const add = gitOk(input.repoPath, ["add", "--", ...paths]);
+      if (!add.ok) {
+        return finish(
+          { ok: false, proof, paths, conflicts: [], error: add.out, mode: "apply" },
+          false,
+        );
+      }
+    }
+    const identity = resolveLandIdentity({
+      repoPath: input.repoPath,
+      readConfig: (key) => readGitConfig(input.repoPath, key),
+    });
+    if (!identity.ok) {
+      return finish(
+        { ok: false, proof, paths, conflicts: [], error: identity.error, mode: "apply" },
+        false,
+      );
+    }
+    const staged = gitOk(input.repoPath, ["diff", "--cached", "--name-only"]);
+    if (staged.ok && staged.out.trim()) {
+      const committed = commitWithIdentity(
+        input.repoPath,
+        identity.identity,
+        `Land ${input.ticketId} apply closeout.`,
+      );
+      if (!committed.ok) {
+        return finish(
+          { ok: false, proof, paths, conflicts: [], error: committed.out, mode: "apply" },
+          false,
+        );
+      }
+    }
+    const head = gitOk(input.repoPath, ["rev-parse", "HEAD"]);
+    return finish(
+      {
+        ok: true,
+        proof,
+        paths,
+        conflicts: [],
+        mode: "apply",
+        ...(head.ok ? { commitSha: head.out.trim() } : {}),
+      },
+      true,
+    );
   } catch (error) {
     return finish(
       {

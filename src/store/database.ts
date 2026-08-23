@@ -174,8 +174,8 @@ export class WaveDatabase {
           wave_id, ticket_id, content_hash, title, depends_on_json, ord, source_path,
           stage, status, revision, owner, next_action, plan_class, plan_artifact,
           impl_worktree, impl_branch, impl_sha, verify_proof, verify_command, provider, model, result,
-          writer_scope, human_hold, human_hold_reason, product, game
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          writer_scope, human_hold, human_hold_reason, product, game, plan_review_skip, plan_review_revise_cap
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(wave_id, ticket_id) DO UPDATE SET
           content_hash=excluded.content_hash,
           title=excluded.title,
@@ -201,7 +201,9 @@ export class WaveDatabase {
           human_hold=excluded.human_hold,
           human_hold_reason=excluded.human_hold_reason,
           product=excluded.product,
-          game=excluded.game`,
+          game=excluded.game,
+          plan_review_skip=excluded.plan_review_skip,
+          plan_review_revise_cap=excluded.plan_review_revise_cap`,
       )
       .run(
         ticket.waveId,
@@ -231,6 +233,8 @@ export class WaveDatabase {
         ticket.humanHoldReason ?? null,
         ticket.product ?? null,
         ticket.game ?? null,
+        ticket.planReviewSkip === undefined ? null : ticket.planReviewSkip ? 1 : 0,
+        ticket.planReviewReviseCap ?? null,
       );
   }
 

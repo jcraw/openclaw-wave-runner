@@ -68,7 +68,8 @@ function stageBrief(intent: LaunchIntent, outputDir: string): string {
       stage: intent.stage,
       attempt,
       status: "succeeded",
-      artifact: intent.stage === "PLAN" ? "PLAN.md" : intent.stage === "IMPL" ? "IMPL_DONE.json" : "VERIFY.json",
+      artifact:
+        intent.stage === "PLAN" ? "PLAN.md" : intent.stage === "IMPL" ? "IMPL_DONE.json" : intent.stage === "REVIEW" ? "terminal.json" : "VERIFY.json",
     },
     null,
     2,
@@ -87,6 +88,18 @@ Also write ${join(outputDir, "terminal.json")} with exactly these identity field
 ${terminal}
 ${ticketBrief}
 No deploy, push, merge, or Gateway changes. Then STOP.
+`;
+  }
+  if (intent.stage === "REVIEW") {
+    const forge = intent.worktree ?? "crawmak forge";
+    return `# ${intent.ticketId} PLAN REVIEW
+
+Forge cwd ${forge}. No product edits. No Astra/Jason stamp.
+Read ${intent.approvedPlanPath ?? "the plan"}.
+Write ${forge}/reviews/${intent.ticketId}.md (Verdict approve|approve-with-conditions|revise, ## Cheat-mode scan, ## Learn) and ${join(outputDir, "terminal.json")}:
+${terminal}
+${ticketBrief}
+STOP.
 `;
   }
   if (intent.stage === "IMPL") {

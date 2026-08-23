@@ -145,7 +145,7 @@ export class MockWorkspace implements WorkspaceAdapter {
       paths,
       conflicts,
       mode: "apply",
-      ...(conflicts.length ? { error: `APPLY_CONFLICT: ${conflicts.join(", ")}` } : {}),
+      ...(conflicts.length ? { error: `APPLY_CONFLICT: ${conflicts.join(", ")}` } : { commitSha: `apply-${input.ticketId}` }),
     };
     writeFileSync(proof, `${JSON.stringify(result, null, 2)}\n`, "utf8");
     try {

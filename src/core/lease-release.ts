@@ -2,7 +2,7 @@ import type { LeaseRecord, TicketRun, TicketStatus, WaveRecord } from "../domain
 import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireWave } from "./controller-context.js";
-import { releaseLease } from "./lease.js";
+import { isLeaseStale, pidIsDead, releaseLease } from "./lease.js";
 import { isTerminalTicket, TICKET_NEXT, TICKET_OWNERS } from "./state-machine.js";
 
 const IMPL_ACTIVE: ReadonlySet<TicketStatus> = new Set(["IMPLEMENTING", "VERIFYING", "APPROVED"]);
@@ -84,6 +84,18 @@ export function releaseWriterLeaseIfHeld(ctrl: ControllerContext, wave: WaveReco
   if (!lease) return;
   if (lease.ticketId && lease.ticketId !== ticket.ticketId) return;
   tryRelease(ctrl, lease);
+}
+
+export function expireStaleLeases(ctrl: ControllerContext): number {
+  ctrl.watchdogFires += 1;
+  let expired = 0;
+  for (const lease of ctrl.db.listLeases()) {
+    if (!isLeaseStale(lease, ctrl.clock.now()) && !pidIsDead(lease.pid)) continue;
+    releaseAuthorityForLease(ctrl, lease);
+    ctrl.db.deleteLease(lease.resourceKey);
+    expired += 1;
+  }
+  return expired;
 }
 
 /** Sweep leases listed on this wave whose holder ticket is missing or not IMPL-active. */

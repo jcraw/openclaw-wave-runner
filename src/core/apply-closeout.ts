@@ -73,13 +73,14 @@ function recordApplyOutcome(
   ctrl: ControllerContext,
   item: LaunchOutbox,
   opts: { doneOnOk: boolean },
-  applied: Pick<ApplyResult, "ok" | "proof" | "error">,
+  applied: Pick<ApplyResult, "ok" | "proof" | "error" | "commitSha">,
 ): void {
   ctrl.db.transaction(() => {
     const live = requireTicket(ctrl, item.waveId, item.ticketId);
     if (applied.ok && applied.proof && existsSync(applied.proof)) {
       if (opts.doneOnOk) {
-        putTicketStatus(ctrl, live, "DONE", "verified+applied");
+        const sha = applied.commitSha;
+        putTicketStatus(ctrl, live, "DONE", sha ? `verified+applied ${sha.slice(0, 12)}` : "verified+applied");
       } else {
         putTicketStatus(ctrl, live, "FAILED", clipReason(`${live.result ?? "failed"} + applied`));
       }

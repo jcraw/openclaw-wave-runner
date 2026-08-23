@@ -116,7 +116,8 @@ test("apply binary add/delete preserve exact bytes; HEAD unchanged", async () =>
     baseSha,
   });
   assert.equal(applied.ok, true, applied.error);
-  assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.notEqual(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(repo, ["rev-parse", "HEAD"]), applied.commitSha);
   assert.equal(Buffer.compare(readFileSync(join(repo, "new.bin")), added), 0);
   assert.equal(existsSync(join(repo, "sprite.png")), false);
 });

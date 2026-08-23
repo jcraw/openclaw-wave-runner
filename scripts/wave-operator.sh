@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Wave Runner supervised operator (restored 2026-08-15).
 # Real workers only via --supervised. No unrestricted drain. No overnight here.
-# Plan-gate (AWAITING_PLAN_GATE): leftover wait; stay alive; do NOT bash-stamp APPROVED.
-# Agent tickets auto-approve in the controller (WR-023). Do not invent Astra.
+# Plan-gate (AWAITING_PLAN_GATE): tick so REVIEW can launch; wait for review+stamp.
+# Do NOT bash-stamp APPROVED. Skip-bit tickets auto-IMPL (WR-023). Do not invent Astra.
 # Human hold (WAITING_APPROVAL): OPERATOR_STOP waiting_human; exit 0.
 set -euo pipefail
 
@@ -286,9 +286,7 @@ case "$PHASE" in
           exit 0
           ;;
         AWAITING_PLAN_GATE)
-          echo "PLAN_GATE waiting_astra wave=$WAVE_ID (inspect-sleep ${TICK_SLEEP}s)"
-          sleep "$TICK_SLEEP"
-          continue
+          echo "PLAN_GATE waiting_review_or_stamp wave=$WAVE_ID"
           ;;
         PAUSED)
           echo "OPERATOR_STOP paused" >&2
@@ -297,7 +295,12 @@ case "$PHASE" in
         DRAFT|FROZEN)
           run_cli start >/dev/null || true
           ;;
-        RUNNING|"")
+        "")
+          echo "warn: empty inspect; retry"
+          sleep "$TICK_SLEEP"
+          continue
+          ;;
+        RUNNING)
           :
           ;;
       esac
@@ -326,9 +329,7 @@ case "$PHASE" in
           exit 0
           ;;
         AWAITING_PLAN_GATE)
-          echo "PLAN_GATE waiting_astra"
-          sleep "$TICK_SLEEP"
-          continue
+          echo "PLAN_GATE waiting_review_or_stamp"
           ;;
       esac
       sleep "$TICK_SLEEP"

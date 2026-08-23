@@ -66,6 +66,8 @@ export function mapTicket(row: Record<string, unknown>): TicketRun {
     humanHoldReason: optString(row.human_hold_reason) as TicketRun["humanHoldReason"],
     product: optString(row.product),
     game: optString(row.game),
+    planReviewSkip: row.plan_review_skip == null ? undefined : Number(row.plan_review_skip) === 1,
+    planReviewReviseCap: row.plan_review_revise_cap == null ? undefined : Number(row.plan_review_revise_cap),
   };
 }
 

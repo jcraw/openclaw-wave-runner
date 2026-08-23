@@ -39,6 +39,7 @@ export class MockTracker implements TrackerAdapter {
       }),
       body,
       status: ticket.status ?? "open",
+      planReviewSkip: ticket.planReviewSkip ?? true,
     });
   }
 

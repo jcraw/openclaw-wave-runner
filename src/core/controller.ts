@@ -11,8 +11,10 @@ import {
   eventId as nextEventId,
   inspect,
 } from "./controller-context.js";
-import { expireStaleLeases, reconcile } from "./launch.js";
-import { runUntilIdle, tickWave } from "./tick.js";
+import { reconcile } from "./launch.js";
+import { expireStaleLeases } from "./lease-release.js";
+import { runUntilIdle } from "./run-until-idle.js";
+import { tickWave } from "./tick.js";
 import {
   approveWave,
   backupWave,
@@ -50,6 +52,7 @@ export class WaveController {
   readonly llmCalls;
   readonly worktreeRoot;
   readonly artifactRoot;
+  readonly forgeRoot;
   readonly launchMode;
   readonly disableSourceMirror;
   watchdogFires = 0;
@@ -73,6 +76,7 @@ export class WaveController {
     this.llmCalls = opts.llmCalls ?? { count: 0 };
     this.worktreeRoot = opts.worktreeRoot;
     this.artifactRoot = opts.artifactRoot;
+    this.forgeRoot = opts.forgeRoot;
     this.launchMode = opts.launchMode ?? "mock";
     this.disableSourceMirror = opts.disableSourceMirror ?? false;
   }

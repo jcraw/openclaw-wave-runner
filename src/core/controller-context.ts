@@ -52,6 +52,7 @@ export type ControllerOptions = {
   llmCalls?: { count: number };
   worktreeRoot?: string;
   artifactRoot?: string;
+  forgeRoot?: string;
   launchMode?: LaunchMode;
   disableSourceMirror?: boolean;
 };
@@ -75,6 +76,7 @@ export type ControllerContext = {
   readonly llmCalls: { count: number };
   readonly worktreeRoot?: string;
   readonly artifactRoot?: string;
+  readonly forgeRoot?: string;
   readonly launchMode: LaunchMode;
   readonly disableSourceMirror: boolean;
   watchdogFires: number;

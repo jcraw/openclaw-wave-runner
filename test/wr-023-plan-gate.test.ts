@@ -218,6 +218,7 @@ test("human hold still parks; pick annotation on freeze does not", async () => {
     sourcePath: "issues/PX-001.md",
     planClass: "manual",
     verifyCommand: "true",
+    planReviewSkip: true,
     body: "needs_jason: pick is not a hold",
   });
   const pick = await seedWave(pickSim, "wave-pick", ["PX-001"], {

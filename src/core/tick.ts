@@ -5,15 +5,20 @@ import type { ControllerContext } from "./controller-context.js";
 import { inspect, refreshCounters, requireWave } from "./controller-context.js";
 import {
   dispatchPending,
-  expireStaleLeases,
   observeLaunched,
   reconcile,
   refreshHeldLeases,
 } from "./launch.js";
-import { failUnlaunchableApproved, releaseInactiveWriterLeases, writerLeaseBlocksImpl } from "./lease-release.js";
+import {
+  expireStaleLeases,
+  failUnlaunchableApproved,
+  releaseInactiveWriterLeases,
+  writerLeaseBlocksImpl,
+} from "./lease-release.js";
 import { failClosedIfPrimaryDirty } from "./primary-dirty-gate.js";
 import { isIdleGateStatus } from "./operator-loop.js";
 import { advancePendingCloseouts } from "./pending-closeout.js";
+import { maybeAdmitPlanGate, queueMissingPlanReviews } from "./plan-review-settle.js";
 import { applyStageWatchdog } from "./stage-watchdog.js";
 import { deriveWriterScope } from "../domain/writer-scope.js";
 import {
@@ -222,7 +227,8 @@ export async function tickWave(
   refreshHeldLeases(ctrl, waveId);
   expireStaleLeases(ctrl);
   await reconcile(ctrl, waveId);
-  if (isIdleGateStatus(requireWave(ctrl, waveId).status)) {
+  if (requireWave(ctrl, waveId).status === "WAITING_APPROVAL") {
+    maybeCompleteWave(ctrl, waveId);
     return inspect(ctrl, waveId);
   }
   await dispatchPending(ctrl, waveId);
@@ -230,32 +236,15 @@ export async function tickWave(
   await applyStageWatchdog(ctrl, waveId);
   await advancePendingCloseouts(ctrl, waveId);
   releaseInactiveWriterLeases(ctrl, waveId);
-  await advanceReadyTickets(ctrl, waveId);
-  failUnlaunchableApproved(ctrl, waveId);
-  maybeCompleteWave(ctrl, waveId);
-  return inspect(ctrl, waveId);
-}
-
-export async function runUntilIdle(
-  ctrl: ControllerContext,
-  waveId: string,
-  maxSteps = 32,
-  options: SupervisedStartOptions = {},
-): Promise<WaveView> {
-  for (let i = 0; i < maxSteps; i += 1) {
-    const before = inspect(ctrl, waveId);
-    await tickWave(ctrl, waveId, options);
-    const after = inspect(ctrl, waveId);
-    if (
-      isTerminalWave(after.wave.status) ||
-      isIdleGateStatus(after.wave.status) ||
-      after.wave.status === "PAUSED" ||
-      (after.wave.revision === before.wave.revision &&
-        after.tickets.every((t, idx) => t.revision === before.tickets[idx]?.revision) &&
-        after.outbox.every((item) => item.state === "SETTLED" || item.state === "FAILED"))
-    ) {
-      break;
-    }
+  await queueMissingPlanReviews(ctrl, waveId);
+  if (requireWave(ctrl, waveId).status === "AWAITING_PLAN_GATE") {
+    await dispatchPending(ctrl, waveId);
+    await observeLaunched(ctrl, waveId);
+    maybeAdmitPlanGate(ctrl, waveId);
+  } else if (requireWave(ctrl, waveId).status !== "WAITING_APPROVAL") {
+    await advanceReadyTickets(ctrl, waveId);
+    failUnlaunchableApproved(ctrl, waveId);
   }
+  maybeCompleteWave(ctrl, waveId);
   return inspect(ctrl, waveId);
 }

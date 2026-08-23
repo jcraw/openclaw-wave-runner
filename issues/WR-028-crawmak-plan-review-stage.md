@@ -1,27 +1,28 @@
 ---
 id: WR-028
 title: Crawmak plan-review stage — PLAN then review/revise then stamp then IMPL
-status: open
+status: done
 priority: crit
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-23
 source: jason
 assignee: crawmak
 builder: crawmak
 worker: grok
 preferred_model: grok
 agent_eligible: true
-eligibility: agent_eligible
+eligibility: done
 needs_jason: false
-phase: plan
+phase: done
 labels: [p0, plan-gate, review, crawmak, forge]
 depends_on: [WR-023]
 related: [WR-008, WR-023, WR-027, CA-008]
 verify: npm test && npm run quality
 verify_command: npm test && npm run quality
 worker_out_dir: tmp/workers/WR-028
-plan: ""
+plan: plans/2026-08-23-wr-028-crawmak-plan-review-stage.md
 land: commit
+plan_review: skip
 ---
 
 # WR-028 — Restore Crawmak review in the supervised loop

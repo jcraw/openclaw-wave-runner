@@ -18,7 +18,7 @@ export type OperatorLoopDecision =
 
 /**
  * Pure operator loop contract (WR-008).
- * - AWAITING_PLAN_GATE: leftover wait (agent tickets auto-approve in plan-settle)
+ * - AWAITING_PLAN_GATE: review + stamp wait (operator still ticks)
  * - WAITING_APPROVAL: human hold — OPERATOR_STOP
  */
 export function operatorLoopDecision(status: WaveStatus): OperatorLoopDecision {

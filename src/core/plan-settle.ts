@@ -91,16 +91,14 @@ export function applyPlanSuccess(
     putTicketStatus(ctrl, ticket, "FAILED", `plan_artifact: ${artifact.reason}`);
     return;
   }
-  const decision = ctrl.policy.decide({ planClass: ticket.planClass, planText });
-  if (decision !== "wait") {
-    putTicketStatus(ctrl, ticket, "APPROVED");
-    recordAuto(ctrl, wave, ticket, now, "policy");
-    return;
-  }
   if (ticketHumanHold(ctrl, wave, ticket)) {
     setWaveStatus(ctrl, wave, "WAITING_APPROVAL", now);
     return;
   }
-  putTicketStatus(ctrl, ticket, "APPROVED");
-  recordAuto(ctrl, wave, ticket, now, "agent");
+  if (ticket.planReviewSkip === true) {
+    putTicketStatus(ctrl, ticket, "APPROVED");
+    recordAuto(ctrl, wave, ticket, now, "agent");
+    return;
+  }
+  setWaveStatus(ctrl, wave, "AWAITING_PLAN_GATE", now);
 }

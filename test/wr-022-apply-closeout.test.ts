@@ -117,7 +117,8 @@ test("apply disjoint dirty: HEAD same, incoming in workdir, APPLY.json ok", asyn
   });
   assert.equal(applied.ok, true, applied.error);
   assert.equal(applied.mode, "apply");
-  assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.notEqual(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(repo, ["rev-parse", "HEAD"]), applied.commitSha);
   assert.equal(readFileSync(join(repo, "incoming.txt"), "utf8"), "from-wt\n");
   assert.equal(readFileSync(join(repo, "notes.txt"), "utf8"), "jason-desk\n");
   const proof = join(repo, "tmp", "wave-runner", "w1", "FX-101", "APPLY.json");
@@ -145,7 +146,8 @@ test("apply overwrite: incoming product wins; HEAD unchanged", async () => {
     baseSha,
   });
   assert.equal(applied.ok, true, applied.error);
-  assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.notEqual(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(repo, ["rev-parse", "HEAD"]), applied.commitSha);
   assert.equal(readFileSync(join(repo, "product.txt"), "utf8"), "alpha\nbeta\ngamma-theirs\n");
 });
 
@@ -193,7 +195,8 @@ test("apply overwrite: incoming wins on dirty primary, HEAD unchanged", async ()
     baseSha,
   });
   assert.equal(applied.ok, true, applied.error);
-  assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.notEqual(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(repo, ["rev-parse", "HEAD"]), applied.commitSha);
   assert.equal(readFileSync(join(repo, "product.txt"), "utf8"), "alpha-theirs\nbeta\ngamma\n");
   assert.doesNotMatch(readFileSync(join(repo, "product.txt"), "utf8"), /<<<<<<</);
   const listed = execFileSync("git", ["-C", repo, "worktree", "list"], { encoding: "utf8" });
@@ -445,7 +448,8 @@ verify: "true"
     baseSha: git(dir, ["rev-parse", "HEAD"]),
   });
   assert.equal(applied.ok, true, applied.error);
-  assert.equal(git(dir, ["rev-parse", "HEAD"]), before);
+  assert.notEqual(git(dir, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(dir, ["rev-parse", "HEAD"]), applied.commitSha);
   assert.equal(readFileSync(join(dir, "product.txt"), "utf8"), "incoming\n");
   assert.match(readFileSync(join(dir, "issues", "remote_root", "RRT-063-no-end-screen.md"), "utf8"), /^status: done$/m);
   assert.match(readFileSync(join(dir, "issues", "remote_root", "RRT-063-old-slug.md"), "utf8"), /^status: done$/m);

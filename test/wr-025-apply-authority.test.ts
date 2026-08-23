@@ -122,7 +122,8 @@ test("apply binary copy: PNG/JPEG bytes match; HEAD unchanged", async () => {
     baseSha,
   });
   assert.equal(applied.ok, true, applied.error);
-  assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.notEqual(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(repo, ["rev-parse", "HEAD"]), applied.commitSha);
   assert.equal(Buffer.compare(readFileSync(join(repo, "sprite.png")), pngTheirs), 0);
   assert.equal(Buffer.compare(readFileSync(join(repo, "photo.jpg")), jpgTheirs), 0);
   assert.equal(readFileSync(join(repo, "incoming.txt"), "utf8"), "from-wt\n");
@@ -187,7 +188,8 @@ test("apply text regression: disjoint dirty + 3-way clean + BOARD skip", async (
     baseSha,
   });
   assert.equal(applied.ok, true, applied.error);
-  assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.notEqual(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(repo, ["rev-parse", "HEAD"]), applied.commitSha);
   assert.equal(readFileSync(join(repo, "product.txt"), "utf8"), "alpha\nbeta\ngamma-theirs\n");
   assert.equal(readFileSync(join(repo, "notes.txt"), "utf8"), "jason-desk\n");
   const board = readFileSync(join(repo, "issues", "BOARD.md"), "utf8");
@@ -283,7 +285,8 @@ test("apply binary add/delete preserve exact bytes", async () => {
     baseSha,
   });
   assert.equal(applied.ok, true, applied.error);
-  assert.equal(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.notEqual(git(repo, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(repo, ["rev-parse", "HEAD"]), applied.commitSha);
   assert.equal(Buffer.compare(readFileSync(join(repo, "new-sprite.png")), added), 0);
   assert.equal(existsSync(join(repo, "photo.jpg")), false);
 });

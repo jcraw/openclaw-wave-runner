@@ -73,7 +73,7 @@ export type LaunchIntent = {
   idempotencyKey: string;
   waveId: string;
   ticketId: string;
-  stage: "PLAN" | "IMPL" | "VERIFY";
+  stage: "PLAN" | "IMPL" | "VERIFY" | "REVIEW";
   attempt?: number;
   prompt: string;
   sessionKey: string;
@@ -121,6 +121,7 @@ export type ApplyResult = {
   binaryConflicts?: string[];
   error?: string;
   mode: "apply";
+  commitSha?: string;
 };
 
 export interface WorkspaceAdapter {
@@ -163,7 +164,7 @@ export interface WorkspaceAdapter {
     push?: boolean;
     artifactRoot?: string;
   }): Promise<LandResult>;
-  /** WR-022: copy worktree tip into the primary workdir (no commit). Optional on mocks. */
+  /** WR-022 / WR-032: copy worktree tip into primary and commit. Optional on mocks. */
   applyToWorkdir?(input: {
     repoPath: string;
     worktree: string;

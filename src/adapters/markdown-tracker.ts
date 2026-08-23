@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 
 import { resolveHumanHold } from "../core/human-hold.js";
+import { resolvePlanReviewSkip } from "../core/plan-review-skip.js";
 import { parseCloseoutMode } from "../domain/closeout-mode.js";
 import { deriveWriterScope } from "../domain/writer-scope.js";
 import { hashTicketContent, normalizeSelectedDependencies } from "../core/manifest.js";
@@ -23,6 +24,7 @@ export type ParsedTicket = {
   game?: string;
   writerScope?: string;
   landMode?: "apply" | "commit";
+  planReviewSkip?: boolean;
   sourcePath: string;
   body: string;
   raw: string;
@@ -185,6 +187,7 @@ export function parseTicketFile(path: string, repoRoot: string): ParsedTicket | 
     game,
     writerScope,
     ...(landMode ? { landMode } : {}),
+    ...(resolvePlanReviewSkip(data) ? { planReviewSkip: true } : {}),
     sourcePath,
     body,
     raw,
@@ -231,6 +234,7 @@ export class MarkdownTracker implements TrackerAdapter {
         game: ticket.game,
         writerScope: ticket.writerScope,
         landMode: ticket.landMode,
+        planReviewSkip: ticket.planReviewSkip,
       };
     });
     return normalizeSelectedDependencies(

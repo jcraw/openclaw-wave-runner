@@ -3,7 +3,6 @@ import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import { claimantFields } from "./authority.js";
 import { CrashInjectedError, type ControllerContext } from "./controller-context.js";
 import { requireTicket, requireWave } from "./controller-context.js";
-import { isLeaseStale } from "./lease.js";
 import { isImplActive, releaseAuthorityForLease } from "./lease-release.js";
 import {
   claimOutbox,
@@ -13,6 +12,7 @@ import {
 } from "./outbox.js";
 import { predecessorImplSha } from "./chain-worktree.js";
 import { buildStagePrompt, copyVerifyIntoAttempt } from "./fix-brief.js";
+import { resolveCrawmakForge } from "./plan-review.js";
 import type { LaunchIntent } from "./ports.js";
 import { settleOutbox } from "./settlement.js";
 import { stageAttemptDir, stageSessionKey } from "./stage-paths.js";
@@ -43,21 +43,14 @@ export function refreshHeldLeases(ctrl: ControllerContext, waveId: string): void
   }
 }
 
-export function expireStaleLeases(ctrl: ControllerContext): number {
-  ctrl.watchdogFires += 1;
-  let expired = 0;
-  for (const lease of ctrl.db.listLeases()) {
-    if (!isLeaseStale(lease, ctrl.clock.now())) continue;
-    releaseAuthorityForLease(ctrl, lease);
-    ctrl.db.deleteLease(lease.resourceKey);
-    expired += 1;
-  }
-  return expired;
-}
-
 export function intentFromOutbox(ctrl: ControllerContext, item: LaunchOutbox): LaunchIntent {
   const ticket = requireTicket(ctrl, item.waveId, item.ticketId);
-  const root = ticket.implWorktree ?? ctrl.artifactRoot ?? ctrl.worktreeRoot ?? ".";
+  const review = item.stage === "REVIEW";
+  const forge = review
+    ? resolveCrawmakForge({ explicit: ctrl.forgeRoot, fromRepo: requireWave(ctrl, item.waveId).repoPath })
+    : undefined;
+  const cwd = review ? forge : ticket.implWorktree;
+  const root = (review ? ctrl.artifactRoot ?? ctrl.worktreeRoot : cwd ?? ctrl.artifactRoot ?? ctrl.worktreeRoot) ?? ".";
   const outputDir = stageAttemptDir({
     root,
     waveId: item.waveId,
@@ -65,9 +58,7 @@ export function intentFromOutbox(ctrl: ControllerContext, item: LaunchOutbox): L
     stage: item.stage,
     attempt: item.attempt,
   });
-  if (item.stage === "IMPL") {
-    copyVerifyIntoAttempt(ticket.implWorktree, outputDir, ticket.verifyProof);
-  }
+  if (item.stage === "IMPL") copyVerifyIntoAttempt(ticket.implWorktree, outputDir, ticket.verifyProof);
   return {
     idempotencyKey: item.idempotencyKey,
     waveId: item.waveId,
@@ -79,7 +70,7 @@ export function intentFromOutbox(ctrl: ControllerContext, item: LaunchOutbox): L
       ticketId: item.ticketId,
       title: ticket.title,
       attempt: item.attempt,
-      worktree: ticket.implWorktree,
+      worktree: cwd,
       verifyProof: ticket.verifyProof,
       verifyCommand: ticket.verifyCommand,
     }),
@@ -89,7 +80,7 @@ export function intentFromOutbox(ctrl: ControllerContext, item: LaunchOutbox): L
       stage: item.stage,
       attempt: item.attempt,
     }),
-    worktree: ticket.implWorktree,
+    worktree: cwd,
     outputDir,
     approvedPlanPath: item.stage === "PLAN" ? undefined : ticket.planArtifact,
     provider: ticket.provider,

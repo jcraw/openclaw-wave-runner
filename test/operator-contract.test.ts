@@ -150,6 +150,7 @@ test("safe-policy still auto-approves with no gate/wake", async () => {
     sourcePath: "issues/SX-001.md",
     planClass: "safe-policy",
     verifyCommand: "true",
+    planReviewSkip: true,
     body: "safe",
   });
   const controller = await seedWave(sim, "wave-safe", ["SX-001"], {

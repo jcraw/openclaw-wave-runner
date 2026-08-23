@@ -10,7 +10,9 @@ import { applyOnExhaustedImpl } from "./apply-closeout.js";
 import { finalizeImplLand, implFenceFailure } from "./land-closeout.js";
 import { releaseWriterLeaseIfHeld } from "./lease-release.js";
 import { markSettled } from "./outbox.js";
+import { closeoutModeForWaveTicket } from "../domain/closeout-mode.js";
 import { applyPlanSuccess } from "./plan-settle.js";
+import { admitPlanReviewTicket } from "./plan-review-settle.js";
 import { readActualPlanText } from "./plan-text.js";
 import {
   assertTicketTransition,
@@ -32,7 +34,7 @@ export function stageDeathReason(input: {
   status: "failed" | "cancelled";
   summary?: string;
   error?: string;
-  stage: "PLAN" | "IMPL" | "VERIFY";
+  stage: "PLAN" | "IMPL" | "VERIFY" | "REVIEW";
   attempt: number;
 }): string {
   const fromWorker = clipReason(input.summary ?? input.error ?? "");
@@ -102,8 +104,9 @@ export async function settleOutbox(
   if (item.stage === "IMPL" && status === "succeeded") {
     const ticket = requireTicket(ctrl, waveId, item.ticketId);
     const wave = requireWave(ctrl, waveId);
+    const applyMode = closeoutModeForWaveTicket(wave.manifestJson, ticket.ticketId) === "apply";
     const fence = implFenceFailure(ctrl, item, ticket, wave);
-    if (fence) {
+    if (fence && !applyMode) {
       status = "failed";
       verifyFailSnippet = fence;
     } else if (!ticket.verifyCommand) {
@@ -159,8 +162,8 @@ export async function settleOutbox(
         const retriesRemain = attempt - 1 < wave.limits.maxRetriesPerStage;
         const noRetry =
           verifyFailSnippet === "missing_verify" || (verifyFailSnippet?.startsWith("stale_fence") ?? false);
-        if (retriesRemain && (item.stage === "PLAN" || item.stage === "IMPL") && !noRetry) {
-          const rearm = item.stage === "PLAN" ? "REVISING" : "APPROVED";
+        if (retriesRemain && (item.stage === "PLAN" || item.stage === "IMPL" || item.stage === "REVIEW") && !noRetry) {
+          const rearm = item.stage === "PLAN" ? "REVISING" : item.stage === "REVIEW" ? "PLAN_REVIEW" : "APPROVED";
           assertTicketTransition(ticket.status, rearm, false);
           putTicketStatus(ctrl, ticket, rearm, clipReason(`retry ${attempt + 1} after: ${reason}`));
           if (wave.status === "WAITING_APPROVAL" || wave.status === "AWAITING_PLAN_GATE") {
@@ -184,6 +187,8 @@ export async function settleOutbox(
       if (item.stage === "IMPL") releaseWriterLeaseIfHeld(ctrl, wave, ticket);
     } else if (item.stage === "PLAN") {
       applyPlanSuccess(ctrl, wave, ticket, planPath, summary, now);
+    } else if (item.stage === "REVIEW") {
+      admitPlanReviewTicket(ctrl, waveId, item.ticketId);
     } else if (item.stage === "IMPL") {
       // Keep writer lease through verify+land; releaseWriterLeaseAfterLand frees it.
       // Fail path above still releases immediately so same-scope siblings are not starved (WR-019).

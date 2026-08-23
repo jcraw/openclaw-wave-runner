@@ -81,6 +81,8 @@ export function ticketFromFrozen(waveId: string, ticket: FrozenTicket): TicketRu
     writerScope: ticket.writerScope || deriveWriterScope(ticket),
     product: ticket.product,
     game: ticket.game,
+    planReviewSkip: ticket.planReviewSkip,
+    planReviewReviseCap: ticket.planReviewReviseCap,
   };
 }
 

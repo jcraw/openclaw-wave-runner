@@ -3,9 +3,8 @@
 # Usage:
 #   REPO=/path/to/repo TICKETS=A-001 OUT_DIR=/tmp/wave ./scripts/run-backlog-wave.sh
 #
-# AUTO_PLAN_GATE=1 (default): ledger approve if a wave still sits on AWAITING_PLAN_GATE.
-# Never bash-stamp APPROVED by Astra. Agent tickets auto-approve in the controller (WR-023).
-# AUTO_PLAN_GATE=0: sleep-wait only (external approve).
+# Never bash-stamp APPROVED by Astra. Never approve just because the wave is gated.
+# Skip-bit tickets auto-IMPL in the controller (WR-023). Default tickets wait review+stamp (WR-028).
 # Scratch defaults to the 7.3T data disk (not $HOME). Override with WR_SCRATCH / OUT_DIR.
 set -euo pipefail
 : "${REPO:?}"
@@ -231,21 +230,8 @@ while true; do
       exit 0
       ;;
     AWAITING_PLAN_GATE)
-      if [[ "$AUTO_PLAN_GATE" != "1" ]]; then
-        sleep "$TICK_SLEEP"
-        continue
-      fi
-      bash "$SCRIPT_DIR/wave-operator.sh" inspect >/dev/null || true
-      info="$(ticket_info "$OUT_DIR/cli/inspect.json" 2>/dev/null | head -1 || true)"
-      tid="$(printf '%s' "$info" | cut -f1)"
-      rev="$(printf '%s' "$info" | cut -f2)"
-      if [[ -z "$tid" || -z "$rev" ]]; then
-        echo "FATAL no plan-review rev"
-        exit 1
-      fi
-      bash "$SCRIPT_DIR/wave-operator.sh" approve "$tid" "$rev"
-      sleep 2
-      continue
+      echo "PLAN_GATE waiting_review_or_stamp"
+      sleep "$TICK_SLEEP"
       ;;
     *)
       sleep "$TICK_SLEEP"
