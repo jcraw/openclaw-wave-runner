@@ -116,6 +116,46 @@ test("selectEligibleTickets: skip boolean hold; keep pick", () => {
   assert.match(skip.reason, /needs_jason/);
 });
 
+function writeTicketAt(root: string, rel: string, id: string, extra: string): void {
+  const path = join(root, rel);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(
+    path,
+    `---
+id: ${id}
+title: ${id}
+status: open
+agent_eligible: true
+eligibility: agent_eligible
+depends_on: []
+${extra}
+---
+# ${id}
+`,
+    "utf8",
+  );
+}
+
+test("selectEligibleTickets: duplicate id any-terminal-wins, both walk orders", () => {
+  for (const [doneName, openName] of [
+    ["RRT-062-a.md", "RRT-062-z.md"],
+    ["RRT-062-z.md", "RRT-062-a.md"],
+  ] as const) {
+    const root = mkdtempSync(join(tmpdir(), "wr030-select-"));
+    writeTicketAt(root, `issues/remote_root/${doneName}`, "RRT-062", `verify: "true"\nstatus: done`);
+    writeTicketAt(root, `issues/remote_root/${openName}`, "RRT-062", `verify: "true"\nstatus: plan_review`);
+    writeTicketAt(
+      root,
+      "issues/remote_root/RRT-064-scooper.md",
+      "RRT-064",
+      `verify: "true"\nstatus: open\ndepends_on: [RRT-062]`,
+    );
+    const result = selectEligibleTickets(root);
+    assert.ok(!result.eligible.includes("RRT-062"), `${doneName} vs ${openName}`);
+    assert.ok(result.eligible.includes("RRT-064"), `${doneName} vs ${openName}`);
+  }
+});
+
 test("selectEligibleTickets: plan_review and planning stay eligible", () => {
   const root = mkdtempSync(join(tmpdir(), "wr029-select-"));
   writeTicket(root, "RRT-062", `verify: "true"\nstatus: plan_review`);

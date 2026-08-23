@@ -14,6 +14,28 @@ export type TicketCatalogEntry = {
   status: string;
 };
 
+export function isTerminalBoardStatus(status: string): boolean {
+  return TERMINAL_BOARD_STATUSES.has(String(status ?? "").toLowerCase());
+}
+
+/** Duplicate ticket files: any terminal status wins. First non-terminal is kept otherwise. */
+export function mergeCatalogById(entries: TicketCatalogEntry[]): TicketCatalogEntry[] {
+  const byId = new Map<string, TicketCatalogEntry>();
+  for (const entry of entries) {
+    const status = String(entry.status ?? "").toLowerCase();
+    const ticketId = entry.ticketId;
+    const prev = byId.get(ticketId);
+    if (!prev) {
+      byId.set(ticketId, { ticketId, status });
+      continue;
+    }
+    if (!isTerminalBoardStatus(prev.status) && isTerminalBoardStatus(status)) {
+      byId.set(ticketId, { ticketId, status });
+    }
+  }
+  return [...byId.values()];
+}
+
 export function hashManifest(manifest: FrozenManifest): string {
   return hashJson(manifest);
 }
@@ -78,7 +100,7 @@ export function normalizeSelectedDependencies(
   catalog: TicketCatalogEntry[],
 ): FrozenTicket[] {
   const selectedIds = new Set(selected.map((ticket) => ticket.ticketId));
-  const byId = new Map(catalog.map((entry) => [entry.ticketId, entry]));
+  const byId = new Map(mergeCatalogById(catalog).map((entry) => [entry.ticketId, entry]));
   return selected.map((ticket) => {
     const kept: string[] = [];
     const satisfied: SatisfiedExternalDep[] = [...(ticket.satisfiedExternalDeps ?? [])];

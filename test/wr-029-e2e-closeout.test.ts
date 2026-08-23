@@ -3,7 +3,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { landPushEnv } from "../src/adapters/worktree-commit.js";
+import { normalizeSelectedDependencies } from "../src/core/manifest.js";
 import { acpTimeoutSeconds, DEFAULT_IMPL_WALL_MS } from "../src/core/stage-watchdog.js";
+import type { FrozenTicket } from "../src/domain/types.js";
 
 test("landPushEnv strips GH_TOKEN", () => {
   const env = landPushEnv({ GH_TOKEN: "nope", PATH: "/bin", HOME: "/tmp" });
@@ -22,4 +24,46 @@ test("wave-operator writes WAVE_RESULT on WAVE_OK", () => {
   assert.match(sh, /write_wave_result/);
   assert.match(sh, /WAVE_RESULT\.json/);
   assert.match(sh, /from-inspect/);
+});
+
+test("run-backlog-wave surfaces missing_dependency skip reason", () => {
+  const sh = readFileSync("scripts/run-backlog-wave.sh", "utf8");
+  assert.match(sh, /missing_dependency/);
+  assert.match(sh, /Open dependency/);
+});
+
+function frozen(ticketId: string, dependsOn: string[]): FrozenTicket {
+  return {
+    ticketId,
+    title: ticketId,
+    contentHash: "h",
+    dependsOn,
+    order: 1,
+    sourcePath: `issues/${ticketId}.md`,
+  };
+}
+
+test("normalizeSelectedDependencies: duplicate catalog any-terminal-wins", () => {
+  const selected = [frozen("RRT-064", ["RRT-063"])];
+  const doneLast = normalizeSelectedDependencies(selected, [
+    { ticketId: "RRT-064", status: "open" },
+    { ticketId: "RRT-063", status: "in_progress" },
+    { ticketId: "RRT-063", status: "done" },
+  ]);
+  assert.deepEqual(doneLast[0]?.dependsOn, []);
+  const doneFirst = normalizeSelectedDependencies(selected, [
+    { ticketId: "RRT-064", status: "open" },
+    { ticketId: "RRT-063", status: "done" },
+    { ticketId: "RRT-063", status: "plan_review" },
+  ]);
+  assert.deepEqual(doneFirst[0]?.dependsOn, []);
+  assert.throws(
+    () =>
+      normalizeSelectedDependencies(selected, [
+        { ticketId: "RRT-064", status: "open" },
+        { ticketId: "RRT-063", status: "open" },
+        { ticketId: "RRT-063", status: "in_progress" },
+      ]),
+    /Open dependency RRT-063/,
+  );
 });

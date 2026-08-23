@@ -396,6 +396,62 @@ test("drain scripts default WAVE_LAND_MODE=apply when unset", () => {
   assert.match(wave, /WAVE_LAND_MODE:-.*!= "apply"/);
 });
 
+test("apply marks nested issue files done, including leftover duplicates", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "wave-wr030-"));
+  execFileSync("git", ["init", "-b", "main"], { cwd: dir });
+  execFileSync("git", ["config", "user.email", "wave@example.test"], { cwd: dir });
+  execFileSync("git", ["config", "user.name", "Wave Runner"], { cwd: dir });
+  mkdirSync(join(dir, "issues", "remote_root"), { recursive: true });
+  writeFileSync(join(dir, "product.txt"), "desk\n", "utf8");
+  const live = `---
+id: RRT-063
+title: nested
+status: in_progress
+depends_on: []
+verify: "true"
+land: apply
+---
+# live
+`;
+  const leftover = `---
+id: RRT-063
+title: leftover
+status: plan_review
+depends_on: []
+verify: "true"
+---
+# leftover
+`;
+  writeFileSync(join(dir, "issues", "remote_root", "RRT-063-no-end-screen.md"), live, "utf8");
+  writeFileSync(join(dir, "issues", "remote_root", "RRT-063-old-slug.md"), leftover, "utf8");
+  execFileSync("git", ["add", "."], { cwd: dir });
+  execFileSync("git", ["commit", "-m", "init"], { cwd: dir });
+  const ws = new GitWorkspace();
+  const created = await ws.createImplWorktree({
+    repoPath: dir,
+    baseSha: git(dir, ["rev-parse", "HEAD"]),
+    waveId: "w1",
+    ticketId: "RRT-063",
+    worktreeRoot: join(dir, "tmp", "worktrees"),
+  });
+  writeFileSync(join(created.worktree, "product.txt"), "incoming\n", "utf8");
+  writeFileSync(join(created.worktree, "issues", "remote_root", "RRT-063-no-end-screen.md"), live, "utf8");
+  const before = git(dir, ["rev-parse", "HEAD"]);
+  const applied = await applyToWorkdir({
+    repoPath: dir,
+    worktree: created.worktree,
+    ticketId: "RRT-063",
+    waveId: "w1",
+    baseSha: git(dir, ["rev-parse", "HEAD"]),
+  });
+  assert.equal(applied.ok, true, applied.error);
+  assert.equal(git(dir, ["rev-parse", "HEAD"]), before);
+  assert.equal(readFileSync(join(dir, "product.txt"), "utf8"), "incoming\n");
+  assert.match(readFileSync(join(dir, "issues", "remote_root", "RRT-063-no-end-screen.md"), "utf8"), /^status: done$/m);
+  assert.match(readFileSync(join(dir, "issues", "remote_root", "RRT-063-old-slug.md"), "utf8"), /^status: done$/m);
+  assert.equal(existsSync(join(dir, "tmp", "wave-runner", "w1", "RRT-063", "APPLY.json")), true);
+});
+
 test("markdown land / land_mode parse onto FrozenTicket", async () => {
   const root = mkdtempSync(join(tmpdir(), "wr022-md-"));
   mkdirSync(join(root, "issues"), { recursive: true });

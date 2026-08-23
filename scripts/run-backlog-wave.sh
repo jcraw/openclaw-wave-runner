@@ -161,8 +161,13 @@ write_inspect_result() {
 
 if ! bash "$SCRIPT_DIR/wave-operator.sh" dry-run >/dev/null; then
   reason="dry-run failed"
-  if [[ -s "$OUT_DIR/cli/dry-run.err" ]] && grep -q missing_verify "$OUT_DIR/cli/dry-run.err"; then
-    reason="missing_verify $TICKETS"
+  if [[ -s "$OUT_DIR/cli/dry-run.err" ]]; then
+    if grep -q missing_verify "$OUT_DIR/cli/dry-run.err"; then
+      reason="missing_verify $TICKETS"
+    elif grep -q missing_dependency "$OUT_DIR/cli/dry-run.err"; then
+      dep_line="$(grep -oE 'Open dependency [^[:cntrl:]]{1,100}' "$OUT_DIR/cli/dry-run.err" | head -1 || true)"
+      reason="${dep_line:-missing_dependency $TICKETS}"
+    fi
   fi
   echo "PREFLIGHT_FAIL $reason" >&2
   write_skip SKIPPED "$reason"

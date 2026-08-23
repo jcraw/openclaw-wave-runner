@@ -1,9 +1,10 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, relative } from "node:path";
 
 import { landRecoveryReceipt } from "../core/land-recovery.js";
 import type { LandResult, WorkspaceAdapter } from "./ports.js";
 import { resolveLandIdentity, type LandIdentity } from "./land-identity.js";
+import { listMarkdownTickets } from "./markdown-tracker.js";
 import { listDirtyPaths, listIncomingPaths, overlapPaths } from "./primary-overlap.js";
 import {
   commitStagedWorktree,
@@ -75,13 +76,16 @@ export function markBoardDone(repo: string, ticketId: string): string[] {
   return ["issues/BOARD.md"];
 }
 
+function isTicketIssueName(name: string, ticketId: string): boolean {
+  return name === `${ticketId}.md` || (name.startsWith(`${ticketId}-`) && name.endsWith(".md"));
+}
+
 export function markIssueDone(repo: string, ticketId: string): string[] {
   const dir = join(repo, "issues");
   if (!existsSync(dir)) return [];
   const changed: string[] = [];
-  for (const name of readdirSync(dir)) {
-    if (!name.startsWith(ticketId) || !name.endsWith(".md")) continue;
-    const path = join(dir, name);
+  for (const path of listMarkdownTickets(dir)) {
+    if (!isTicketIssueName(basename(path), ticketId)) continue;
     const text = readFileSync(path, "utf8");
     const next = text.replace(/^---\r?\n[\s\S]*?\r?\n---/, (fm) => {
       if (/^status:\s*/m.test(fm)) return fm.replace(/^status:\s*.*$/m, "status: done");
@@ -89,7 +93,7 @@ export function markIssueDone(repo: string, ticketId: string): string[] {
     });
     if (next !== text) {
       writeFileSync(path, next, "utf8");
-      changed.push(`issues/${name}`);
+      changed.push(relative(repo, path).replaceAll("\\", "/"));
     }
   }
   return changed;

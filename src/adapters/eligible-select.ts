@@ -1,6 +1,5 @@
+import { isTerminalBoardStatus } from "../core/manifest.js";
 import { parseFrontmatter, parseTicketFile, listMarkdownTickets } from "./markdown-tracker.js";
-
-const TERMINAL = new Set(["done", "wontfix", "cancelled", "closed", "complete", "completed"]);
 
 export type SelectSkip = { ticketId: string; reason: string };
 export type EligibleSelectResult = {
@@ -28,20 +27,26 @@ export function selectEligibleTickets(repoRoot: string, issuesRoot?: string): El
     const parsed = parseTicketFile(path, repoRoot);
     if (!parsed) continue;
     const { data } = parseFrontmatter(parsed.raw);
-    catalog.set(parsed.ticketId, {
+    const row = {
       status: (parsed.status || "open").toLowerCase(),
       eligible: agentEligible(data),
       deps: parsed.dependsOn,
       verify: Boolean(parsed.verifyCommand?.trim()),
       hold: parsed.humanHold === true,
-    });
+    };
+    const prev = catalog.get(parsed.ticketId);
+    if (!prev) {
+      catalog.set(parsed.ticketId, row);
+    } else if (!isTerminalBoardStatus(prev.status) && isTerminalBoardStatus(row.status)) {
+      catalog.set(parsed.ticketId, row);
+    }
   }
 
   const depsOk = (tid: string): boolean => {
     for (const dep of catalog.get(tid)?.deps ?? []) {
       const d = catalog.get(dep);
       if (!d) return false;
-      if (!TERMINAL.has(d.status)) return false;
+      if (!isTerminalBoardStatus(d.status)) return false;
     }
     return true;
   };
@@ -50,7 +55,7 @@ export function selectEligibleTickets(repoRoot: string, issuesRoot?: string): El
   const skipped: SelectSkip[] = [];
   for (const tid of [...catalog.keys()].sort()) {
     const meta = catalog.get(tid)!;
-    if (TERMINAL.has(meta.status)) continue;
+    if (isTerminalBoardStatus(meta.status)) continue;
     if (
       !["open", "in_progress", "todo", "ready", "plan_review", "planning", "implementing", ""].includes(
         meta.status,
