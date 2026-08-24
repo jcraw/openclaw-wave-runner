@@ -5,15 +5,14 @@ export const PRODUCTION_WORKER_DISABLED_MESSAGE =
   "for named specialists or tools/run_detached_builder.sh for code work.";
 
 /**
- * Hard safety gates (WR-012/015).
+ * Hard safety gates (WR-012/034).
  *
- * Distinctions:
- * - autonomousOvernight / recurringLlmPolling / unrestrictedDrain = OFF
- *   (no auto cron, no LLM control loop, no "drain everything forever" without selection).
- * - operatorOvernightDrain = OK when Jason/operator explicitly kicks drain --eligible
- *   (may run all night; no wall by default; still no LLM orchestrator).
- * - productionDrainEnabled stays false: operator drain is supervised lanes, not a
- *   separate production-only mode.
+ * Unprompted re-drain / recurringLlmPolling / unrestrictedDrain = OFF
+ * (no auto cron, no LLM control loop, no "drain everything forever" without selection).
+ * Operator drain --eligible is a kick, not a clock-time mode. Optional WAVE_WALL_S
+ * is a shell timeout. overnightEnabled stays a frozen unprompted-drain pin.
+ * productionDrainEnabled stays false: operator drain is supervised lanes, not a
+ * separate production-only mode.
  */
 export const SAFETY = Object.freeze({
   productionDrainEnabled: false,
@@ -21,8 +20,6 @@ export const SAFETY = Object.freeze({
   unrestrictedDrainEnabled: false,
   recurringLlmPollingEnabled: false,
   autonomousOvernightEnabled: false,
-  /** Explicit operator-kicked long/overnight drain is allowed (WR-015). */
-  operatorOvernightDrainAllowed: true,
   deployPushEnabled: false,
   productionWorkerLaunchEnabled: false,
   allowActiveGatewayRestart: false,
@@ -41,26 +38,16 @@ export const SAFETY = Object.freeze({
 export function assertBoundedWaveRequest(input: {
   drainEverything?: boolean;
   overnight?: boolean;
-  /** Operator-kicked overnight drain (WR-015); not autonomous overnight. */
-  operatorOvernight?: boolean;
   recurringLlmPolling?: boolean;
   ticketIds?: string[];
 }): void {
   if (input.drainEverything || SAFETY.unrestrictedDrainEnabled) {
     throw new SafetyGateError("unrestricted drain-everything is disabled.");
   }
-  // Autonomous / unprompted overnight stays off. Operator overnight is separate.
-  if (
-    (input.overnight && !input.operatorOvernight) ||
-    SAFETY.overnightEnabled ||
-    SAFETY.autonomousOvernightEnabled
-  ) {
+  if (input.overnight || SAFETY.overnightEnabled || SAFETY.autonomousOvernightEnabled) {
     throw new SafetyGateError(
-      "autonomous overnight remains off; use operator drain --eligible (optionally overnight).",
+      "unprompted re-drain remains off; use operator drain --eligible.",
     );
-  }
-  if (input.operatorOvernight && !SAFETY.operatorOvernightDrainAllowed) {
-    throw new SafetyGateError("operator overnight drain is disabled.");
   }
   if (input.recurringLlmPolling || SAFETY.recurringLlmPollingEnabled) {
     throw new SafetyGateError("recurring LLM polling is disabled.");

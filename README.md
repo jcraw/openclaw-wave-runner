@@ -5,7 +5,7 @@
 Freeze a ticket set. Reserve budget before every launch. Run plan → approve → **fresh** implement. Terminate with proof — not vibes, not “keep going until empty.”
 
 > Status: **experimental/dev proof only** — deterministic core and mock fixtures remain tested.
-> **Production worker launch, unrestricted drain, and overnight operation are fail-closed off.**
+> **Production worker launch, unrestricted drain, and unprompted re-drain are fail-closed off.**
 
 ---
 
@@ -215,7 +215,7 @@ Hard-coded **off** until an operator deliberately changes policy *and* the code 
 
 - unrestricted “drain everything”  
 - recurring LLM backlog polling  
-- overnight autonomous execution  
+- unprompted re-drain  
 - production drain mode  
 - deploy/push from the runner  
 - active Gateway restart/config mutation from the runner  

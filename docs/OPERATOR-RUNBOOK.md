@@ -1,6 +1,6 @@
 # Wave Runner operator runbook
 
-**Unrestricted drain, autonomous overnight, and `SAFETY.deployPushEnabled` stay off.**
+**Unrestricted drain, unprompted re-drain / LLM poll, and `SAFETY.deployPushEnabled` stay off.**
 Supervised CLI (`--supervised`) and Gateway `wave_runner.start` / `tick` with `supervised: true` are the intentional real-worker path.
 
 ## Surfaces
@@ -52,7 +52,7 @@ ACP: `sessions_spawn` does **not** take a per-call timeout (OpenClaw rejects
 `agents.defaults.timeoutSeconds` (whole agent run; OpenClaw default 48h) and
 `agents.defaults.subagents.runTimeoutSeconds` (`0` = no subagent kill).
 WR still fail-closes hung stages with `WAVE_PLAN_WALL_MS` / `WAVE_IMPL_WALL_MS`
-(defaults 45m / 90m; `0` disables the WR watchdog). Overnight drain stays off.
+(defaults 45m / 90m; `0` disables the WR watchdog). Unprompted re-drain / LLM poll stay off.
 Select includes `plan_review` / `planning`.
 `wave-operator.sh` always writes `WAVE_RESULT.json` on terminal.
 
@@ -123,11 +123,10 @@ cp /path/to/backup.sqlite "$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite"
 ## Gates that stay closed
 
 - unrestricted drain-everything  
-- recurring LLM polling / overnight autonomous execution  
+- recurring LLM polling / unprompted re-drain  
 - production drain / worker-profile launches (`SAFETY.production*`)
 - more tickets or limits than `SAFETY.supervisedMax*`
 - deploy/push as a product mode (`SAFETY.deployPushEnabled`); operator may set `WAVE_LAND_PUSH=1`
-- autonomous overnight / recurring LLM polling
 
 ## Agent plan-gate vs human hold (WR-023 / WR-028)
 
@@ -143,31 +142,38 @@ cp /path/to/backup.sqlite "$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite"
   `WAITING_APPROVAL`. Operator prints `OPERATOR_STOP waiting_human` and exits.
   `needs_jason: pick` (and other annotations) are **not** holds.
 - **Supervised launch is ON** for explicit `--supervised` CLI / `wave-operator.sh`.
-  Unrestricted drain, overnight, merge/push remain disabled.
+  Unrestricted drain, unprompted re-drain, merge/push remain disabled.
 - **Run a backlog slice:**
   `REPO=... TICKETS=A,B OUT_DIR=... ./scripts/run-backlog-wave.sh`
   No Astra session is required for agent tickets.
 
-## Operator drain (WR-014 / WR-015)
+## Operator drain (WR-014 / WR-034)
 
-Low-token backlog drain — **no LLM control loop**.
+Low-token backlog drain — **no LLM control loop**. One kick; clock time is not a mode.
+
+A drain runs until the eligible queue is empty or a real stop: stage watchdogs
+(`WAVE_PLAN_WALL_MS` 45m / `WAVE_IMPL_WALL_MS` 90m; `0` disables), token/launch
+caps (`MAX_TOKENS` / `MAX_LAUNCHES`), stuck detector, human hold, emergency-stop.
+Optional `WAVE_WALL_S` is a shell timeout in seconds (`0` = none, the default).
+It is not a time of day.
 
 Scratch is pruned daily (~04:15) by `scripts/cleanup-scratch.sh --apply`
 (keep 14 days / 3 newest / skip live waves). Dry-run without `--apply`.
 
 ```bash
-# Daytime / overnight kick (Jason-explicit). Runs until eligible queue empty or human hold.
+# Operator kick. Runs until eligible queue empty or a real stop.
 REPO=/path/to/game_jam \
   WR_SCRATCH=$WR_SCRATCH \
   OUT_ROOT=$WR_SCRATCH/drain-$(date +%Y%m%d) \
   MAX_PARALLEL=5 \
   bash scripts/drain-eligible.sh
 
-# Long/overnight: same command under nohup. OVERNIGHT=1 lifts the 6h
-# per-wave shell wall in run-backlog-wave.sh (WAVE_WALL_S=0 also works).
-# Autonomous overnight cron stays OFF.
-nohup env REPO=/path/to/game_jam OVERNIGHT=1 bash scripts/drain-eligible.sh \
-  > /tmp/drain-overnight.log 2>&1 &
+# Optional desk timeout (seconds), not a clock-time mode:
+# WAVE_WALL_S=3600 bash scripts/drain-eligible.sh
+
+# Unattended: same command under nohup. Unprompted re-drain / LLM poll stay OFF.
+nohup env REPO=/path/to/game_jam bash scripts/drain-eligible.sh \
+  > /tmp/drain.log 2>&1 &
 ```
 
 Standing defaults (WR-012): `maxTokens=500000`, `maxLaunches=10`, `maxRetriesPerStage=2`,

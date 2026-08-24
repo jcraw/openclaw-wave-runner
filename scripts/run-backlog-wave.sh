@@ -191,9 +191,14 @@ bash "$SCRIPT_DIR/wave-operator.sh" start
 
 i=0
 started=$(date +%s)
-# Operator overnight (WR-015): OVERNIGHT=1 or WAVE_WALL_S=0 disables the 6h shell wall.
-WALL_S="${WAVE_WALL_S:-21600}"
+# WR-034: default no shell wall. WAVE_WALL_S>0 is an optional timeout, not a clock-time mode.
+# OVERNIGHT=1 is a one-release alias for wall=0 when WAVE_WALL_S is unset.
 if [[ "${OVERNIGHT:-0}" == "1" ]]; then
+  echo "warning: OVERNIGHT is not a mode; use WAVE_WALL_S=0." >&2
+fi
+if [[ -n "${WAVE_WALL_S:-}" ]]; then
+  WALL_S="$WAVE_WALL_S"
+else
   WALL_S=0
 fi
 TICK_FAIL_N=0

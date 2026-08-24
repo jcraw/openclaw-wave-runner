@@ -32,6 +32,6 @@ See `docs/QUALITY-GATES.md`.
 
 ## Scope we will reject
 
-- “Drain until empty” / overnight auto-arm defaults  
+- “Drain until empty” / unprompted auto-arm defaults  
 - Recurring LLM poll control loops  
 - Features that treat a live issue board as transactional runtime truth without a freeze step  

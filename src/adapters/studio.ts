@@ -95,7 +95,7 @@ export function describeReplacementPath(): {
   return {
     old: "clear the backlog / recurring drain ticks",
     next: "explicit bounded wave: freeze selected tickets → admit → PLAN → artifact check → IMPL → verify",
-    overnight: "disabled until an operator explicitly revisits",
+    overnight: "unprompted re-drain remains off; operator kick has no clock-time mode",
     drainEverything: false,
   };
 }

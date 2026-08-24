@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Wave Runner supervised operator (restored 2026-08-15).
-# Real workers only via --supervised. No unrestricted drain. No overnight here.
+# Real workers only via --supervised. No unrestricted drain. No unprompted re-drain.
 # Plan-gate (AWAITING_PLAN_GATE): tick so REVIEW can launch; wait for review+stamp.
 # Do NOT bash-stamp APPROVED. Skip-bit tickets auto-IMPL (WR-023). Do not invent Astra.
 # Human hold (WAITING_APPROVAL): OPERATOR_STOP waiting_human; exit 0.

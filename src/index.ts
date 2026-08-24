@@ -177,7 +177,7 @@ function register(api: OpenClawPluginApi): void {
     v0(() => ({
       milestone: "v0",
       productionDrainEnabled: false,
-      overnightEnabled: false,
+      overnightEnabled: false, // frozen unprompted-drain pin (CrawDash compat); not a clock-time mode
       productionWorkerLaunchEnabled: SAFETY.productionWorkerLaunchEnabled,
       productWorkerRuntime: "disabled-use-direct-wrappers",
       supervisedOneTicketLaunchAllowed: SAFETY.supervisedOneTicketLaunchAllowed,

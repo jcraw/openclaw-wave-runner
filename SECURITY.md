@@ -11,6 +11,6 @@ Please open a **private** GitHub security advisory on this repository, or email 
 ## Operational notes
 
 - Wave Runner can spawn coding agents with repo write access when supervised mode is enabled and adapters are wired.  
-- Defaults refuse unrestricted drain, overnight autonomy, and deploy/push.  
+- Defaults refuse unrestricted drain, unprompted re-drain, and deploy/push.  
 - Run against disposable Gateway profiles when validating.  
 - Do not commit API keys, OpenClaw gateway tokens, or private ticket corpora into this repo.  

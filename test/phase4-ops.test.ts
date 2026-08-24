@@ -14,11 +14,12 @@ test("Phase 4: studio mappings and replacement path keep drain disabled", () => 
   assert.equal(mapStudioStatus(AI_MUD, "done"), "DONE");
   const replacement = describeReplacementPath();
   assert.equal(replacement.drainEverything, false);
-  assert.match(replacement.overnight, /operator/i);
+  assert.match(replacement.overnight, /unprompted/i);
+  assert.match(replacement.overnight, /no clock-time mode/i);
   assert.equal(SAFETY.productionDrainEnabled, false);
   assert.equal(SAFETY.overnightEnabled, false);
   assert.throws(() => assertBoundedWaveRequest({ drainEverything: true, ticketIds: ["X-1"] }), /drain/);
-  assert.throws(() => assertBoundedWaveRequest({ overnight: true, ticketIds: ["X-1"] }), /overnight/);
+  assert.throws(() => assertBoundedWaveRequest({ overnight: true, ticketIds: ["X-1"] }), /unprompted/);
   assert.throws(() => assertBoundedWaveRequest({ ticketIds: [] }), /explicit ticket selection/);
   const gated = eligibleForBoundedWave(
     "---\nid: GJ-1\nstatus: open\nneeds_jason: true\n---\n",

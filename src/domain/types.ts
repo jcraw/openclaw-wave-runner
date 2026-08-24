@@ -115,6 +115,7 @@ export type FrozenManifest = {
   deadlineMs?: number;
   createdAt: number;
   drainEverything: false;
+  /** Frozen unprompted-drain pin (schema 1). Not a clock-time mode. */
   overnight: false;
   recurringLlmPolling: false;
   deployPush: false;

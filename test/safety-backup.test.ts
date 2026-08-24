@@ -35,8 +35,9 @@ test("safety: refuses drain-everything / overnight / empty selection", () => {
   );
   assert.throws(() => assertBoundedWaveRequest({ ticketIds: [] }), SafetyGateError);
   assert.doesNotThrow(() => assertBoundedWaveRequest({ ticketIds: ["T-1"] }));
-  assert.doesNotThrow(() =>
-    assertBoundedWaveRequest({ ticketIds: ["T-1"], overnight: true, operatorOvernight: true }),
+  assert.throws(
+    () => assertBoundedWaveRequest({ ticketIds: ["T-1"], overnight: true }),
+    SafetyGateError,
   );
 });
 

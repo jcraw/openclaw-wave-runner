@@ -9,7 +9,7 @@ export function capabilities(ctrl: ControllerContext) {
     phases: ["M0", "P1", "P2", "P3", "P4", "P5"],
     safety: { ...SAFETY },
     productionDrainEnabled: false,
-    overnightEnabled: false,
+    overnightEnabled: false, // frozen unprompted-drain pin (CrawDash compat); not a clock-time mode
     productionWorkerLaunchEnabled: false,
     supervisedOneTicketLaunchAllowed: SAFETY.supervisedOneTicketLaunchAllowed,
     supervisedBoundedLaunchAllowed: SAFETY.supervisedBoundedLaunchAllowed,
@@ -24,7 +24,7 @@ export function project(ctrl: ControllerContext) {
     generatedAt: ctrl.clock.now(),
     authoritative: false,
     productionDrainEnabled: false,
-    overnightEnabled: false,
+    overnightEnabled: false, // frozen unprompted-drain pin (CrawDash compat); not a clock-time mode
     productionWorkerLaunchEnabled: false,
     supervisedOneTicketLaunchAllowed: SAFETY.supervisedOneTicketLaunchAllowed,
     safety: { ...SAFETY },
