@@ -22,6 +22,7 @@ fi
 OUT_ROOT="${OUT_ROOT:-$WR_SCRATCH/drain-eligible-$(date +%Y%m%d%H%M%S)}"
 MAX_PARALLEL="${MAX_PARALLEL:-5}"
 OVERNIGHT="${OVERNIGHT:-0}"
+export OVERNIGHT
 export OPENCLAW_GATEWAY_URL="${OPENCLAW_GATEWAY_URL:-http://127.0.0.1:18789}"
 TOKEN_FILE="${OPENCLAW_HOME:+$OPENCLAW_HOME/secrets/gateway-token}"
 TOKEN_FILE="${TOKEN_FILE:-${HOME:+$HOME/.openclaw/secrets/gateway-token}}"

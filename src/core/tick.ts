@@ -195,6 +195,15 @@ export function maybeCompleteWave(ctrl: ControllerContext, waveId: string): void
     const tickets = ctrl.db.listTickets(waveId);
     if (tickets.length === 0) return;
     if (!tickets.every((t) => isTerminalTicket(t.status))) return;
+    const now = ctrl.clock.now();
+    for (const budget of ctrl.db.listBudgets(waveId)) {
+      if (budget.state === "RESERVED") {
+        // REVIEW (or any stage) left LAUNCHED after the ticket is already DONE
+        // must not throw budget_open and kill the operator (RRT-086/088).
+        ctrl.db.putBudget(markIndeterminate(budget, now));
+      }
+    }
+    refreshCounters(ctrl, waveId);
     const budgets = ctrl.db.listBudgets(waveId);
     assertBudgetStatesForTerminal(budgets);
     const failed = tickets.some((t) => t.status === "FAILED" || t.status === "BLOCKED" || t.status === "BUDGET_STOPPED");

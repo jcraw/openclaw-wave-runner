@@ -259,6 +259,7 @@ case "$PHASE" in
     fi
     i=0
     started=$(date +%s)
+    TICK_FAIL_N=0
     while true; do
       i=$((i + 1))
       printf -v nn "%02d" "$i"
@@ -306,9 +307,16 @@ case "$PHASE" in
       esac
       echo "=== tick $nn elapsed=$(( $(date +%s) - started ))s status=${st:-?} ==="
       if ! run_cli tick "$nn" >/dev/null; then
-        echo "TICK_FAILED $nn" >&2
-        exit 1
+        TICK_FAIL_N=$((TICK_FAIL_N + 1))
+        echo "TICK_FAILED $nn streak=$TICK_FAIL_N" >&2
+        if [[ "$TICK_FAIL_N" -ge 5 ]]; then
+          echo "OPERATOR_STOP repeated_tick_fail wave=$WAVE_ID streak=$TICK_FAIL_N" >&2
+          exit 1
+        fi
+        sleep "$TICK_SLEEP"
+        continue
       fi
+      TICK_FAIL_N=0
       st="$(status_of_json "$OUT_DIR/cli/tick-${nn}.json")"
       note_stuck "$st" "$OUT_DIR/cli/tick-${nn}.json"
       echo "status=$st"

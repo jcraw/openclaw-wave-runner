@@ -165,7 +165,7 @@ test("verdict revise re-queues PLAN; not IMPL", async () => {
   assert.ok(!view.events.some((e) => e.type === "plan_review_admit"));
 });
 
-test("approve without stamp stays PLAN_REVIEW", async () => {
+test("Crawmak Verdict approve admits IMPL without Astra/Jason stamp", async () => {
   const forge = mkdtempSync(join(tmpdir(), "wr028-nostamp-"));
   writeReview(forge, "RV-004", "approve");
   const sim = createSimulator("wr028-nostamp");
@@ -185,12 +185,13 @@ test("approve without stamp stays PLAN_REVIEW", async () => {
   await controller.start("wave-ns");
   await controller.runUntilIdle("wave-ns");
   const view = controller.inspect("wave-ns");
-  assert.equal(view.tickets[0]?.status, "PLAN_REVIEW");
-  assert.equal(view.wave.status, "AWAITING_PLAN_GATE");
-  assert.ok(sim.worker.intents.every((i) => i.stage !== "IMPL"));
+  assert.equal(view.tickets[0]?.status, "DONE");
+  assert.equal(view.wave.status, "COMPLETED");
+  assert.ok(sim.worker.intents.some((i) => i.stage === "IMPL"));
+  assert.ok(view.events.some((e) => e.type === "plan_review_admit"));
 });
 
-test("approve + APPROVED by Jason on plan → IMPL/DONE", async () => {
+test("approve + leftover APPROVED by Jason on plan still IMPL/DONE", async () => {
   const forge = mkdtempSync(join(tmpdir(), "wr028-stamp-"));
   writeReview(forge, "RV-005", "approve");
   const sim = createSimulator("wr028-stamp");

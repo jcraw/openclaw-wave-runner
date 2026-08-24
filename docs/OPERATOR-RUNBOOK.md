@@ -163,8 +163,9 @@ REPO=/path/to/game_jam \
   MAX_PARALLEL=5 \
   bash scripts/drain-eligible.sh
 
-# Long/overnight: same command under nohup (no wall deadline by default).
-# OVERNIGHT=1 is documentary; autonomous overnight cron stays OFF.
+# Long/overnight: same command under nohup. OVERNIGHT=1 lifts the 6h
+# per-wave shell wall in run-backlog-wave.sh (WAVE_WALL_S=0 also works).
+# Autonomous overnight cron stays OFF.
 nohup env REPO=/path/to/game_jam OVERNIGHT=1 bash scripts/drain-eligible.sh \
   > /tmp/drain-overnight.log 2>&1 &
 ```

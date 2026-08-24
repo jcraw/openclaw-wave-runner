@@ -191,15 +191,33 @@ bash "$SCRIPT_DIR/wave-operator.sh" start
 
 i=0
 started=$(date +%s)
+# Operator overnight (WR-015): OVERNIGHT=1 or WAVE_WALL_S=0 disables the 6h shell wall.
+WALL_S="${WAVE_WALL_S:-21600}"
+if [[ "${OVERNIGHT:-0}" == "1" ]]; then
+  WALL_S=0
+fi
+TICK_FAIL_N=0
 while true; do
   i=$((i + 1))
   printf -v nn "%02d" "$i"
-  if (( $(date +%s) - started > 21600 )); then
+  if [[ "$WALL_S" != "0" && $(( $(date +%s) - started )) -gt "$WALL_S" ]]; then
     echo "FATAL wall"
     write_skip FAILED "wall clock"
     exit 1
   fi
-  bash "$SCRIPT_DIR/wave-operator.sh" tick "$nn" || true
+  tick_rc=0
+  bash "$SCRIPT_DIR/wave-operator.sh" tick "$nn" || tick_rc=$?
+  if [[ "$tick_rc" -ne 0 ]]; then
+    TICK_FAIL_N=$((TICK_FAIL_N + 1))
+    echo "TICK_FAILED $nn rc=$tick_rc streak=$TICK_FAIL_N" >&2
+    if [[ "$TICK_FAIL_N" -ge 5 ]]; then
+      echo "OPERATOR_STOP repeated_tick_fail $TICKETS streak=$TICK_FAIL_N" >&2
+      write_skip FAILED "repeated_tick_fail"
+      exit 1
+    fi
+  else
+    TICK_FAIL_N=0
+  fi
   st=""
   fp_json=""
   if [[ -s "$OUT_DIR/cli/tick-${nn}.json" ]]; then

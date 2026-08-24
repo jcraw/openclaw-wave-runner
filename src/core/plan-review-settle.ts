@@ -160,14 +160,14 @@ export function admitPlanReviewTicket(ctrl: ControllerContext, waveId: string, t
     return true;
   }
 
-  if (review.ok && (review.verdict === "approve" || review.verdict === "approve-with-conditions") && stamped) {
+  if (review.ok && (review.verdict === "approve" || review.verdict === "approve-with-conditions")) {
     putTicketStatus(ctrl, ticket, "APPROVED");
     setWaveRunning(ctrl, waveId, now);
     ctrl.db.insertEvent({
       eventId: `${waveId}:plan-review-admit:${ticketId}:${ticket.revision}`,
       waveId,
       type: "plan_review_admit",
-      payloadJson: JSON.stringify({ ticketId, revision: ticket.revision }),
+      payloadJson: JSON.stringify({ ticketId, revision: ticket.revision, stamped }),
       createdAt: now,
     });
     return true;

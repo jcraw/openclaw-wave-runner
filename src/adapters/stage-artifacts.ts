@@ -3,8 +3,9 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { join } from "node:path";
 
 import type { LaunchReceipt, StageName, WorkerTruth } from "../domain/types.js";
+import { parseStageFromIdempotencyKey } from "../core/stage-paths.js";
 export type { StageAttemptRef } from "../core/stage-paths.js";
-export { stageAttemptDir, stageSessionKey } from "../core/stage-paths.js";
+export { parseStageFromIdempotencyKey, stageAttemptDir, stageSessionKey } from "../core/stage-paths.js";
 
 export type StageTerminal = {
   idempotencyKey: string;
@@ -149,15 +150,14 @@ export function inspectStageArtifacts(input: {
 export function inspectReceiptArtifacts(receipt: LaunchReceipt): WorkerTruth | undefined {
   if (!receipt.outputDir) return undefined;
   const sourceId = receipt.idempotencyKey;
-  const parts = sourceId.split(":");
-  const attempt = Number(parts[3] ?? "1");
+  const parsed = parseStageFromIdempotencyKey(sourceId);
   return inspectStageArtifacts({
-    stage: parts[2] === "IMPL" || parts[2] === "VERIFY" ? parts[2] : "PLAN",
+    stage: parsed.stage,
     outputDir: receipt.outputDir,
     idempotencyKey: sourceId,
-    waveId: parts[0] ?? "",
-    ticketId: parts[1] ?? "",
-    attempt: Number.isInteger(attempt) ? attempt : 1,
+    waveId: parsed.waveId,
+    ticketId: parsed.ticketId,
+    attempt: parsed.attempt,
     live: false,
   });
 }

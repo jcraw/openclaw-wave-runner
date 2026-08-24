@@ -2,7 +2,8 @@ import { spawn } from "node:child_process";
 import { copyFileSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { LaunchReceipt, StageName } from "../domain/types.js";
+import type { LaunchReceipt } from "../domain/types.js";
+import { parseStageFromIdempotencyKey } from "../core/stage-paths.js";
 import type { LaunchIntent, WorkerAdapter } from "./ports.js";
 import {
   ensureStageAttemptDir,
@@ -86,17 +87,7 @@ export function expectedCliOutputDir(intent: LaunchIntent, repoPath: string): st
   });
 }
 
-function parseStageFromKey(key: string): { waveId: string; ticketId: string; stage: StageName; attempt: number } {
-  const parts = key.split(":");
-  const stage = parts[2] === "IMPL" || parts[2] === "VERIFY" || parts[2] === "REVIEW" ? parts[2] : "PLAN";
-  const attempt = Number(parts[3] ?? "1");
-  return {
-    waveId: parts[0] ?? "",
-    ticketId: parts[1] ?? key,
-    stage,
-    attempt: Number.isInteger(attempt) && attempt > 0 ? attempt : 1,
-  };
-}
+const parseStageFromKey = parseStageFromIdempotencyKey;
 
 export class GrokCliWorker implements WorkerAdapter {
   readonly kind = "grok-cli-fallback";
