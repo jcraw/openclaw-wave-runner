@@ -19,7 +19,7 @@ import { failClosedIfPrimaryDirty } from "./primary-dirty-gate.js";
 import { isIdleGateStatus } from "./operator-loop.js";
 import { advancePendingCloseouts } from "./pending-closeout.js";
 import { maybeAdmitPlanGate, queueMissingPlanReviews } from "./plan-review-settle.js";
-import { applyStageWatchdog } from "./stage-watchdog.js";
+import { applyReadFileWatchdog, applyStageWatchdog } from "./stage-watchdog.js";
 import { deriveWriterScope } from "../domain/writer-scope.js";
 import {
   isTerminalTicket,
@@ -243,6 +243,7 @@ export async function tickWave(
   await dispatchPending(ctrl, waveId);
   await observeLaunched(ctrl, waveId);
   await applyStageWatchdog(ctrl, waveId);
+  await applyReadFileWatchdog(ctrl, waveId);
   await advancePendingCloseouts(ctrl, waveId);
   releaseInactiveWriterLeases(ctrl, waveId);
   await queueMissingPlanReviews(ctrl, waveId);

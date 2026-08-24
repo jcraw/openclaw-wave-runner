@@ -56,6 +56,7 @@ export class WaveController {
   readonly launchMode;
   readonly disableSourceMirror;
   watchdogFires = 0;
+  grokReadFileHung;
 
   constructor(opts: ControllerOptions) {
     this.db = opts.db;
@@ -79,6 +80,7 @@ export class WaveController {
     this.forgeRoot = opts.forgeRoot;
     this.launchMode = opts.launchMode ?? "mock";
     this.disableSourceMirror = opts.disableSourceMirror ?? false;
+    this.grokReadFileHung = opts.grokReadFileHung;
   }
 
   capabilities() {

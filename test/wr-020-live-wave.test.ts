@@ -13,7 +13,7 @@ import {
 import { runWorkspaceVerify } from "../src/adapters/verify-exec.js";
 import { GitWorkspace } from "../src/adapters/workspace.js";
 import { hasLiveOutbox, nextStuckCount, progressFingerprint } from "../src/core/operator-loop.js";
-import { parseWallMs, stageWallMs } from "../src/core/stage-watchdog.js";
+import { parseWallMs, readFileHangMs, readFileHungAt, stageWallMs } from "../src/core/stage-watchdog.js";
 import { DEFAULT_LIMITS } from "../src/domain/types.js";
 import { createSimulator, seedWave } from "../src/sim/simulator.js";
 
@@ -120,6 +120,30 @@ test("stage walls: defaults and 0 disables", () => {
   assert.equal(stageWallMs("IMPL", {}), 90 * 60 * 1000);
   assert.equal(parseWallMs("0", 99), 0);
   assert.equal(stageWallMs("PLAN", { WAVE_PLAN_WALL_MS: "0" }), 0);
+  assert.equal(readFileHangMs({}), 60 * 1000);
+  assert.equal(readFileHangMs({ WAVE_READ_FILE_HANG_MS: "0" }), 0);
+});
+
+test("readFileHungAt: only in-flight read_file past hangMs", () => {
+  const t0 = Date.parse("2026-08-24T20:15:25.808Z");
+  const started = [
+    { ts: "2026-08-24T20:15:25.808Z", type: "tool_started", tool_name: "read_file" },
+    { ts: "2026-08-24T20:15:25.980Z", type: "tool_completed", tool_name: "search_replace" },
+  ];
+  assert.equal(readFileHungAt(started, t0 + 59_000, 60_000), false);
+  assert.equal(readFileHungAt(started, t0 + 60_000, 60_000), true);
+  const bash = [{ ts: "2026-08-24T20:15:25.808Z", type: "tool_started", tool_name: "run_terminal_command" }];
+  assert.equal(readFileHungAt(bash, t0 + 600_000, 60_000), false);
+  const done = [
+    { ts: "2026-08-24T20:15:25.808Z", type: "tool_started", tool_name: "read_file" },
+    { ts: "2026-08-24T20:15:26.000Z", type: "tool_completed", tool_name: "read_file" },
+  ];
+  assert.equal(readFileHungAt(done, t0 + 60_000, 60_000), false);
+  const cancelled = [
+    ...started,
+    { ts: "2026-08-24T21:38:33.937Z", type: "turn_ended" },
+  ];
+  assert.equal(readFileHungAt(cancelled, Date.parse("2026-08-24T21:38:34.000Z"), 60_000), false);
 });
 
 test.describe("stage watchdog", { concurrency: false }, () => {
@@ -183,5 +207,82 @@ test("watchdog 0: wall env 0 does not fail hung PLAN", async () => {
     if (prev === undefined) delete process.env.WAVE_PLAN_WALL_MS;
     else process.env.WAVE_PLAN_WALL_MS = prev;
   }
+});
+
+test("watchdog: hung read_file fail-closes without waiting the stage wall", async () => {
+  const sim = createSimulator("wr-readfile-hang");
+  sim.worker.completeOnInspect = false;
+  const controller = await seedWave(sim, "wave-rf", ["FX-001"], {
+    ...DEFAULT_LIMITS,
+    maxTokens: 80_000,
+    maxLaunches: 8,
+    maxRetriesPerStage: 0,
+    perStageReservationTokens: 8_000,
+  });
+  controller.grokReadFileHung = () => true;
+  await controller.start("wave-rf");
+  for (let i = 0; i < 8; i += 1) {
+    await controller.tick("wave-rf");
+    if (controller.inspect("wave-rf").outbox.some((item) => item.state === "LAUNCHED")) break;
+  }
+  sim.clock.advance(61 * 1000);
+  await controller.tick("wave-rf");
+  const after = controller.inspect("wave-rf");
+  assert.match(after.tickets[0]?.result ?? "", /read_file hung/);
+  assert.ok(after.tickets[0]?.status === "FAILED" || after.tickets[0]?.status === "REVISING", after.tickets[0]?.status);
+});
+
+test("watchdog: WAVE_READ_FILE_HANG_MS=0 disables read_file hang", async () => {
+  const prev = process.env.WAVE_READ_FILE_HANG_MS;
+  process.env.WAVE_READ_FILE_HANG_MS = "0";
+  try {
+    const sim = createSimulator("wr-readfile-off");
+    sim.worker.completeOnInspect = false;
+    const controller = await seedWave(sim, "wave-rfoff", ["FX-001"], {
+      ...DEFAULT_LIMITS,
+      maxTokens: 80_000,
+      maxLaunches: 8,
+      maxRetriesPerStage: 0,
+      perStageReservationTokens: 8_000,
+    });
+    controller.grokReadFileHung = () => true;
+    await controller.start("wave-rfoff");
+    for (let i = 0; i < 8; i += 1) {
+      await controller.tick("wave-rfoff");
+      if (controller.inspect("wave-rfoff").outbox.some((item) => item.state === "LAUNCHED")) break;
+    }
+    sim.clock.advance(61 * 1000);
+    await controller.tick("wave-rfoff");
+    const after = controller.inspect("wave-rfoff");
+    assert.doesNotMatch(after.tickets[0]?.result ?? "", /read_file hung/);
+    assert.ok(after.outbox.some((item) => item.state === "LAUNCHED"));
+  } finally {
+    if (prev === undefined) delete process.env.WAVE_READ_FILE_HANG_MS;
+    else process.env.WAVE_READ_FILE_HANG_MS = prev;
+  }
+});
+
+test("watchdog: long bash without read_file does not trip read_file hang", async () => {
+  const sim = createSimulator("wr-readfile-bash");
+  sim.worker.completeOnInspect = false;
+  const controller = await seedWave(sim, "wave-bash", ["FX-001"], {
+    ...DEFAULT_LIMITS,
+    maxTokens: 80_000,
+    maxLaunches: 8,
+    maxRetriesPerStage: 0,
+    perStageReservationTokens: 8_000,
+  });
+  controller.grokReadFileHung = () => false;
+  await controller.start("wave-bash");
+  for (let i = 0; i < 8; i += 1) {
+    await controller.tick("wave-bash");
+    if (controller.inspect("wave-bash").outbox.some((item) => item.state === "LAUNCHED")) break;
+  }
+  sim.clock.advance(10 * 60 * 1000);
+  await controller.tick("wave-bash");
+  const after = controller.inspect("wave-bash");
+  assert.equal(after.tickets[0]?.status, "PLANNING");
+  assert.doesNotMatch(after.tickets[0]?.result ?? "", /read_file hung/);
+  assert.ok(after.outbox.some((item) => item.state === "LAUNCHED"));
 });
 });

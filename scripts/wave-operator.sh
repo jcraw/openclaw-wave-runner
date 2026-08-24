@@ -27,6 +27,7 @@ Optional env:
   STUCK_TICKS        default 20 (0 = disable). Frozen RUNNING, no live outbox → OPERATOR_STOP stuck
   WAVE_PLAN_WALL_MS  default 2700000 (45m). 0 = disable PLAN stage watchdog
   WAVE_IMPL_WALL_MS  default 5400000 (90m). 0 = disable IMPL stage watchdog
+  WAVE_READ_FILE_HANG_MS  default 60000 (60s). 0 = disable read_file hang cancel
   WAVE_VERIFY_TIMEOUT_MS  default 300000. Controller verify exec timeout
   PLUGIN_DIR         package root (default: parent of scripts/)
   WAVE_RUNNER_ACP=1  enable ACP spawn path

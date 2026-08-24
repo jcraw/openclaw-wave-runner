@@ -52,7 +52,10 @@ ACP: `sessions_spawn` does **not** take a per-call timeout (OpenClaw rejects
 `agents.defaults.timeoutSeconds` (whole agent run; OpenClaw default 48h) and
 `agents.defaults.subagents.runTimeoutSeconds` (`0` = no subagent kill).
 WR still fail-closes hung stages with `WAVE_PLAN_WALL_MS` / `WAVE_IMPL_WALL_MS`
-(defaults 45m / 90m; `0` disables the WR watchdog). Unprompted re-drain / LLM poll stay off.
+(defaults 45m / 90m; `0` disables the WR watchdog). A Grok `read_file` that
+starts and never completes is fail-closed sooner:
+`WAVE_READ_FILE_HANG_MS` default `60000` (`0` disables). That is **only**
+`read_file` — long verify bash does not trip it. Unprompted re-drain / LLM poll stay off.
 Select includes `plan_review` / `planning`.
 `wave-operator.sh` always writes `WAVE_RESULT.json` on terminal.
 
@@ -223,9 +226,14 @@ by wall clocks, not by the stuck detector:
 
 - `WAVE_PLAN_WALL_MS` default `2700000` (45m). `0` disables.
 - `WAVE_IMPL_WALL_MS` default `5400000` (90m). `0` disables.
+- `WAVE_READ_FILE_HANG_MS` default `60000` (60s). `0` disables. Only in-flight
+  Grok `read_file` (no matching `tool_completed`); `run_terminal_command` /
+  `image_gen` / verify are not this timer.
 
 Age is `outbox.createdAt`. Past the wall: `worker.cancel` then settle
 `failed` with `stage_watchdog: <stage> hung` (WR-010 retry then applies).
+A Grok session with `tool_started read_file` and no matching complete past
+`WAVE_READ_FILE_HANG_MS` settles `stage_watchdog: read_file hung` the same way.
 Incident `PAR-prefix-MUD-MUD-037-145205`: PLAN artifacts were already on disk
 (`sha256:` prefix + ACP still running) and the serial lane never settled.
 

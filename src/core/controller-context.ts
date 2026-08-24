@@ -6,6 +6,7 @@ import { DuplicateEventError, WaveError } from "../domain/errors.js";
 import type {
   FrozenManifest,
   LaunchMode,
+  LaunchReceipt,
   TicketRun,
   WaveRecord,
   WaveView,
@@ -55,6 +56,7 @@ export type ControllerOptions = {
   forgeRoot?: string;
   launchMode?: LaunchMode;
   disableSourceMirror?: boolean;
+  grokReadFileHung?: (receipt: LaunchReceipt, nowMs: number, hangMs: number) => boolean;
 };
 
 export type ControllerContext = {
@@ -80,6 +82,7 @@ export type ControllerContext = {
   readonly launchMode: LaunchMode;
   readonly disableSourceMirror: boolean;
   watchdogFires: number;
+  grokReadFileHung?: (receipt: LaunchReceipt, nowMs: number, hangMs: number) => boolean;
 };
 
 export function eventId(kind = "evt"): string {

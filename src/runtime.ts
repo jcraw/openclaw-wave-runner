@@ -17,6 +17,7 @@ import { ManagedTaskFlowBackend, NativeSubagentWorker } from "./adapters/taskflo
 import { FailClosedUsage } from "./adapters/usage.js";
 import { GitRepoAuthority } from "./adapters/repo-authority.js";
 import { GitWorkspace } from "./adapters/workspace.js";
+import { receiptHasHungReadFile } from "./adapters/grok-session-events.js";
 import type { WaveRunnerPorts } from "./contracts.js";
 import { OWNER_SESSION_KEY } from "./controller.js";
 import { SystemClock } from "./domain/clock.js";
@@ -179,6 +180,7 @@ export function openWaveController(input: {
     launchMode: input.launchMode ?? "supervised-bounded",
     leaseTtlMs: SAFETY.supervisedLeaseTtlMs,
     disableSourceMirror: true,
+    grokReadFileHung: receiptHasHungReadFile,
   });
 }
 
@@ -257,5 +259,6 @@ export function openCliController(input: {
     launchMode: "supervised-bounded",
     leaseTtlMs: SAFETY.supervisedLeaseTtlMs,
     disableSourceMirror: true,
+    grokReadFileHung: receiptHasHungReadFile,
   });
 }

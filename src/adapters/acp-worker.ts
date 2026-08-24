@@ -173,6 +173,7 @@ export class GrokAcpWorker implements WorkerAdapter {
       provider: "grok-acp",
       model: intent.model ?? this.opts.model ?? "grok-4.6",
       outputDir,
+      cwd: intent.worktree,
     };
     this.receipts.set(intent.idempotencyKey, receipt);
     writeJsonAtomic(join(outputDir, "launch-receipt.json"), receipt);
@@ -192,6 +193,7 @@ export class GrokAcpWorker implements WorkerAdapter {
         provider: "grok-acp",
         model: intent.model ?? this.opts.model ?? "grok-4.6",
         outputDir: resolveOutputDir(intent),
+        cwd: intent.worktree,
       };
       this.receipts.set(intent.idempotencyKey, receipt);
       return receipt;

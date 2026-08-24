@@ -303,6 +303,8 @@ export type LaunchReceipt = {
   model?: string;
   /** Durable worker output directory. Required for inspect after process restart. */
   outputDir?: string;
+  /** ACP cwd (isolated worktree). Used to locate Grok session events.jsonl. */
+  cwd?: string;
 };
 
 export type WorkerTruth = {
