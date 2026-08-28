@@ -17,6 +17,14 @@ export function scopePaths(writerScope: string, sourcePath?: string): string[] {
   return [...new Set(out)];
 }
 
+/** Apply closeout allow-list. Lease overlap stays on `scopePaths` only. */
+export function applyAllowPrefixes(writerScope: string, sourcePath?: string): string[] {
+  const out = scopePaths(writerScope, sourcePath);
+  const game = /^(?:game|jam):(.+)$/.exec(writerScope.trim());
+  if (game?.[1]) out.push(`issues/${game[1]}/`);
+  return [...new Set(out)];
+}
+
 export function pathMatchesPrefix(path: string, prefix: string): boolean {
   const p = path.replaceAll("\\", "/");
   const pre = prefix.replaceAll("\\", "/");

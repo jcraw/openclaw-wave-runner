@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { applyAllowPrefixes, pathMatchesPrefix } from "../domain/scope-paths.js";
 import type { ApplyResult, WorkspaceAdapter } from "./ports.js";
 import { applyOnePath } from "./apply-bytes.js";
 import { markBoardDone, markIssueDone, removeImplWorktree } from "./land-git.js";
@@ -47,6 +48,24 @@ export function isBoardProjection(path: string): boolean {
   return /(^|\/)issues\/(?:.*\/)?BOARD\.md$/i.test(path.replaceAll("\\", "/"));
 }
 
+function isTicketIssuePath(path: string, ticketId: string): boolean {
+  const p = path.replaceAll("\\", "/");
+  if (!/(^|\/)issues\//.test(p)) return false;
+  const name = p.split("/").pop() ?? "";
+  return name === `${ticketId}.md` || (name.startsWith(`${ticketId}-`) && name.endsWith(".md"));
+}
+
+/** Empty prefixes = unrestricted (legacy prefix: / unset scope). */
+export function isApplyScopedPath(
+  path: string,
+  input: { prefixes: string[]; ticketId: string },
+): boolean {
+  if (isBoardProjection(path)) return false;
+  if (isTicketIssuePath(path, input.ticketId)) return true;
+  if (input.prefixes.length === 0) return true;
+  return input.prefixes.some((pre) => pathMatchesPrefix(path, pre));
+}
+
 function listedPaths(text: string): string[] {
   return text.split("\n").map((line) => line.trim()).filter(Boolean);
 }
@@ -73,9 +92,17 @@ export async function applyToWorkdir(input: ApplyToWorkdirInput): Promise<ApplyR
   };
   try {
     const incoming = listApplyIncoming(input.worktree, input.baseSha);
+    const prefixes = input.writerScope
+      ? applyAllowPrefixes(input.writerScope, input.sourcePath)
+      : [];
+    const skipped: string[] = [];
     const product = incoming.filter((path) => !isBoardProjection(path));
     const paths: string[] = [];
     for (const relPath of product) {
+      if (!isApplyScopedPath(relPath, { prefixes, ticketId: input.ticketId })) {
+        skipped.push(relPath);
+        continue;
+      }
       applyOnePath({
         repoPath: input.repoPath,
         worktree: input.worktree,
@@ -129,6 +156,7 @@ export async function applyToWorkdir(input: ApplyToWorkdirInput): Promise<ApplyR
         paths,
         conflicts: [],
         mode: "apply",
+        ...(skipped.length ? { skipped } : {}),
         ...(head.ok ? { commitSha: head.out.trim() } : {}),
       },
       true,

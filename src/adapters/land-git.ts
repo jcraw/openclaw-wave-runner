@@ -65,13 +65,23 @@ export function removeImplWorktree(repo: string, worktree: string): void {
   }
 }
 
+/** Stamp one BOARD bullet. House format is `**ID open · worker · high**`, not `**ID open**`. */
+export function stampBoardText(text: string, ticketId: string): { next: string; changed: boolean } {
+  const id = ticketId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let next = text.replace(new RegExp(`(-\\s\\*\\*${id}\\s+)open\\b`, "g"), "$1done");
+  next = next.replace(
+    new RegExp(`(-\\s\\*\\*${id}\\s+done(?:[^*\\n]*?))\\s·\\snot kicked\\b`, "g"),
+    "$1",
+  );
+  return { next, changed: next !== text };
+}
+
 export function markBoardDone(repo: string, ticketId: string): string[] {
   const board = join(repo, "issues", "BOARD.md");
   if (!existsSync(board)) return [];
   const text = readFileSync(board, "utf8");
-  const re = new RegExp(`(-\\s\\*\\*${ticketId}\\s+)open(\\*\\*)`, "g");
-  const next = text.replace(re, `$1done$2`);
-  if (next === text) return [];
+  const { next, changed } = stampBoardText(text, ticketId);
+  if (!changed) return [];
   writeFileSync(board, next, "utf8");
   return ["issues/BOARD.md"];
 }

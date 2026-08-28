@@ -129,6 +129,8 @@ export class MockWorkspace implements WorkspaceAdapter {
     waveId: string;
     baseSha: string;
     artifactRoot?: string;
+    writerScope?: string;
+    sourcePath?: string;
   }): Promise<ApplyResult> {
     this.applies += 1;
     const proof = join(

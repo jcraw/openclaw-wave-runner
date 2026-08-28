@@ -119,6 +119,8 @@ export type ApplyResult = {
   paths: string[];
   conflicts: string[];
   binaryConflicts?: string[];
+  /** Dirty worktree paths skipped as outside writerScope (WR-036). */
+  skipped?: string[];
   error?: string;
   mode: "apply";
   commitSha?: string;
@@ -172,6 +174,8 @@ export interface WorkspaceAdapter {
     waveId: string;
     baseSha: string;
     artifactRoot?: string;
+    writerScope?: string;
+    sourcePath?: string;
   }): Promise<ApplyResult>;
 }
 

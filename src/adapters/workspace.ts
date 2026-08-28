@@ -106,6 +106,8 @@ export class GitWorkspace implements WorkspaceAdapter {
     waveId: string;
     baseSha: string;
     artifactRoot?: string;
+    writerScope?: string;
+    sourcePath?: string;
   }): Promise<ApplyResult> {
     return enqueueLand(input.repoPath, () => applyToWorkdir(input));
   }

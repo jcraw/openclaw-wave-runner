@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { closeoutModeForWaveTicket } from "../domain/closeout-mode.js";
 import { hashJson } from "../domain/hash.js";
 import type { LaunchOutbox, TicketRun, WaveRecord } from "../domain/types.js";
+import { deriveWriterScope } from "../domain/writer-scope.js";
 import { durableTicketProofPath, readDurableOk } from "./closeout-proof.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
@@ -126,6 +127,8 @@ export async function executeApplyCloseout(
     ticketId: ticket.ticketId,
     waveId: item.waveId,
     baseSha: wave.baseSha,
+    writerScope: ticket.writerScope || deriveWriterScope(ticket),
+    ...(ticket.sourcePath ? { sourcePath: ticket.sourcePath } : {}),
     ...(ctrl.artifactRoot ? { artifactRoot: ctrl.artifactRoot } : {}),
   });
   recordApplyOutcome(ctrl, item, opts, applied);

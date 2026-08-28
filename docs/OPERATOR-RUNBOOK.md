@@ -42,9 +42,12 @@ desk. `commit` closeout is still `landToMain` (identity, no stash, `WAVE_LAND_PU
 unchanged). Incoming add/update/delete **overwrites** those primary paths (text and binary).
 There is no `git merge-file` and no `APPLY_CONFLICT` on a dirty jam desk — ticket bytes win.
 `issues/BOARD.md` is a projection (WR-024): apply never copies it; `markBoardDone` edits
-primary after product paths succeed. `markIssueDone` walks `issues/**` and sets `status: done`
+primary after product paths succeed. Stamp matches `**ID open` including house
+`open · worker · high` and strips leftover `not kicked`; missing row does not fail land.
+`markIssueDone` walks `issues/**` and sets `status: done`
 on every `ID.md` / `ID-*.md` (nested boards and leftover duplicate slugs), even if the worker
-left `in_progress`. After verify retries are exhausted, apply-mode still
+left `in_progress`. Apply copies writer-scope prefixes only (`game:`/`jam:` also get
+`issues/<id>/`); extra dirty paths are skipped onto `APPLY.json.skipped` (WR-036). After verify retries are exhausted, apply-mode still
 copies files in; commit-mode still does not commit red code.
 Land push (`WAVE_LAND_PUSH=1`) runs `git push` with `GH_TOKEN` unset.
 ACP: `sessions_spawn` does **not** take a per-call timeout (OpenClaw rejects
