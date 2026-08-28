@@ -89,10 +89,7 @@ export type CliControllerAcpFields = Pick<
   "autoAcp" | "gateway" | "acpSessionKey" | "acpAgentId" | "env"
 >;
 
-/**
- * Map operator CLI flags onto the existing supervised ACP options.
- * `--launcher` is not part of this helper: it stays an explicit fallback only.
- */
+/** Map CLI flags onto supervised ACP options. `--launcher` stays an explicit fallback. */
 export function cliControllerAcpFields(input: {
   supervised: boolean;
   disableAcp?: boolean;
@@ -117,13 +114,7 @@ export function cliControllerAcpFields(input: {
   };
 }
 
-/**
- * Construct a live public ACP spawn for the supervised CLI/operator path.
- *
- * Returns undefined when Gateway/ACP cannot be configured. Callers must then
- * fail closed with MissingAcpSpawnWorker unless the operator explicitly passed
- * `--launcher` (compatibility fallback only).
- */
+/** Live public ACP spawn for supervised CLI. Undefined → fail closed unless `--launcher`. */
 export function resolveCliAcpSpawn(input: CliAcpOptions = {}): AcpSpawn | undefined {
   if (input.acp) return input.acp;
   const env = input.env ?? process.env;

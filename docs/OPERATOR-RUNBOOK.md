@@ -134,19 +134,25 @@ cp /path/to/backup.sqlite "$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite"
 - more tickets or limits than `SAFETY.supervisedMax*`
 - deploy/push as a product mode (`SAFETY.deployPushEnabled`); operator may set `WAVE_LAND_PUSH=1`
 
-## Agent plan-gate vs human hold (WR-023 / WR-028)
+## Agent plan-gate vs human hold (WR-023 / WR-028 / WR-033 / WR-037)
 
 - **Default after PLAN** (agent-eligible, no skip bit, no human hold): ticket
   `PLAN_REVIEW`, wave `AWAITING_PLAN_GATE`, one Crawmak REVIEW worker (forge cwd).
-  IMPL waits for `reviews/<ID>.md` (Verdict + cheat-mode + Learn) **and**
-  `APPROVED by Astra` or `APPROVED by Jason` on the plan file. Operator ticks
-  while gated (`waiting_review_or_stamp`). Do **not** bash-stamp Astra.
-- **Skip review** only via YAML `plan_review: skip` (aliases `review: skip`,
+  Crawmak `reviews/<ID>.md` Verdict `approve` / `approve-with-conditions` **is**
+  ledger-approve (WR-033). Leftover `APPROVED by Astra|Jason` on the plan still
+  admits only when **no** Crawmak launch happened. Do **not** bash-stamp Astra.
+- **`needs_ux: true`** (alias `ux_review: required`): after Crawmak approve-class,
+  launch Mona `UX_REVIEW` (Mona workspace cwd, `agentId: mona`). Ticket stays
+  `PLAN_REVIEW` until Mona `reviews/<ID>-ux.md` Verdict is approve-class
+  (`ux_review_admit`). Leftover Astra/Jason stamp cannot skip Mona. Missing bit
+  = skip Mona. `plan_review: skip` + `needs_ux` still requires Mona (no
+  `plan_gate_auto`).
+- **Skip Crawmak** only via YAML `plan_review: skip` (aliases `review: skip`,
   `review_skip: true`, `jason_skip: true`): PLAN artifact check → ledger
-  `APPROVED` + `plan_gate_auto` → IMPL. Wave stays `RUNNING`.
+  `APPROVED` + `plan_gate_auto` → IMPL when **not** `needs_ux`. Wave stays `RUNNING`.
 - **Human hold** (`needs_jason: true` / `eligibility: human_gated`): wave status
   `WAITING_APPROVAL`. Operator prints `OPERATOR_STOP waiting_human` and exits.
-  `needs_jason: pick` (and other annotations) are **not** holds.
+  `needs_jason: pick` (and other annotations) are **not** holds. No Crawmak, no Mona.
 - **Supervised launch is ON** for explicit `--supervised` CLI / `wave-operator.sh`.
   Unrestricted drain, unprompted re-drain, merge/push remain disabled.
 - **Run a backlog slice:**

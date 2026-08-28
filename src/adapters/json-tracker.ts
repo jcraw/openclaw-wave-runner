@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { resolveHumanHold } from "../core/human-hold.js";
 import { resolvePlanReviewSkip } from "../core/plan-review-skip.js";
+import { freezeUxFields } from "../core/ux-review-skip.js";
 import { parseCloseoutMode } from "../domain/closeout-mode.js";
 import { hashTicketContent, normalizeSelectedDependencies } from "../core/manifest.js";
 import type { FrozenTicket, TicketSelector } from "../domain/types.js";
@@ -24,6 +25,9 @@ export type JsonTicketIngest = {
   humanHoldReason?: "needs_jason" | "human_gated";
   landMode?: "apply" | "commit";
   planReviewSkip?: boolean;
+  needsUx?: boolean;
+  uxSpecPath?: string;
+  uxReviewReviseCap?: number;
 };
 
 function asObject(value: unknown): Record<string, unknown> | undefined {
@@ -79,6 +83,7 @@ function parseJsonTickets(text: string): JsonTicketIngest[] {
     });
     const landMode = parseCloseoutMode(obj.land ?? obj.landMode ?? obj.land_mode);
     const planReviewSkip = resolvePlanReviewSkip(obj) || obj.planReviewSkip === true;
+    const ux = freezeUxFields(obj);
     return {
       ticketId,
       title: optionalText(obj.title) ?? ticketId,
@@ -93,6 +98,7 @@ function parseJsonTickets(text: string): JsonTicketIngest[] {
       ...hold,
       ...(landMode ? { landMode } : {}),
       ...(planReviewSkip ? { planReviewSkip: true } : {}),
+      ...ux,
     };
   });
 }
@@ -134,6 +140,9 @@ export class JsonTracker implements TrackerAdapter {
         humanHoldReason: ticket.humanHoldReason,
         landMode: ticket.landMode,
         planReviewSkip: ticket.planReviewSkip,
+        needsUx: ticket.needsUx,
+        uxSpecPath: ticket.uxSpecPath,
+        uxReviewReviseCap: ticket.uxReviewReviseCap,
       };
     });
     return normalizeSelectedDependencies(

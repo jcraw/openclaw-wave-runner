@@ -88,7 +88,7 @@ export function terminalMatches(
 export function requiredStageArtifact(stage: StageName): string {
   if (stage === "PLAN") return "PLAN.md";
   if (stage === "IMPL") return "IMPL_DONE.json";
-  if (stage === "REVIEW") return "terminal.json";
+  if (stage === "REVIEW" || stage === "UX_REVIEW") return "terminal.json";
   return "VERIFY.json";
 }
 
@@ -118,8 +118,8 @@ export function inspectStageArtifacts(input: {
   if (terminal.status === "cancelled") {
     return { status: "cancelled", outputRef: join(input.outputDir, "terminal.json") };
   }
-  if (input.stage === "REVIEW") {
-    return { status: "succeeded", outputRef: input.outputDir, summary: `REVIEW ${input.ticketId}` };
+  if (input.stage === "REVIEW" || input.stage === "UX_REVIEW") {
+    return { status: "succeeded", outputRef: input.outputDir, summary: `${input.stage} ${input.ticketId}` };
   }
   const artifactName = requiredStageArtifact(input.stage);
   const artifactPath = join(input.outputDir, artifactName);

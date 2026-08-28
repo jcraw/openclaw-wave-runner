@@ -4,6 +4,7 @@ import test from "node:test";
 import { DuplicateEventError } from "../src/domain/errors.js";
 import { SAFETY } from "../src/domain/safety.js";
 import { DEFAULT_LIMITS } from "../src/domain/types.js";
+import { SCHEMA_VERSION } from "../src/store/schema.js";
 import { hashManifest, validateTicketGraph } from "../src/core/manifest.js";
 import { createSimulator, seedWave } from "../src/sim/simulator.js";
 import { runOperator } from "../src/cli/operations.js";
@@ -11,7 +12,7 @@ import { runOperator } from "../src/cli/operations.js";
 test("schema migrates and freeze hashes are immutable", async () => {
   const sim = createSimulator("p1-hash");
   const controller = await seedWave(sim, "wave-hash", ["FX-001"]);
-  assert.equal(controller.db.schemaVersion(), 4);
+  assert.equal(controller.db.schemaVersion(), SCHEMA_VERSION);
   const frozen = controller.freeze("wave-hash");
   const hash = frozen.wave.manifestHash;
   assert.match(hash, /^[a-f0-9]{64}$/);

@@ -99,6 +99,9 @@ export class GrokCliWorker implements WorkerAdapter {
   }
 
   async launch(intent: LaunchIntent): Promise<LaunchReceipt> {
+    if (intent.stage === "UX_REVIEW") {
+      throw new Error("grok CLI fallback refuses UX_REVIEW");
+    }
     const recovered = await this.recover(intent);
     if (recovered) return recovered;
     const cwd = intent.worktree ?? this.opts.repoPath;
@@ -190,6 +193,9 @@ export class GrokCliWorker implements WorkerAdapter {
 
   async inspect(receipt: LaunchReceipt) {
     const parsed = parseStageFromKey(receipt.idempotencyKey);
+    if (parsed.stage === "UX_REVIEW") {
+      return { status: "failed" as const, error: "grok CLI fallback refuses UX_REVIEW" };
+    }
     const outDir = receipt.outputDir;
     if (!outDir) {
       return { status: "unknown" as const, error: "grok CLI fallback receipt is missing outputDir" };

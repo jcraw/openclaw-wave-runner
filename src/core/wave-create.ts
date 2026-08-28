@@ -83,6 +83,9 @@ export function ticketFromFrozen(waveId: string, ticket: FrozenTicket): TicketRu
     game: ticket.game,
     planReviewSkip: ticket.planReviewSkip,
     planReviewReviseCap: ticket.planReviewReviseCap,
+    needsUx: ticket.needsUx,
+    uxSpecPath: ticket.uxSpecPath,
+    uxReviewReviseCap: ticket.uxReviewReviseCap,
   };
 }
 

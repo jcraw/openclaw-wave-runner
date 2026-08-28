@@ -54,6 +54,7 @@ export type ControllerOptions = {
   worktreeRoot?: string;
   artifactRoot?: string;
   forgeRoot?: string;
+  monaRoot?: string;
   launchMode?: LaunchMode;
   disableSourceMirror?: boolean;
   grokReadFileHung?: (receipt: LaunchReceipt, nowMs: number, hangMs: number) => boolean;
@@ -79,6 +80,7 @@ export type ControllerContext = {
   readonly worktreeRoot?: string;
   readonly artifactRoot?: string;
   readonly forgeRoot?: string;
+  readonly monaRoot?: string;
   readonly launchMode: LaunchMode;
   readonly disableSourceMirror: boolean;
   watchdogFires: number;

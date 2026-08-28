@@ -8,6 +8,7 @@ import { AI_MUD, GAME_JAM, describeReplacementPath, eligibleForBoundedWave, mapS
 import { SAFETY, assertBoundedWaveRequest } from "../src/domain/safety.js";
 import { auditStore, restoreWaveStore } from "../src/ops/backup.js";
 import { createSimulator, seedWave } from "../src/sim/simulator.js";
+import { SCHEMA_VERSION } from "../src/store/schema.js";
 
 test("Phase 4: studio mappings and replacement path keep drain disabled", () => {
   assert.equal(mapStudioStatus(GAME_JAM, "plan_review"), "PLAN_REVIEW");
@@ -41,7 +42,7 @@ test("Phase 4: emergency stop, backup, restore, audit", async () => {
   const restoredPath = join(destDir, "restored.sqlite");
   restoreWaveStore(backup, restoredPath);
   const audit = auditStore(restoredPath);
-  assert.equal(audit.schemaVersion, 4);
+  assert.equal(audit.schemaVersion, SCHEMA_VERSION);
   assert.equal(audit.waveCount, 1);
   assert.equal(audit.waves[0]?.waveId, "wave-ops");
 });

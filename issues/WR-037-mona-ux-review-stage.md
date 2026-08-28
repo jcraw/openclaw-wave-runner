@@ -54,7 +54,7 @@ Skip Mona when there is no UX spec create/update (engine, docs, infra). Do not p
 
 1. **Gated stage `UX_REVIEW` (or specialist review with agent `mona`)** after Crawmak verdict approve/approve-with-conditions, **before** plan stamp / IMPL.
 2. **Run only when** ticket frontmatter says so, e.g. `needs_ux: true` or `ux_review: required` (pick one, document it). Missing bit = skip, same as `plan_review: skip` for Crawmak.
-3. **Launch path:** named OpenClaw specialist `mona`, workspace `/run/media/j/M2MegaStore/Code/Ai/mona`. Not Grok-as-Mona. Not product-repo cwd unless the brief points at the UX spec path.
+3. **Launch path:** named OpenClaw specialist `mona`, workspace from `ctrl.monaRoot` / `MONA_ROOT` / host Mona tree if `AGENTS.md` exists. Not Grok-as-Mona. Not product-repo cwd unless the brief points at the UX spec path.
 4. **Artifact:** `mona/reviews/<TICKET>-ux.md` (or workspace `reviews/`) with a required **Verdict:** `approve` / `approve-with-conditions` / `revise`.
 5. **`revise`:** plan-only update once, then Crawmak + Mona again (or Mona only if the plan change is UX-only — say which in the plan; fail-closed if architecture moved). Cap one UX revise unless the ticket says otherwise.
 6. **No stamp, no IMPL** while `needs_ux` tickets lack an approve-class Mona verdict.

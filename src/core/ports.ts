@@ -73,7 +73,7 @@ export type LaunchIntent = {
   idempotencyKey: string;
   waveId: string;
   ticketId: string;
-  stage: "PLAN" | "IMPL" | "VERIFY" | "REVIEW";
+  stage: "PLAN" | "IMPL" | "VERIFY" | "REVIEW" | "UX_REVIEW";
   attempt?: number;
   prompt: string;
   sessionKey: string;
@@ -82,6 +82,8 @@ export type LaunchIntent = {
   approvedPlanPath?: string;
   provider?: string;
   model?: string;
+  agentId?: "grok" | "mona";
+  uxSpecPath?: string;
 };
 
 export type CancelResult = { cancelled: boolean; reason?: string };

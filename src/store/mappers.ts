@@ -68,6 +68,9 @@ export function mapTicket(row: Record<string, unknown>): TicketRun {
     game: optString(row.game),
     planReviewSkip: row.plan_review_skip == null ? undefined : Number(row.plan_review_skip) === 1,
     planReviewReviseCap: row.plan_review_revise_cap == null ? undefined : Number(row.plan_review_revise_cap),
+    needsUx: row.needs_ux == null ? undefined : Number(row.needs_ux) === 1,
+    uxSpecPath: optString(row.ux_spec_path),
+    uxReviewReviseCap: row.ux_review_revise_cap == null ? undefined : Number(row.ux_review_revise_cap),
   };
 }
 

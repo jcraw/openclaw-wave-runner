@@ -95,7 +95,7 @@ export function applyPlanSuccess(
     setWaveStatus(ctrl, wave, "WAITING_APPROVAL", now);
     return;
   }
-  if (ticket.planReviewSkip === true) {
+  if (ticket.planReviewSkip === true && ticket.needsUx !== true) {
     putTicketStatus(ctrl, ticket, "APPROVED");
     recordAuto(ctrl, wave, ticket, now, "agent");
     return;

@@ -12,10 +12,10 @@ import {
 } from "./outbox.js";
 import { predecessorImplSha } from "./chain-worktree.js";
 import { buildStagePrompt, copyVerifyIntoAttempt } from "./fix-brief.js";
-import { resolveCrawmakForge } from "./plan-review.js";
 import type { LaunchIntent } from "./ports.js";
 import { settleOutbox } from "./settlement.js";
-import { stageAttemptDir, stageSessionKey } from "./stage-paths.js";
+import { isPlanGateStage, stageAttemptDir, stageSessionKey } from "./stage-paths.js";
+import { launchCwd } from "./ux-review.js";
 
 export function refreshHeldLeases(ctrl: ControllerContext, waveId: string): void {
   const now = ctrl.clock.now();
@@ -45,12 +45,9 @@ export function refreshHeldLeases(ctrl: ControllerContext, waveId: string): void
 
 export function intentFromOutbox(ctrl: ControllerContext, item: LaunchOutbox): LaunchIntent {
   const ticket = requireTicket(ctrl, item.waveId, item.ticketId);
-  const review = item.stage === "REVIEW";
-  const forge = review
-    ? resolveCrawmakForge({ explicit: ctrl.forgeRoot, fromRepo: requireWave(ctrl, item.waveId).repoPath })
-    : undefined;
-  const cwd = review ? forge : ticket.implWorktree;
-  const root = (review ? ctrl.artifactRoot ?? ctrl.worktreeRoot : cwd ?? ctrl.artifactRoot ?? ctrl.worktreeRoot) ?? ".";
+  const cwd = launchCwd(ctrl, item, ticket);
+  const gate = isPlanGateStage(item.stage);
+  const root = (gate ? ctrl.artifactRoot ?? ctrl.worktreeRoot : cwd ?? ctrl.artifactRoot ?? ctrl.worktreeRoot) ?? ".";
   const outputDir = stageAttemptDir({
     root,
     waveId: item.waveId,
@@ -73,6 +70,7 @@ export function intentFromOutbox(ctrl: ControllerContext, item: LaunchOutbox): L
       worktree: cwd,
       verifyProof: ticket.verifyProof,
       verifyCommand: ticket.verifyCommand,
+      uxSpecPath: ticket.uxSpecPath,
     }),
     sessionKey: stageSessionKey({
       waveId: item.waveId,
@@ -85,6 +83,8 @@ export function intentFromOutbox(ctrl: ControllerContext, item: LaunchOutbox): L
     approvedPlanPath: item.stage === "PLAN" ? undefined : ticket.planArtifact,
     provider: ticket.provider,
     model: ticket.model,
+    agentId: item.stage === "UX_REVIEW" ? "mona" : "grok",
+    uxSpecPath: ticket.uxSpecPath,
   };
 }
 

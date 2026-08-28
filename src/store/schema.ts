@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const MIGRATIONS: Array<{ version: number; sql: string }> = [
   {
@@ -168,6 +168,14 @@ ALTER TABLE ticket_runs ADD COLUMN impl_sha TEXT;
     sql: `
 ALTER TABLE ticket_runs ADD COLUMN plan_review_skip INTEGER;
 ALTER TABLE ticket_runs ADD COLUMN plan_review_revise_cap INTEGER;
+`,
+  },
+  {
+    version: 5,
+    sql: `
+ALTER TABLE ticket_runs ADD COLUMN needs_ux INTEGER;
+ALTER TABLE ticket_runs ADD COLUMN ux_spec_path TEXT;
+ALTER TABLE ticket_runs ADD COLUMN ux_review_revise_cap INTEGER;
 `,
   },
 ];

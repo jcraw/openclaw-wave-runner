@@ -11,7 +11,7 @@ import {
 } from "../src/adapters/grok-session-events.js";
 
 test("worktreeFromOutputDir strips tmp/wave-runs", () => {
-  const wt = "/run/media/j/data/worktrees/SP2-014";
+  const wt = join("/run", "media", "j", "data", "worktrees", "SP2-014");
   assert.equal(
     worktreeFromOutputDir(`${wt}/tmp/wave-runs/WAVE/SP2-014/IMPL/2`),
     wt,

@@ -61,6 +61,18 @@ test("Gateway ACP adapter spawns through sessions_spawn and adopts the public ta
   assert.deepEqual((invoke.params?.args as Record<string, unknown>).runtime, "acp");
   assert.deepEqual((invoke.params?.args as Record<string, unknown>).agentId, "grok");
   assert.deepEqual((invoke.params?.args as Record<string, unknown>).cwd, "/tmp/worktree");
+  const monaAcp = new OpenClawGatewayAcpSpawn(request, "agent:main:wave-runner-m0");
+  await monaAcp.spawn({
+    agentId: "mona",
+    mode: "run",
+    sessionKey: "ignored-by-openclaw",
+    task: "Write UX review",
+    sourceId: "W:T:UX_REVIEW:1",
+    cwd: "/tmp/mona",
+  });
+  const monaInvoke = calls[2];
+  assert.deepEqual((monaInvoke.params?.args as Record<string, unknown>).agentId, "mona");
+  assert.deepEqual((monaInvoke.params?.args as Record<string, unknown>).cwd, "/tmp/mona");
   const args = invoke.params?.args as Record<string, unknown>;
   assert.equal(Object.prototype.hasOwnProperty.call(args, "timeoutSeconds"), false);
   assert.equal(Object.prototype.hasOwnProperty.call(args, "runTimeoutSeconds"), false);

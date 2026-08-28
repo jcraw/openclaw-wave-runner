@@ -92,8 +92,9 @@ export async function queueStage(
     const stageRunId = `${waveId}:stg:${randomUUID()}`;
     const budgetId = `${waveId}:bdg:${randomUUID()}`;
     const outboxId = `${waveId}:obx:${randomUUID()}`;
+    const gate = stage === "REVIEW" || stage === "UX_REVIEW";
     const nextStatus =
-      stage === "PLAN" ? "PLANNING" : stage === "IMPL" ? "IMPLEMENTING" : stage === "REVIEW" ? "PLAN_REVIEW" : "VERIFYING";
+      stage === "PLAN" ? "PLANNING" : stage === "IMPL" ? "IMPLEMENTING" : gate ? "PLAN_REVIEW" : "VERIFYING";
     const fromStatus = requireTicket(ctrl, waveId, ticketId).status;
     if (fromStatus === "PENDING") {
       assertTicketTransition(fromStatus, "CLAIMED", live.cancelRequested);
@@ -103,7 +104,7 @@ export async function queueStage(
       ctrl.db.putTicket(t);
     }
     const t2 = requireTicket(ctrl, waveId, ticketId);
-    if (stage !== "REVIEW") {
+    if (!gate) {
       assertTicketTransition(t2.status, nextStatus, live.cancelRequested);
       t2.status = nextStatus;
       t2.owner = TICKET_OWNERS[nextStatus];

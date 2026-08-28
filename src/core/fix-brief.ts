@@ -56,15 +56,20 @@ export function copyVerifyIntoAttempt(worktree: string | undefined, outputDir: s
 }
 
 export function buildStagePrompt(input: {
-  stage: "PLAN" | "IMPL" | "VERIFY" | "REVIEW";
+  stage: "PLAN" | "IMPL" | "VERIFY" | "REVIEW" | "UX_REVIEW";
   ticketId: string;
   title: string;
   attempt: number;
   worktree?: string;
   verifyProof?: string;
   verifyCommand?: string;
+  uxSpecPath?: string;
 }): string {
-  const short = `${input.stage} ${input.ticketId} ${input.title}`;
+  const ux =
+    input.stage === "IMPL" && input.uxSpecPath
+      ? ` UX spec: ${input.uxSpecPath}. Execute it. Do not invent HUD/UX.`
+      : "";
+  const short = `${input.stage} ${input.ticketId} ${input.title}${ux}`;
   if (input.stage !== "IMPL") return short;
   const path = locateVerifyRecord(input.worktree, input.verifyProof);
   const record = readVerifyRecord(path);

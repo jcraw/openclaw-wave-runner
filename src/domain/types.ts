@@ -34,7 +34,7 @@ export type TicketStatus =
   | "BUDGET_STOPPED"
   | "CANCELLED";
 
-export type StageName = "PLAN" | "IMPL" | "VERIFY" | "REVIEW";
+export type StageName = "PLAN" | "IMPL" | "VERIFY" | "REVIEW" | "UX_REVIEW";
 
 export type BudgetState = "RESERVED" | "COMMITTED" | "INDETERMINATE" | "RELEASED";
 
@@ -100,6 +100,10 @@ export type FrozenTicket = {
   /** WR-028: skip Crawmak review and auto-IMPL after a valid PLAN artifact. */
   planReviewSkip?: boolean;
   planReviewReviseCap?: number;
+  /** WR-037: freeze-time Mona UX_REVIEW hop after Crawmak. Missing = skip Mona. */
+  needsUx?: boolean;
+  uxSpecPath?: string;
+  uxReviewReviseCap?: number;
   satisfiedExternalDeps?: SatisfiedExternalDep[];
 };
 
@@ -177,6 +181,9 @@ export type TicketRun = {
   result?: string;
   planReviewSkip?: boolean;
   planReviewReviseCap?: number;
+  needsUx?: boolean;
+  uxSpecPath?: string;
+  uxReviewReviseCap?: number;
 };
 
 export type StageRun = {

@@ -23,6 +23,10 @@ export function stageSessionKey(input: {
   return `agent:main:acp:wave-runner-${input.waveId}-${input.ticketId}-${input.stage}-${input.attempt}`;
 }
 
+export function isPlanGateStage(stage: StageName): boolean {
+  return stage === "REVIEW" || stage === "UX_REVIEW";
+}
+
 /** Idempotency key `waveId:ticketId:STAGE:attempt`. Unknown STAGE → PLAN. */
 export function parseStageFromIdempotencyKey(key: string): {
   waveId: string;
@@ -33,7 +37,7 @@ export function parseStageFromIdempotencyKey(key: string): {
   const parts = key.split(":");
   const raw = parts[2];
   const stage: StageName =
-    raw === "IMPL" || raw === "VERIFY" || raw === "REVIEW" ? raw : "PLAN";
+    raw === "IMPL" || raw === "VERIFY" || raw === "REVIEW" || raw === "UX_REVIEW" ? raw : "PLAN";
   const attempt = Number(parts[3] ?? "1");
   return {
     waveId: parts[0] ?? "",

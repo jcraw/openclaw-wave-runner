@@ -53,6 +53,7 @@ export class WaveController {
   readonly worktreeRoot;
   readonly artifactRoot;
   readonly forgeRoot;
+  readonly monaRoot;
   readonly launchMode;
   readonly disableSourceMirror;
   watchdogFires = 0;
@@ -78,6 +79,7 @@ export class WaveController {
     this.worktreeRoot = opts.worktreeRoot;
     this.artifactRoot = opts.artifactRoot;
     this.forgeRoot = opts.forgeRoot;
+    this.monaRoot = opts.monaRoot;
     this.launchMode = opts.launchMode ?? "mock";
     this.disableSourceMirror = opts.disableSourceMirror ?? false;
     this.grokReadFileHung = opts.grokReadFileHung;

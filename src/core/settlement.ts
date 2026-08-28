@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { hashJson } from "../domain/hash.js";
-import type { LaunchOutbox, LaunchReceipt, TicketRun, WaveRecord } from "../domain/types.js";
+import type { LaunchOutbox, LaunchReceipt, StageName, TicketRun, WaveRecord } from "../domain/types.js";
 import { applySettlement, markIndeterminate } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
@@ -13,6 +13,8 @@ import { markSettled } from "./outbox.js";
 import { closeoutModeForWaveTicket } from "../domain/closeout-mode.js";
 import { applyPlanSuccess } from "./plan-settle.js";
 import { admitPlanReviewTicket } from "./plan-review-settle.js";
+import { isPlanGateStage } from "./stage-paths.js";
+import { admitUxReviewTicket } from "./ux-review-settle.js";
 import { readActualPlanText } from "./plan-text.js";
 import {
   assertTicketTransition,
@@ -29,12 +31,12 @@ function clipReason(text: string): string {
   return t.length <= REASON_CAP ? t : `${t.slice(0, REASON_CAP - 1)}…`;
 }
 
-/** Durable short reason for inspect / cascade (WR-005 + WR-010). */
+/** Durable short reason (WR-005 / WR-010). */
 export function stageDeathReason(input: {
   status: "failed" | "cancelled";
   summary?: string;
   error?: string;
-  stage: "PLAN" | "IMPL" | "VERIFY" | "REVIEW";
+  stage: StageName;
   attempt: number;
 }): string {
   const fromWorker = clipReason(input.summary ?? input.error ?? "");
@@ -162,8 +164,8 @@ export async function settleOutbox(
         const retriesRemain = attempt - 1 < wave.limits.maxRetriesPerStage;
         const noRetry =
           verifyFailSnippet === "missing_verify" || (verifyFailSnippet?.startsWith("stale_fence") ?? false);
-        if (retriesRemain && (item.stage === "PLAN" || item.stage === "IMPL" || item.stage === "REVIEW") && !noRetry) {
-          const rearm = item.stage === "PLAN" ? "REVISING" : item.stage === "REVIEW" ? "PLAN_REVIEW" : "APPROVED";
+        if (retriesRemain && (item.stage === "PLAN" || item.stage === "IMPL" || isPlanGateStage(item.stage)) && !noRetry) {
+          const rearm = item.stage === "PLAN" ? "REVISING" : isPlanGateStage(item.stage) ? "PLAN_REVIEW" : "APPROVED";
           assertTicketTransition(ticket.status, rearm, false);
           putTicketStatus(ctrl, ticket, rearm, clipReason(`retry ${attempt + 1} after: ${reason}`));
           if (wave.status === "WAITING_APPROVAL" || wave.status === "AWAITING_PLAN_GATE") {
@@ -189,9 +191,10 @@ export async function settleOutbox(
       applyPlanSuccess(ctrl, wave, ticket, planPath, summary, now);
     } else if (item.stage === "REVIEW") {
       admitPlanReviewTicket(ctrl, waveId, item.ticketId);
+    } else if (item.stage === "UX_REVIEW") {
+      admitUxReviewTicket(ctrl, waveId, item.ticketId);
     } else if (item.stage === "IMPL") {
-      // Keep writer lease through verify+land; releaseWriterLeaseAfterLand frees it.
-      // Fail path above still releases immediately so same-scope siblings are not starved (WR-019).
+      // Writer lease held through land; fail path above already released (WR-019).
       ticket.verifyProof = verifyProof;
       if (implSha) ticket.implSha = implSha;
       putTicketStatus(ctrl, ticket, "VERIFYING");

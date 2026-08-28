@@ -5,6 +5,15 @@ import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { checkPlanReview, checkPlanStamp, resolveCrawmakForge } from "./plan-review.js";
 import {
+  admitUxReviewTicket,
+  hasHopLaunch,
+  latestPlanAttempt,
+  needsUxReviewLaunch,
+  openStageOutbox,
+  queueMissingUxReviews,
+  stageBusy,
+} from "./ux-review-settle.js";
+import {
   assertTicketTransition,
   assertWaveTransition,
   TICKET_NEXT,
@@ -78,29 +87,18 @@ function hasLaunch(ctrl: ControllerContext, waveId: string, ticketId: string): b
   });
 }
 
-function openReviewOutbox(ctrl: ControllerContext, waveId: string, ticketId: string): boolean {
-  return ctrl.db.listOutbox(waveId).some(
-    (item) =>
-      item.ticketId === ticketId &&
-      item.stage === "REVIEW" &&
-      item.state !== "SETTLED" &&
-      item.state !== "FAILED",
-  );
-}
-
 export async function queueMissingPlanReviews(ctrl: ControllerContext, waveId: string): Promise<void> {
   const wave = requireWave(ctrl, waveId);
   if (wave.status !== "AWAITING_PLAN_GATE") return;
   const forge = forgeForWave(ctrl, waveId);
   for (const ticket of ctrl.db.listTickets(waveId)) {
     if (ticket.status !== "PLAN_REVIEW") continue;
-    if (openReviewOutbox(ctrl, waveId, ticket.ticketId)) continue;
-    const stages = ctrl.db
-      .listStages(waveId)
-      .filter((s) => s.ticketId === ticket.ticketId && s.stage === "REVIEW")
-      .sort((a, b) => b.attempt - a.attempt);
-    const last = stages[0];
-    if (last && (last.status === "PENDING" || last.status === "RUNNING" || last.status === "SUCCEEDED")) continue;
+    if (ticket.planReviewSkip === true) continue;
+    if (openStageOutbox(ctrl, waveId, ticket.ticketId, "REVIEW")) continue;
+    if (stageBusy(ctrl, waveId, ticket.ticketId, "REVIEW")) continue;
+    const planAttempt = latestPlanAttempt(ctrl, waveId, ticket.ticketId);
+    if (planAttempt <= 0) continue;
+    if (hasHopLaunch(ctrl, waveId, ticket.ticketId, "plan_review_launch", planAttempt)) continue;
     if (!forge) {
       if (ticket.result !== "missing_forge") putTicketStatus(ctrl, ticket, "PLAN_REVIEW", "missing_forge");
       continue;
@@ -109,12 +107,13 @@ export async function queueMissingPlanReviews(ctrl: ControllerContext, waveId: s
       eventId: `${waveId}:plan-review-launch:${ticket.ticketId}:${ticket.revision}`,
       waveId,
       type: "plan_review_launch",
-      payloadJson: JSON.stringify({ ticketId: ticket.ticketId, revision: ticket.revision, forge }),
+      payloadJson: JSON.stringify({ ticketId: ticket.ticketId, revision: ticket.revision, planAttempt, forge }),
       createdAt: ctrl.clock.now(),
       revisionApplied: wave.revision,
     });
     await queueStage(ctrl, waveId, ticket.ticketId, "REVIEW");
   }
+  await queueMissingUxReviews(ctrl, waveId);
 }
 
 export function admitPlanReviewTicket(ctrl: ControllerContext, waveId: string, ticketId: string): boolean {
@@ -161,6 +160,7 @@ export function admitPlanReviewTicket(ctrl: ControllerContext, waveId: string, t
   }
 
   if (review.ok && (review.verdict === "approve" || review.verdict === "approve-with-conditions")) {
+    if (ticket.needsUx === true) return false;
     putTicketStatus(ctrl, ticket, "APPROVED");
     setWaveRunning(ctrl, waveId, now);
     ctrl.db.insertEvent({
@@ -173,7 +173,7 @@ export function admitPlanReviewTicket(ctrl: ControllerContext, waveId: string, t
     return true;
   }
 
-  if (!launched && stamped) {
+  if (!launched && stamped && ticket.needsUx !== true) {
     putTicketStatus(ctrl, ticket, "APPROVED");
     setWaveRunning(ctrl, waveId, now);
     ctrl.db.insertEvent({
@@ -193,13 +193,15 @@ export function maybeAdmitPlanGate(ctrl: ControllerContext, waveId: string): voi
   if (wave.status !== "AWAITING_PLAN_GATE") return;
   for (const ticket of ctrl.db.listTickets(waveId)) {
     if (ticket.status !== "PLAN_REVIEW") continue;
-    admitPlanReviewTicket(ctrl, waveId, ticket.ticketId);
+    if (admitPlanReviewTicket(ctrl, waveId, ticket.ticketId)) continue;
+    admitUxReviewTicket(ctrl, waveId, ticket.ticketId);
   }
 }
 
 export function needsPlanReviewLaunch(ctrl: ControllerContext, waveId: string): boolean {
+  if (needsUxReviewLaunch(ctrl, waveId)) return true;
   return ctrl.db.listTickets(waveId).some((ticket) => {
-    if (ticket.status !== "PLAN_REVIEW") return false;
+    if (ticket.status !== "PLAN_REVIEW" || ticket.planReviewSkip === true) return false;
     return !ctrl.db.listOutbox(waveId).some((item) => item.ticketId === ticket.ticketId && item.stage === "REVIEW");
   });
 }

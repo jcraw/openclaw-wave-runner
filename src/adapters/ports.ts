@@ -27,7 +27,7 @@ export type {
 } from "../core/ports.js";
 
 export type AcpSpawnRequest = {
-  agentId: "grok";
+  agentId: "grok" | "mona";
   mode: "run";
   sessionKey: string;
   cwd?: string;
