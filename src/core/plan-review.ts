@@ -5,7 +5,8 @@ export type PlanReviewCheck =
   | { ok: true; verdict: "approve" | "approve-with-conditions" | "revise" }
   | { ok: false; reason: string };
 
-const VERDICT_RE = /(?:^|\n)\s*(?:\*\*)?Verdict(?:\*\*)?:\s*(approve-with-conditions|approve|revise)\b/i;
+const VERDICT_RE =
+  /(?:^|\n)\s*(?:\*\*)?Verdict(?:\*\*)?:\s*(?:\*\*)?\s*(approve-with-conditions|approve|revise)\b/i;
 
 export function reviewFilePath(forgeRoot: string, ticketId: string): string {
   return join(forgeRoot, "reviews", `${ticketId}.md`);

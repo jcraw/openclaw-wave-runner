@@ -113,6 +113,20 @@ test("checkUxReview: verdict only, no cheat-mode/Learn required", () => {
   assert.equal(checkUxReview({ monaRoot: mona, ticketId: "UX-002" }).ok, false);
 });
 
+test("checkUxReview: bold **Verdict:** markdown (Mona house style)", () => {
+  const mona = mkdtempSync(join(tmpdir(), "wr037-ux-bold-"));
+  mkdirSync(join(mona, "reviews"), { recursive: true });
+  writeFileSync(join(mona, "AGENTS.md"), "# mona\n", "utf8");
+  writeFileSync(
+    join(mona, "reviews", "UX-BOLD-ux.md"),
+    "# UX review — UX-BOLD\n\n**Verdict:** approve-with-conditions\n\n## Conditions\n- keep density caps\n",
+    "utf8",
+  );
+  const ok = checkUxReview({ monaRoot: mona, ticketId: "UX-BOLD" });
+  assert.equal(ok.ok, true);
+  if (ok.ok) assert.equal(ok.verdict, "approve-with-conditions");
+});
+
 test("resolveMonaWorkspace: explicit / MONA_ROOT / default AGENTS.md", () => {
   const mona = mkdtempSync(join(tmpdir(), "wr037-mona-"));
   writeFileSync(join(mona, "AGENTS.md"), "# mona\n", "utf8");

@@ -121,6 +121,9 @@ export class OpenClawGatewayAcpSpawn implements AcpSpawn {
 
   async spawn(input: AcpSpawnRequest): Promise<AcpSpawnResult> {
     const label = recoveryLabel(input.sourceId);
+    // Mona/Kawazaki/Robin are OpenClaw config agents → native subagent.
+    // Grok builders stay on ACP harness (agentId "grok").
+    const runtime = input.agentId === "mona" ? "subagent" : "acp";
     const invoked = await this.request<ToolInvokeResponse>("tools.invoke", {
       name: "sessions_spawn",
       sessionKey: this.requesterSessionKey,
@@ -128,7 +131,7 @@ export class OpenClawGatewayAcpSpawn implements AcpSpawn {
       idempotencyKey: label,
       args: {
         task: input.task,
-        runtime: "acp",
+        runtime,
         agentId: input.agentId,
         mode: input.mode,
         cleanup: "keep",
@@ -199,16 +202,20 @@ export class OpenClawGatewayAcpSpawn implements AcpSpawn {
   }
 
   async findBySourceId(sourceId: string): Promise<AcpSpawnResult | undefined> {
+    const label = recoveryLabel(sourceId);
+    // Match ACP (Grok) or native subagent (Mona) rows for the same recovery label.
     const matches = (await this.listTasks()).filter(
-      (task) => task.runtime === "acp" && task.title === recoveryLabel(sourceId),
+      (task) => (task.runtime === "acp" || task.runtime === "subagent") && task.title === label,
     );
     if (matches.length > 1) {
-      throw new Error(`Multiple ACP tasks match Wave Runner source identity ${sourceId}; refusing ambiguous recovery.`);
+      throw new Error(`Multiple tasks match Wave Runner source identity ${sourceId}; refusing ambiguous recovery.`);
     }
     const task = matches[0];
     const id = task && taskId(task);
-    if (!task?.runId || !task.childSessionKey || !id) return undefined;
-    return { runId: task.runId, sessionId: task.childSessionKey, taskId: id };
+    // subagent tasks may surface sessionKey instead of childSessionKey
+    const sessionId = task?.childSessionKey || task?.sessionKey;
+    if (!task?.runId || !sessionId || !id) return undefined;
+    return { runId: task.runId, sessionId, taskId: id };
   }
 
   private async getTask(id: string): Promise<GatewayTask | undefined> {

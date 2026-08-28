@@ -10,7 +10,8 @@ export type UxReviewCheck =
   | { ok: true; verdict: "approve" | "approve-with-conditions" | "revise" }
   | { ok: false; reason: string };
 
-const VERDICT_RE = /(?:^|\n)\s*(?:\*\*)?Verdict(?:\*\*)?:\s*(approve-with-conditions|approve|revise)\b/i;
+const VERDICT_RE =
+  /(?:^|\n)\s*(?:\*\*)?Verdict(?:\*\*)?:\s*(?:\*\*)?\s*(approve-with-conditions|approve|revise)\b/i;
 const PLAN_SPEC_RE = /^(?:UX spec|ux_spec)\s*:\s*(\S+)/m;
 
 export function uxReviewFilePath(monaRoot: string, ticketId: string): string {
