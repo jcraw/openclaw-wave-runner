@@ -1,10 +1,10 @@
 ---
 id: WR-037
 title: Mona UX_REVIEW stage — after Crawmak, before stamp, gated needs_ux
-status: open
+status: done
 priority: high
 created: 2026-08-27
-updated: 2026-08-27
+updated: 2026-08-28
 source: jason
 assignee: crawmak
 builder: crawmak
@@ -13,13 +13,14 @@ preferred_model: grok
 agent_eligible: true
 eligibility: agent_eligible
 needs_jason: false
-phase: planning
+phase: impl
 labels: [plan-gate, review, mona, ux, specialist]
 depends_on: [WR-028]
 related: [WR-008, WR-023, WR-028]
 verify: npm test && npm run quality
 verify_command: npm test && npm run quality
 worker_out_dir: tmp/workers/WR-037
+plan: plans/2026-08-27-wr-037-mona-ux-review-stage.md
 land: commit
 ---
 
@@ -84,3 +85,7 @@ Skip Mona when there is no UX spec create/update (engine, docs, infra). Do not p
 ## Notes
 
 Mona agent is already stood up: id `mona`, Grok46, exec full, image gen on, internal only.
+
+## Resolution
+
+Landed `f8e0dd1` on main 2026-08-28. Last night IMPL verified green; wave land died on `stale_fence: writer lease missing`. Closeout: re-verify `npm test && npm run quality` (291 pass) then ff-merge. Gate: `needs_ux` / `ux_review: required` → Mona `UX_REVIEW` after Crawmak, before IMPL.
