@@ -1,7 +1,7 @@
 ---
 id: WR-038
 title: Stale Crawmak revise must not fail-close an in-flight re-review
-status: impl
+status: done
 priority: crit
 created: 2026-08-29
 updated: 2026-08-29
@@ -41,3 +41,7 @@ plan_review: skip
 ## Non-goals
 
 Raising the default revise cap. Binding the forge file by mtime/hash. UX_REVIEW product change. Deploy, push, merge, Gateway.
+
+## Closeout
+
+Landed via worktree recovery `d848ab1` after worker-succeeded / stale_fence land miss. Verified `npm test && npm run quality`. Pushed origin.
