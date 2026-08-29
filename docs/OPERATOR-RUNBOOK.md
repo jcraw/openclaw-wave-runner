@@ -78,6 +78,12 @@ IMPL with CLI drain on the same primary is still split-brain; do not do that.
 `scripts/cleanup-scratch.sh` prunes `$WR_SCRATCH` (dry-run default; `--apply` deletes).
 It never deletes `ledgers/` (shared CLI sqlite). Cross-host / NFS locks are out of scope.
 
+## Live failure bites (WR-020)
+
+- `OPERATOR_STOP stuck` while an outbox is `LAUNCHED` / `CLAIMED` / `RECONCILING` → those states are live work, not stuck. Do not default `STUCK_TICKS=0` to “fix” it.
+- `WAVE_VERIFY.json` that is only `Command failed: bash -lc …` dropped stdout/stderr. Keep the full record (`ok,command,stdout,stderr,exitCode,timedOut,durationMs`) and `WAVE_VERIFY_TIMEOUT_MS`.
+- `terminal.hash` stored as `sha256:<hex>` vs inspect comparing raw hex → observe never settles. Normalize the prefix.
+
 `dry-run` is the preflight. It fails closed on missing `verifyCommand` (`missing_verify`) and
 returns `admitBlockers` (warnings: `human_hold`, `shared_writer_scope`, `primary_dirty_overlap`).
 Drain `run-backlog-wave.sh` refuses to create/start when `primary_dirty_overlap` is present
@@ -135,6 +141,11 @@ cp /path/to/backup.sqlite "$OPENCLAW_STATE_DIR/wave-runner/wave.sqlite"
 - deploy/push as a product mode (`SAFETY.deployPushEnabled`); operator may set `WAVE_LAND_PUSH=1`
 
 ## Agent plan-gate vs human hold (WR-023 / WR-028 / WR-033 / WR-037)
+
+**SDD (standing):** product specs in the target repo are source of truth. PLAN is a
+change-set (incl. spec patches when behavior/UX changes). Crawmak/Mona **review only**
+— they do not apply product changes. IMPL executes the approved plan+specs; wrongness
+mid-build is **revise**, not silent redesign. Tests bind the contract.
 
 - **Default after PLAN** (agent-eligible, no skip bit, no human hold): ticket
   `PLAN_REVIEW`, wave `AWAITING_PLAN_GATE`, one Crawmak REVIEW worker (forge cwd).

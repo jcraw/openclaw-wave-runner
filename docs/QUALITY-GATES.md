@@ -54,6 +54,12 @@ On `quality:full` / main mutation job: Stryker ≥ break 80 on the three pure mo
 
 Never mark done on coverage alone. Never weaken tests to pass mutation.
 
+## Live quality bites (WR-018)
+
+- Quality/CI claimed green → run `npm run quality` on **current HEAD**, not a last-green SHA.
+- Mutation score plunges after an incremental run → `stryker --force` or wipe the incremental file before changing the break.
+- Markdown ticket `verify: true` is a YAML bool. Coerce to the command `"true"`; omitting the field is `missing_verify`.
+
 ## Oversized files (token baseline)
 
 `config/token-baseline.json` allow-list (chars/4). New files and non-baselined growth still hard-fail at 2500.
