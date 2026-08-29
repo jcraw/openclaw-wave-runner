@@ -87,6 +87,20 @@ function hasLaunch(ctrl: ControllerContext, waveId: string, ticketId: string): b
   });
 }
 
+/** This hop's Crawmak REVIEW has launched and is not still in flight. */
+function planReviewHopReady(
+  ctrl: ControllerContext,
+  waveId: string,
+  ticketId: string,
+  planAttempt: number,
+): boolean {
+  if (planAttempt <= 0) return false;
+  if (!hasHopLaunch(ctrl, waveId, ticketId, "plan_review_launch", planAttempt)) return false;
+  if (openStageOutbox(ctrl, waveId, ticketId, "REVIEW")) return false;
+  if (stageBusy(ctrl, waveId, ticketId, "REVIEW")) return false;
+  return true;
+}
+
 export async function queueMissingPlanReviews(ctrl: ControllerContext, waveId: string): Promise<void> {
   const wave = requireWave(ctrl, waveId);
   if (wave.status !== "AWAITING_PLAN_GATE") return;
@@ -122,8 +136,11 @@ export function admitPlanReviewTicket(ctrl: ControllerContext, waveId: string, t
   const forge = forgeForWave(ctrl, waveId);
   const now = ctrl.clock.now();
   const launched = hasLaunch(ctrl, waveId, ticketId);
-  const review = checkPlanReview({ forgeRoot: forge, ticketId });
   const stamped = checkPlanStamp(planTextOf(ticket));
+  const planAttempt = latestPlanAttempt(ctrl, waveId, ticketId);
+  const review = planReviewHopReady(ctrl, waveId, ticketId, planAttempt)
+    ? checkPlanReview({ forgeRoot: forge, ticketId })
+    : { ok: false as const, reason: "hop_not_ready" };
 
   if (review.ok && review.verdict === "revise") {
     const cap = ticket.planReviewReviseCap ?? 1;
@@ -136,7 +153,7 @@ export function admitPlanReviewTicket(ctrl: ControllerContext, waveId: string, t
       eventId: `${waveId}:plan-review-revise:${ticketId}:${ticket.revision}`,
       waveId,
       type: "plan_review_revise",
-      payloadJson: JSON.stringify({ ticketId }),
+      payloadJson: JSON.stringify({ ticketId, planAttempt }),
       createdAt: now,
     });
     const live = requireTicket(ctrl, waveId, ticketId);

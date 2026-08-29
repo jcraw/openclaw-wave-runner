@@ -152,6 +152,9 @@ mid-build is **revise**, not silent redesign. Tests bind the contract.
   Crawmak `reviews/<ID>.md` Verdict `approve` / `approve-with-conditions` **is**
   ledger-approve (WR-033). Leftover `APPROVED by Astra|Jason` on the plan still
   admits only when **no** Crawmak launch happened. Do **not** bash-stamp Astra.
+  After Crawmak `revise`, the next hop's REVIEW must settle before the forge
+  file is read again; leftover `Verdict: revise` must not `plan_review_revise_cap`
+  an in-flight re-review.
 - **`needs_ux: true`** (alias `ux_review: required`): after Crawmak approve-class,
   launch Mona `UX_REVIEW` (Mona workspace cwd, `agentId: mona`). Ticket stays
   `PLAN_REVIEW` until Mona `reviews/<ID>-ux.md` Verdict is approve-class
