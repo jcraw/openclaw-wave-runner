@@ -158,10 +158,11 @@ Interop is **`FrozenTicket`**, not a board format. Ingest these fields only:
   planClass?: string
   provider?: string
   model?: string
+  planWorker?: string     // grok | codex; YAML plan_worker / JSON planWorker
 }
 ```
 
-`contentHash` and `order` are computed at freeze. Do not send labels, story points, or studio fields. Extra JSON keys are ignored.
+`contentHash` and `order` are computed at freeze (`planWorker` is not part of the hash). YAML `plan_worker` / JSON `planWorker` (aliases `plan_worker`, `codex-acp` → `codex`). YAML `worker: hybrid` or JSON `provider: "hybrid"` with no `plan_worker` implies Codex PLAN; an explicit `plan_worker` wins. IMPL/REVIEW/VERIFY stay Grok. Do not send labels, story points, or studio fields. Extra JSON keys are ignored.
 
 ### JSON ingest (CLI)
 

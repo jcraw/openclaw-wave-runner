@@ -40,9 +40,14 @@ export class MissingAcpSpawnWorker implements WorkerAdapter {
 export type GrokAcpWorkerOptions = {
   acp: AcpSpawn;
   tasks?: ReadOnlyTasks;
-  agentId?: "grok" | "mona";
+  agentId?: "grok" | "mona" | "codex";
   model?: string;
 };
+
+function acpReceiptMeta(intent: LaunchIntent, fallbackModel?: string): { provider: string; model?: string } {
+  if (intent.agentId === "codex") return { provider: "codex-acp" };
+  return { provider: "grok-acp", model: intent.model ?? fallbackModel ?? "grok-4.6" };
+}
 
 function resolveOutputDir(intent: LaunchIntent): string {
   if (intent.outputDir) return intent.outputDir;
@@ -101,8 +106,7 @@ export class GrokAcpWorker implements WorkerAdapter {
       taskId: spawned.taskId,
       runId: spawned.runId,
       sessionId: spawned.sessionId,
-      provider: "grok-acp",
-      model: intent.model ?? this.opts.model ?? "grok-4.6",
+      ...acpReceiptMeta(intent, this.opts.model),
       outputDir,
       cwd: intent.worktree,
     };
@@ -121,8 +125,7 @@ export class GrokAcpWorker implements WorkerAdapter {
         taskId: found.taskId,
         runId: found.runId,
         sessionId: found.sessionId,
-        provider: "grok-acp",
-        model: intent.model ?? this.opts.model ?? "grok-4.6",
+        ...acpReceiptMeta(intent, this.opts.model),
         outputDir: resolveOutputDir(intent),
         cwd: intent.worktree,
       };

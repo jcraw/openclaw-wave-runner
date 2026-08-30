@@ -82,7 +82,7 @@ export type LaunchIntent = {
   approvedPlanPath?: string;
   provider?: string;
   model?: string;
-  agentId?: "grok" | "mona";
+  agentId?: "grok" | "mona" | "codex";
   uxSpecPath?: string;
 };
 

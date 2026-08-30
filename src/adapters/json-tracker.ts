@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { resolveHumanHold } from "../core/human-hold.js";
+import { freezePlanWorker } from "../core/plan-worker.js";
 import { resolvePlanReviewSkip } from "../core/plan-review-skip.js";
 import { freezeUxFields } from "../core/ux-review-skip.js";
 import { parseCloseoutMode } from "../domain/closeout-mode.js";
@@ -28,6 +29,7 @@ export type JsonTicketIngest = {
   needsUx?: boolean;
   uxSpecPath?: string;
   uxReviewReviseCap?: number;
+  planWorker?: string;
 };
 
 function asObject(value: unknown): Record<string, unknown> | undefined {
@@ -99,6 +101,7 @@ function parseJsonTickets(text: string): JsonTicketIngest[] {
       ...(landMode ? { landMode } : {}),
       ...(planReviewSkip ? { planReviewSkip: true } : {}),
       ...ux,
+      ...freezePlanWorker(obj),
     };
   });
 }
@@ -143,6 +146,7 @@ export class JsonTracker implements TrackerAdapter {
         needsUx: ticket.needsUx,
         uxSpecPath: ticket.uxSpecPath,
         uxReviewReviseCap: ticket.uxReviewReviseCap,
+        planWorker: ticket.planWorker,
       };
     });
     return normalizeSelectedDependencies(

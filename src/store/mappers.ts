@@ -71,6 +71,7 @@ export function mapTicket(row: Record<string, unknown>): TicketRun {
     needsUx: row.needs_ux == null ? undefined : Number(row.needs_ux) === 1,
     uxSpecPath: optString(row.ux_spec_path),
     uxReviewReviseCap: row.ux_review_revise_cap == null ? undefined : Number(row.ux_review_revise_cap),
+    planWorker: optString(row.plan_worker),
   };
 }
 

@@ -3,6 +3,7 @@ import { basename, join, relative } from "node:path";
 
 import { resolveHumanHold } from "../core/human-hold.js";
 import { hashTicketContent, normalizeSelectedDependencies } from "../core/manifest.js";
+import { freezePlanWorker } from "../core/plan-worker.js";
 import { resolvePlanReviewSkip } from "../core/plan-review-skip.js";
 import { freezeUxFields } from "../core/ux-review-skip.js";
 import { parseCloseoutMode } from "../domain/closeout-mode.js";
@@ -32,6 +33,7 @@ export type ParsedTicket = {
   needsUx?: boolean;
   uxSpecPath?: string;
   uxReviewReviseCap?: number;
+  planWorker?: string;
   sourcePath: string;
   body: string;
   raw: string;
@@ -162,6 +164,7 @@ export function parseTicketFile(path: string, repoRoot: string): ParsedTicket | 
     ...(landMode ? { landMode } : {}),
     ...(resolvePlanReviewSkip(data) ? { planReviewSkip: true } : {}),
     ...freezeUxFields(data),
+    ...freezePlanWorker(data),
     sourcePath,
     body,
     raw,
@@ -212,6 +215,7 @@ export class MarkdownTracker implements TrackerAdapter {
         needsUx: ticket.needsUx,
         uxSpecPath: ticket.uxSpecPath,
         uxReviewReviseCap: ticket.uxReviewReviseCap,
+        planWorker: ticket.planWorker,
       };
     });
     return normalizeSelectedDependencies(

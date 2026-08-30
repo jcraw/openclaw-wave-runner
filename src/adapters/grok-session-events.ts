@@ -80,6 +80,7 @@ export function receiptHasHungReadFile(
   hangMs: number,
   grokHome = grokHomeDir(),
 ): boolean {
+  if (receipt.provider === "codex-acp") return false;
   const cwd = sessionCwd(receipt);
   if (!cwd) return false;
   return grokCwdHasHungReadFile(cwd, nowMs, hangMs, grokHome);

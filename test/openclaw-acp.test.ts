@@ -170,6 +170,64 @@ test("Gateway ACP adapter recovers, inspects, and cancels by deterministic task 
   );
 });
 
+test("Gateway ACP adapter spawns Codex PLAN as ACP with agentId codex and no timeoutSeconds", async () => {
+  const calls: Array<{ method: string; params?: Record<string, unknown> }> = [];
+  const request = async <T>(method: string, params?: Record<string, unknown>): Promise<T> => {
+    calls.push({ method, params });
+    if (method === "tools.invoke") {
+      return {
+        ok: true,
+        output: {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                status: "accepted",
+                runId: "run-codex",
+                childSessionKey: "agent:codex:acp:child-1",
+              }),
+            },
+          ],
+        },
+      } as T;
+    }
+    if (method === "tasks.list") {
+      return {
+        tasks: [
+          {
+            taskId: "task-codex",
+            runtime: "acp",
+            status: "running",
+            title: __test.recoveryLabel("W:T:PLAN:1"),
+            runId: "run-codex",
+            childSessionKey: "agent:codex:acp:child-1",
+          },
+        ],
+      } as T;
+    }
+    throw new Error(`unexpected ${method}`);
+  };
+  const acp = new OpenClawGatewayAcpSpawn(request, "agent:main:wave-runner-m0");
+  const receipt = await acp.spawn({
+    agentId: "codex",
+    mode: "run",
+    sessionKey: "ignored-by-openclaw",
+    task: "Write PLAN.md",
+    sourceId: "W:T:PLAN:1",
+    cwd: "/tmp/worktree",
+    timeoutMs: 45 * 60 * 1000,
+  });
+  assert.deepEqual(receipt, {
+    runId: "run-codex",
+    sessionId: "agent:codex:acp:child-1",
+    taskId: "task-codex",
+  });
+  const args = calls[0]?.params?.args as Record<string, unknown>;
+  assert.equal(args.runtime, "acp");
+  assert.equal(args.agentId, "codex");
+  assert.equal(Object.prototype.hasOwnProperty.call(args, "timeoutSeconds"), false);
+});
+
 test("Gateway ACP adapter fails closed on an ambiguous recovery identity", async () => {
   const title = __test.recoveryLabel("W:T:VERIFY:1");
   const request = async <T>(): Promise<T> =>

@@ -164,6 +164,11 @@ mid-build is **revise**, not silent redesign. Tests bind the contract.
 - **Skip Crawmak** only via YAML `plan_review: skip` (aliases `review: skip`,
   `review_skip: true`, `jason_skip: true`): PLAN artifact check → ledger
   `APPROVED` + `plan_gate_auto` → IMPL when **not** `needs_ux`. Wave stays `RUNNING`.
+- **Hybrid / `plan_worker: codex`:** Codex ACP PLAN (`agentId: "codex"`,
+  `runtime: "acp"`), Grok IMPL. CLI fallback refuses Codex PLAN. OpenClaw
+  `acp.allowedAgents` must include `codex` and acpx `agents.codex` must exist;
+  WR does not edit `~/.openclaw/openclaw.json`. First hybrid wave after land
+  fails closed until that allowlist exists — that is success vs silent Grok.
 - **Human hold** (`needs_jason: true` / `eligibility: human_gated`): wave status
   `WAITING_APPROVAL`. Operator prints `OPERATOR_STOP waiting_human` and exits.
   `needs_jason: pick` (and other annotations) are **not** holds. No Crawmak, no Mona.

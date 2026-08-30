@@ -104,6 +104,8 @@ export type FrozenTicket = {
   needsUx?: boolean;
   uxSpecPath?: string;
   uxReviewReviseCap?: number;
+  /** WR-035: PLAN agent after normalize (`grok` | `codex`). Unknown raw is admit-blocked. */
+  planWorker?: string;
   satisfiedExternalDeps?: SatisfiedExternalDep[];
 };
 
@@ -184,6 +186,7 @@ export type TicketRun = {
   needsUx?: boolean;
   uxSpecPath?: string;
   uxReviewReviseCap?: number;
+  planWorker?: string;
 };
 
 export type StageRun = {

@@ -15,6 +15,7 @@ import { buildStagePrompt, copyVerifyIntoAttempt } from "./fix-brief.js";
 import type { LaunchIntent } from "./ports.js";
 import { settleOutbox } from "./settlement.js";
 import { isPlanGateStage, stageAttemptDir, stageSessionKey } from "./stage-paths.js";
+import { stageAgentId } from "./plan-worker.js";
 import { launchCwd } from "./ux-review.js";
 
 export function refreshHeldLeases(ctrl: ControllerContext, waveId: string): void {
@@ -83,7 +84,7 @@ export function intentFromOutbox(ctrl: ControllerContext, item: LaunchOutbox): L
     approvedPlanPath: item.stage === "PLAN" ? undefined : ticket.planArtifact,
     provider: ticket.provider,
     model: ticket.model,
-    agentId: item.stage === "UX_REVIEW" ? "mona" : "grok",
+    agentId: stageAgentId(item.stage, ticket),
     uxSpecPath: ticket.uxSpecPath,
   };
 }

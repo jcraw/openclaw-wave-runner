@@ -102,6 +102,9 @@ export class GrokCliWorker implements WorkerAdapter {
     if (intent.stage === "UX_REVIEW") {
       throw new Error("grok CLI fallback refuses UX_REVIEW");
     }
+    if (intent.agentId === "codex") {
+      throw new Error("grok CLI fallback refuses Codex PLAN");
+    }
     const recovered = await this.recover(intent);
     if (recovered) return recovered;
     const cwd = intent.worktree ?? this.opts.repoPath;
@@ -192,6 +195,9 @@ export class GrokCliWorker implements WorkerAdapter {
   }
 
   async inspect(receipt: LaunchReceipt) {
+    if (receipt.provider === "codex-acp") {
+      return { status: "failed" as const, error: "grok CLI fallback refuses Codex PLAN" };
+    }
     const parsed = parseStageFromKey(receipt.idempotencyKey);
     if (parsed.stage === "UX_REVIEW") {
       return { status: "failed" as const, error: "grok CLI fallback refuses UX_REVIEW" };

@@ -175,8 +175,8 @@ export class WaveDatabase {
           stage, status, revision, owner, next_action, plan_class, plan_artifact,
           impl_worktree, impl_branch, impl_sha, verify_proof, verify_command, provider, model, result,
           writer_scope, human_hold, human_hold_reason, product, game, plan_review_skip, plan_review_revise_cap,
-          needs_ux, ux_spec_path, ux_review_revise_cap
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          needs_ux, ux_spec_path, ux_review_revise_cap, plan_worker
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(wave_id, ticket_id) DO UPDATE SET
           content_hash=excluded.content_hash,
           title=excluded.title,
@@ -207,7 +207,8 @@ export class WaveDatabase {
           plan_review_revise_cap=excluded.plan_review_revise_cap,
           needs_ux=excluded.needs_ux,
           ux_spec_path=excluded.ux_spec_path,
-          ux_review_revise_cap=excluded.ux_review_revise_cap`,
+          ux_review_revise_cap=excluded.ux_review_revise_cap,
+          plan_worker=excluded.plan_worker`,
       )
       .run(
         ticket.waveId,
@@ -242,6 +243,7 @@ export class WaveDatabase {
         ticket.needsUx === undefined ? null : ticket.needsUx ? 1 : 0,
         ticket.uxSpecPath ?? null,
         ticket.uxReviewReviseCap ?? null,
+        ticket.planWorker ?? null,
       );
   }
 

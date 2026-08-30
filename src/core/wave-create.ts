@@ -19,6 +19,7 @@ import type { ControllerContext } from "./controller-context.js";
 import { inspect, recordEvent } from "./controller-context.js";
 import { hashManifest, topologicalOrder, validateManifest } from "./manifest.js";
 import { collectDirtyOverlapBlockers, type AdmitBlocker } from "./admit-overlap.js";
+import { assertKnownPlanWorkers, planWorkerBlockers } from "./plan-worker.js";
 import { canonicalRepoIdentity } from "./repo-identity.js";
 import { TICKET_NEXT, TICKET_OWNERS, WAVE_NEXT, WAVE_OWNERS } from "./state-machine.js";
 
@@ -86,6 +87,7 @@ export function ticketFromFrozen(waveId: string, ticket: FrozenTicket): TicketRu
     needsUx: ticket.needsUx,
     uxSpecPath: ticket.uxSpecPath,
     uxReviewReviseCap: ticket.uxReviewReviseCap,
+    planWorker: ticket.planWorker,
   };
 }
 
@@ -111,6 +113,7 @@ export function collectAdmitBlockers(tickets: FrozenTicket[]): AdmitBlocker[] {
       });
     }
   }
+  blockers.push(...planWorkerBlockers(tickets));
   const byScope = new Map<string, string[]>();
   for (const ticket of tickets) {
     const scope = ticket.writerScope || deriveWriterScope(ticket);
@@ -136,6 +139,7 @@ export function assertTicketsHaveVerify(tickets: FrozenTicket[]): void {
   if (missing.length) {
     throw new WaveError(`missing_verify: ${missing.join(", ")}`, "missing_verify");
   }
+  assertKnownPlanWorkers(tickets);
 }
 
 export function assertLaunchAllowed(
@@ -143,8 +147,6 @@ export function assertLaunchAllowed(
   view: WaveView,
   options: SupervisedStartOptions,
 ): void {
-  // productionDrain / unrestricted stay hard-off via SAFETY flags.
-  // Supervised bounded launch is the intentional real-worker path.
   if (SAFETY.productionDrainEnabled) {
     throw new SafetyGateError("production backlog drain is disabled.");
   }
