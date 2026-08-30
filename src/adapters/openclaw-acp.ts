@@ -123,9 +123,11 @@ export class OpenClawGatewayAcpSpawn implements AcpSpawn {
     const label = recoveryLabel(input.sourceId);
     // Mona/Kawazaki/Robin are OpenClaw config agents → native subagent.
     // Grok builders stay on ACP harness (agentId "grok").
-    // Codex ACP: never pass thinking. acpx rejects config key "thinking" when
-    // that option is not advertised (RRT-113-115 wave fail). Pin bare Sol so
-    // parent Grok model/thinking does not leak into the child session model id.
+    // Codex ACP hybrid PLAN needs bare Sol + thinking off:
+    // - omit thinking → OpenClaw inherits subagent default medium → model
+    //   "gpt-5.6-sol/medium" (not advertised)
+    // - pass thinking → acpx may reject config key "thinking"; host OpenClaw
+    //   soft-skips unadvertised thinking aliases on set_config_option
     const args: Record<string, unknown> = {
       task: input.task,
       runtime: input.agentId === "mona" ? "subagent" : "acp",
@@ -143,7 +145,7 @@ export class OpenClawGatewayAcpSpawn implements AcpSpawn {
       if (bare.toLowerCase().startsWith("openai/")) bare = bare.slice(7);
       bare = bare.split("/")[0]?.trim() ?? "";
       args.model = bare && !/grok/i.test(bare) ? bare : "gpt-5.6-sol";
-      // intentionally omit args.thinking
+      args.thinking = "off";
     } else if (input.model?.trim()) {
       args.model = input.model.trim();
     }

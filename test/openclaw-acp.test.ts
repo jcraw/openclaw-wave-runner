@@ -226,8 +226,8 @@ test("Gateway ACP adapter spawns Codex PLAN as ACP with agentId codex and no tim
   assert.equal(args.runtime, "acp");
   assert.equal(args.agentId, "codex");
   assert.equal(args.model, "gpt-5.6-sol");
+  assert.equal(args.thinking, "off");
   assert.equal(Object.prototype.hasOwnProperty.call(args, "timeoutSeconds"), false);
-  assert.equal(Object.prototype.hasOwnProperty.call(args, "thinking"), false);
 });
 
 test("Gateway ACP adapter fails closed on an ambiguous recovery identity", async () => {
