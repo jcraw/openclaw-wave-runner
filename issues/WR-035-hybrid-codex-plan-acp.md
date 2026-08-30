@@ -1,7 +1,7 @@
 ---
 id: WR-035
 title: Honor hybrid plan_worker — Codex ACP for PLAN, Grok for IMPL
-status: open
+status: done
 priority: high
 created: 2026-08-24
 updated: 2026-08-29
@@ -11,9 +11,9 @@ builder: crawmak
 worker: grok
 preferred_model: grok
 agent_eligible: true
-eligibility: agent_eligible
+eligibility: done
 needs_jason: false
-phase: impl
+phase: done
 labels: [hybrid, plan-worker, acp, codex]
 depends_on: [WR-037]
 related: [WR-028, WR-033, WR-037]
