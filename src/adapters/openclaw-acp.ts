@@ -123,23 +123,36 @@ export class OpenClawGatewayAcpSpawn implements AcpSpawn {
     const label = recoveryLabel(input.sourceId);
     // Mona/Kawazaki/Robin are OpenClaw config agents → native subagent.
     // Grok builders stay on ACP harness (agentId "grok").
-    const runtime = input.agentId === "mona" ? "subagent" : "acp";
+    // Codex ACP: never pass thinking. acpx rejects config key "thinking" when
+    // that option is not advertised (RRT-113-115 wave fail). Pin bare Sol so
+    // parent Grok model/thinking does not leak into the child session model id.
+    const args: Record<string, unknown> = {
+      task: input.task,
+      runtime: input.agentId === "mona" ? "subagent" : "acp",
+      agentId: input.agentId,
+      mode: input.mode,
+      cleanup: "keep",
+      cwd: input.cwd,
+      label,
+      taskName: `wave-${label.slice("wave-runner:".length, "wave-runner:".length + 24)}`,
+      // sessions_spawn rejects per-call timeoutSeconds. Host runTimeoutSeconds + WAVE_*_WALL_MS.
+    };
+    if (input.agentId === "codex") {
+      const rawModel = input.model?.trim() ?? "";
+      let bare = rawModel;
+      if (bare.toLowerCase().startsWith("openai/")) bare = bare.slice(7);
+      bare = bare.split("/")[0]?.trim() ?? "";
+      args.model = bare && !/grok/i.test(bare) ? bare : "gpt-5.6-sol";
+      // intentionally omit args.thinking
+    } else if (input.model?.trim()) {
+      args.model = input.model.trim();
+    }
     const invoked = await this.request<ToolInvokeResponse>("tools.invoke", {
       name: "sessions_spawn",
       sessionKey: this.requesterSessionKey,
       agentId: this.requesterAgentId,
       idempotencyKey: label,
-      args: {
-        task: input.task,
-        runtime,
-        agentId: input.agentId,
-        mode: input.mode,
-        cleanup: "keep",
-        cwd: input.cwd,
-        label,
-        taskName: `wave-${label.slice("wave-runner:".length, "wave-runner:".length + 24)}`,
-        // sessions_spawn rejects per-call timeoutSeconds. Host runTimeoutSeconds + WAVE_*_WALL_MS.
-      },
+      args,
     });
     if (invoked.ok !== true) {
       throw new Error(invoked.error?.message ?? "OpenClaw refused the ACP sessions_spawn call.");
