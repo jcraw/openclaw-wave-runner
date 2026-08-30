@@ -1,10 +1,10 @@
 ---
 id: WR-027
 title: Supervised live pipeline proof on post-026 main
-status: open
+status: done
 priority: high
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-29
 source: jason
 assignee: crawmak
 builder: crawmak
@@ -49,3 +49,7 @@ Create the directory if missing. Do not edit any other path.
 - ACP 1h / CLI-worker fallback (follow-up)
 - SAFETY flips, overnight drain, `scripts/cleanup-scratch.sh`
 - `npm test` / quality as this ticket's verify (receipt existence only)
+
+## Closeout
+
+Land recovery after worker-succeeded / stale_fence. Receipt landed.
