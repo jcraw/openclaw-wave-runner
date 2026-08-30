@@ -267,6 +267,13 @@ test("select skip: empty verify not enqueued; reason names ticket id", () => {
   assert.match(skip.reason, /RRT-029/);
 });
 
+test("DONE verified without apply is CLOSEOUT_DEBT, not WAVE_OK", () => {
+  const row = outcomeFromTicket({ ticketId: "A", status: "DONE", result: "verified" });
+  assert.equal(row.outcome, "CLOSEOUT_DEBT");
+  assert.equal(row.landOk, false);
+  assert.equal(drainExitCode([row], false), 1);
+});
+
 test("drain exit: FAILED → 1; best-effort → 0 + table", () => {
   const rows = [
     outcomeFromTicket({ ticketId: "A", status: "DONE", result: "verified+landed abc" }),

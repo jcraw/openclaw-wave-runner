@@ -19,6 +19,15 @@ OUT_DIR="${OUT_DIR:-$WR_SCRATCH/wave-runs/wave-$(date +%Y%m%d%H%M%S%N)}"
 WAVE_ID="${WAVE_ID:-BL-$(date +%Y%m%d%H%M%S%N)-$$}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+if [[ "$PLUGIN_DIR" == *agent-backlog-wave-runner* ]]; then
+  echo "error: refusing stale workspace plugin PLUGIN_DIR=$PLUGIN_DIR" >&2
+  echo "use /run/media/j/M2MegaStore/Code/Ai/openclaw-wave-runner" >&2
+  exit 2
+fi
+if [[ ! -f "$PLUGIN_DIR/dist/src/core/land-closeout.js" ]]; then
+  echo "error: PLUGIN_DIR=$PLUGIN_DIR has no land-closeout (stale WR)" >&2
+  exit 2
+fi
 export WR="${WR:-$PLUGIN_DIR}"
 export WAVE_ID REPO OUT_DIR TICKETS
 export MAX_LAUNCHES="${MAX_LAUNCHES:-10}"
@@ -42,7 +51,7 @@ if [[ -z "${OPENCLAW_GATEWAY_TOKEN:-}" && -n "${TOKEN_FILE:-}" && -f "$TOKEN_FIL
   export OPENCLAW_GATEWAY_TOKEN="$(tr -d '[:space:]' <"$TOKEN_FILE")"
 fi
 
-echo "run-backlog-wave WAVE_ID=$WAVE_ID OUT_DIR=$OUT_DIR TICKETS=$TICKETS AUTO_PLAN_GATE=$AUTO_PLAN_GATE"
+echo "run-backlog-wave WAVE_ID=$WAVE_ID OUT_DIR=$OUT_DIR TICKETS=$TICKETS AUTO_PLAN_GATE=$AUTO_PLAN_GATE PLUGIN_DIR=$PLUGIN_DIR WAVE_LAND_MODE=${WAVE_LAND_MODE:-}"
 
 status_of() {
   python3 - "$1" <<'PY'

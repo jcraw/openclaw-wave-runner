@@ -50,6 +50,15 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+if [[ "$PLUGIN_DIR" == *agent-backlog-wave-runner* ]]; then
+  echo "error: refusing stale workspace plugin PLUGIN_DIR=$PLUGIN_DIR" >&2
+  echo "use /run/media/j/M2MegaStore/Code/Ai/openclaw-wave-runner" >&2
+  exit 2
+fi
+if [[ ! -f "$PLUGIN_DIR/dist/src/core/land-closeout.js" ]]; then
+  echo "error: PLUGIN_DIR=$PLUGIN_DIR has no land-closeout (stale WR)" >&2
+  exit 2
+fi
 CLI_JS="${CLI_JS:-$PLUGIN_DIR/dist/scripts/wave-cli.js}"
 if [[ ! -f "$CLI_JS" ]]; then
   echo "error: missing $CLI_JS — run npm run build in $PLUGIN_DIR" >&2

@@ -34,7 +34,11 @@ Land push requires explicit `WAVE_LAND_PUSH=1`; repo path never implies push.
 
 Closeout mode is `apply` or `commit`. Ticket `land:` / `land_mode:` wins, then `WAVE_LAND_MODE`,
 then `commit`. Jam drain (`drain-eligible.sh` / `run-backlog-wave.sh`) exports `WAVE_LAND_MODE=apply`
-when unset. Wave Runner self-work keeps `land: commit` (or the caller sets `WAVE_LAND_MODE=commit`).
+when unset. Kick **this repo** only. `PLUGIN_DIR` pointing at
+`~/.openclaw/workspace/projects/agent-backlog-wave-runner` is refused (that copy
+marks IMPL `DONE "verified"` and never apply-lands). Workspace wrappers exec these
+scripts. `WAVE_RESULT` treats `DONE` without `applied`/`landed` in the result as
+closeout debt (exit 1), not success. Wave Runner self-work keeps `land: commit` (or the caller sets `WAVE_LAND_MODE=commit`).
 **Jam done means the bytes are in the primary working tree, uncommitted.** Jason commits the jam
 desk. `commit` closeout is still `landToMain` (identity, no stash, `WAVE_LAND_PUSH`).
 

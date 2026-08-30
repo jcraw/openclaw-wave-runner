@@ -17,12 +17,13 @@ export function outcomeFromTicket(input: {
 }): DrainTicketRow {
   const result = input.result ?? "";
   if (input.status === "DONE") {
+    const landOk = /\b(?:applied|landed)\b/.test(result);
     return {
       ticketId: input.ticketId,
       waveId: input.waveId,
-      outcome: "DONE",
-      reason: result || undefined,
-      landOk: true,
+      outcome: landOk ? "DONE" : "CLOSEOUT_DEBT",
+      reason: result || (landOk ? undefined : "verified-without-land"),
+      landOk,
     };
   }
   if (result.includes("CLOSEOUT_DEBT:")) {

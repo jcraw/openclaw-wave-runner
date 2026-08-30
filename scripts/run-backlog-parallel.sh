@@ -30,6 +30,14 @@ if [[ -z "${OPENCLAW_GATEWAY_TOKEN:-}" && -n "${TOKEN_FILE:-}" && -f "$TOKEN_FIL
 fi
 export WAVE_RUNNER_ACP="${WAVE_RUNNER_ACP:-1}"
 export PLUGIN_DIR="${PLUGIN_DIR:-$WR}"
+if [[ "$PLUGIN_DIR" == *agent-backlog-wave-runner* || "$WR" == *agent-backlog-wave-runner* ]]; then
+  echo "error: refusing stale workspace plugin PLUGIN_DIR=$PLUGIN_DIR WR=$WR" >&2
+  exit 2
+fi
+if [[ ! -f "$PLUGIN_DIR/dist/src/core/land-closeout.js" ]]; then
+  echo "error: PLUGIN_DIR=$PLUGIN_DIR has no land-closeout (stale WR)" >&2
+  exit 2
+fi
 export WR
 
 mkdir -p "$OUT_ROOT"
