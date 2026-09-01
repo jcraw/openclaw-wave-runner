@@ -45,7 +45,7 @@ export function stageDeathReason(input: {
   return clipReason(`${input.stage} attempt ${input.attempt}: ${kind}`);
 }
 
-/** Codex PLAN ACP_TURN_FAILED never recovered overnight; do not burn retries. */
+/** Codex PLAN ACP_TURN_FAILED is a host/CLI mismatch, not a flaky turn; do not burn retries. */
 export function stageDeathNoRetry(input: {
   verifyFailSnippet?: string;
   reason: string;

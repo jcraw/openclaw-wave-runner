@@ -14,7 +14,7 @@ agent_eligible: true
 eligibility: agent_eligible
 needs_jason: false
 phase: impl
-labels: [p0, hybrid, acp, codex, overnight]
+labels: [p0, hybrid, acp, codex]
 depends_on: [WR-035, WR-040]
 related: [WR-039]
 verify: npm test
