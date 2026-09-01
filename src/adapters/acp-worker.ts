@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { LaunchReceipt } from "../domain/types.js";
 import type { ReadOnlyTasks } from "../contracts.js";
 import { acpTimeoutSeconds } from "../core/stage-watchdog.js";
+import { enrichCodexTurnError } from "./codex-acp-error.js";
 import type { AcpSpawn, CancelResult, LaunchIntent, WorkerAdapter } from "./ports.js";
 import { stageBrief } from "./stage-briefs.js";
 import {
@@ -164,11 +165,17 @@ export class GrokAcpWorker implements WorkerAdapter {
     }
     if (!receipt.outputDir) {
       if (acpTruth.status === "failed" || acpTruth.status === "cancelled" || acpTruth.status === "succeeded") {
+        if (receipt.provider === "codex-acp" && acpTruth.status === "failed") {
+          return { ...acpTruth, error: enrichCodexTurnError(acpTruth.error) };
+        }
         return acpTruth;
       }
       return { status: "unknown" as const, error: "ACP receipt is missing outputDir" };
     }
     if (acpTruth.status === "failed" || acpTruth.status === "cancelled") {
+      if (receipt.provider === "codex-acp" && acpTruth.status === "failed") {
+        return { ...acpTruth, error: enrichCodexTurnError(acpTruth.error) };
+      }
       return acpTruth;
     }
     return artifacts ?? { status: "unknown" as const, error: "missing stage artifacts", outputRef: receipt.outputDir };

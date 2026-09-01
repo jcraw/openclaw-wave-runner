@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { enrichCodexTurnError } from "../src/adapters/codex-acp-error.js";
 import { liveNeedsUx } from "../src/core/ux-review-skip.js";
 import { stageDeathNoRetry } from "../src/core/settlement.js";
 import { DEFAULT_LIMITS } from "../src/domain/types.js";
@@ -44,6 +49,26 @@ test("stageDeathNoRetry: Codex PLAN ACP_TURN_FAILED only", () => {
   );
   assert.equal(stageDeathNoRetry({ verifyFailSnippet: "missing_verify", reason: "x", stage: "PLAN" }), true);
   assert.equal(stageDeathNoRetry({ verifyFailSnippet: "stale_fence:1", reason: "x", stage: "IMPL" }), true);
+});
+
+test("enrichCodexTurnError pulls Sol 400 out of wrapper Internal error", () => {
+  const dir = mkdtempSync(join(tmpdir(), "wr041-acpx-"));
+  writeFileSync(
+    join(dir, "codex-acp-wrapper.stderr.pid-1.log"),
+    `2026-09-01T08:31:30.024810Z ERROR codex_acp::thread: Unhandled error during turn: ${JSON.stringify({
+      type: "error",
+      status: 400,
+      error: {
+        type: "invalid_request_error",
+        message: "The 'gpt-5.6-sol' model requires a newer version of Codex. Please upgrade to the latest app or CLI and try again.",
+      },
+    })} Some(Other)\n`,
+    "utf8",
+  );
+  const got = enrichCodexTurnError("AcpRuntimeError [ACP_TURN_FAILED]: Internal error", dir);
+  assert.match(got ?? "", /gpt-5\.6-sol/);
+  assert.match(got ?? "", /newer version of Codex/);
+  assert.equal(enrichCodexTurnError("product_verify: boom", dir), "product_verify: boom");
 });
 
 test("dry-run reports codex_plan_unsafe; create still honors hybrid", async () => {

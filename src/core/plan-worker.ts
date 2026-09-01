@@ -71,7 +71,7 @@ export function planWorkerBlockers(tickets: FrozenTicket[]): AdmitBlocker[] {
     }));
 }
 
-/** Drain/overnight refuse. wave-cli create still honors WR-035 hybrid. */
+/** Dry-run warning only. Drain must still spawn Codex PLAN (WR-041). */
 export function codexPlanBlockers(tickets: FrozenTicket[]): AdmitBlocker[] {
   return tickets
     .filter((ticket) => ticket.planWorker === "codex")
@@ -79,7 +79,7 @@ export function codexPlanBlockers(tickets: FrozenTicket[]): AdmitBlocker[] {
       ticketId: ticket.ticketId,
       code: "codex_plan_unsafe",
       message:
-        "plan_worker=codex is not overnight-safe (ACP_TURN_FAILED). Stamp plan_worker: grok or set WAVE_ALLOW_CODEX_PLAN=1",
+        "Codex PLAN: host CLI must support gpt-5.6-sol (codex ≥ 0.152). This is not a Grok fallback.",
     }));
 }
 

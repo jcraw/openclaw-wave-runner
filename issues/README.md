@@ -10,7 +10,7 @@ Plan-gate bits (YAML/JSON only; do not infer from labels or `assignee`):
 
 - `plan_review: skip` (aliases `review: skip`, `review_skip: true`, `jason_skip: true`) skips Crawmak.
 - `needs_ux: true` (alias `ux_review: required`, JSON `needsUx: true`) adds Mona `UX_REVIEW` after Crawmak approve-class. Optional `ux_spec` / `ux_spec_path` names the plan-time UX contract; else PLAN.md must contain `UX spec:` / `ux_spec:`. Optional `ux_review_revise_cap` (default 1).
-- `plan_worker: codex` (JSON `planWorker`) routes PLAN to Codex ACP. YAML `worker: hybrid` / JSON `provider: "hybrid"` with no `plan_worker` is the same shorthand; explicit `plan_worker` wins. IMPL stays Grok. Unknown `plan_worker` is `unknown_plan_worker` at admit. Drain/overnight preflight-fails `codex_plan_unsafe` unless `WAVE_ALLOW_CODEX_PLAN=1`.
+- `plan_worker: codex` (JSON `planWorker`) routes PLAN to Codex ACP. YAML `worker: hybrid` / JSON `provider: "hybrid"` with no `plan_worker` is the same shorthand; explicit `plan_worker` wins. IMPL stays Grok. Unknown `plan_worker` is `unknown_plan_worker` at admit. Drain warns `codex_plan_unsafe` if Codex CLI may be too old for Sol; it still launches Codex PLAN.
 
 JSON ingest does not require this folder. Schema `1` `{ tickets: FrozenTicket[] }` or a bare array. `contentHash` / `order` are computed at freeze.
 

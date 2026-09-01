@@ -237,11 +237,12 @@ Before `create` / `start`:
    Idle `max_launches` becomes `BUDGET_STOPPED`; it must not throw out of `tick`.
 
 Same-scope IMPL is serial (`repoConcurrency=1`). Multi-ticket same-game waves are allowed
-when hops fit the cap. `plan_worker: codex` / `worker: hybrid` is **not overnight-safe**:
-Codex ACP PLAN dies `ACP_TURN_FAILED: Internal error` and WR used to retry it three times
-then apply-stamp the ticket done (SP2-063 false land). `run-backlog-wave.sh` preflight-fails
-`codex_plan_unsafe` unless `WAVE_ALLOW_CODEX_PLAN=1`. Stamp `plan_worker: grok` before the
-wave. Do not set `MAX_LAUNCHES=10` on overnight wrappers — leave it unset (48).
+when hops fit the cap. Hybrid overnight is Codex ACP PLAN + Grok IMPL. The 01:30
+`ACP_TURN_FAILED: Internal error` was Codex CLI **0.147.0** rejecting `gpt-5.6-sol`
+(needs ≥ 0.152). Do not stamp tickets grok to “fix” that. Preflight: wrapper-invoked
+`codex --version` ≥ 0.152; PATH must not prefer `~/.local/bin/codex` 0.147.
+`codex_plan_unsafe` on dry-run is a CLI-version warning, not a drain skip.
+Do not set `MAX_LAUNCHES=10` on overnight wrappers — leave it unset (48).
 Apply-on-exhausted is IMPL-only; a PLAN fail must not copy the worktree or mark BOARD done.
 
 Do not late-edit ticket frontmatter after freeze — cancel and recreate.

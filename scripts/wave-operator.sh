@@ -19,7 +19,7 @@ Optional env:
   WAVE_RUNNER_OPERATOR_ID  stable per-wave identity (default cli-wave:$WAVE_ID)
   WR_SCRATCH         scratch root for shared ledgers (UUID fail-closed)
   TICKETS            comma ids (create)
-  MAX_LAUNCHES       default 10
+  MAX_LAUNCHES       default 48
   MAX_TOKENS         default 500000
   MAX_WALL_MS        default 0 (no elapsed deadline)
   MAX_TICKS          default 0 (unlimited)
