@@ -194,6 +194,22 @@ then
   write_skip SKIPPED "hops_exceed_max_launches $TICKETS"
   exit 1
 fi
+if [[ "${WAVE_ALLOW_CODEX_PLAN:-0}" != "1" ]]; then
+  if ! python3 - "$OUT_DIR/cli/dry-run.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+hits = [b for b in (d.get("admitBlockers") or []) if b.get("code") == "codex_plan_unsafe"]
+if hits:
+    ids = ",".join(h.get("ticketId") or "?" for h in hits)
+    msg = hits[0].get("message") or "codex_plan_unsafe"
+    print("PREFLIGHT_FAIL " + msg + " [" + ids + "]", file=sys.stderr)
+    sys.exit(1)
+PY
+  then
+    write_skip SKIPPED "codex_plan_unsafe $TICKETS"
+    exit 1
+  fi
+fi
 if [[ "${WAVE_PRIMARY_DIRTY:-}" != "allow" && "${WAVE_LAND_MODE:-}" != "apply" ]]; then
   if ! python3 - "$OUT_DIR/cli/dry-run.json" <<'PY'
 import json, sys

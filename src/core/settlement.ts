@@ -45,6 +45,22 @@ export function stageDeathReason(input: {
   return clipReason(`${input.stage} attempt ${input.attempt}: ${kind}`);
 }
 
+/** Codex PLAN ACP_TURN_FAILED never recovered overnight; do not burn retries. */
+export function stageDeathNoRetry(input: {
+  verifyFailSnippet?: string;
+  reason: string;
+  stage: StageName;
+  planWorker?: string;
+}): boolean {
+  if (input.verifyFailSnippet === "missing_verify") return true;
+  if (input.verifyFailSnippet?.startsWith("stale_fence")) return true;
+  return (
+    input.stage === "PLAN" &&
+    input.planWorker === "codex" &&
+    /ACP_TURN_FAILED/.test(input.reason)
+  );
+}
+
 function putTicketStatus(
   ctrl: ControllerContext,
   ticket: TicketRun,
@@ -162,8 +178,12 @@ export async function settleOutbox(
         putTicketStatus(ctrl, ticket, "CANCELLED", reason || "operator cancel");
       } else {
         const retriesRemain = attempt - 1 < wave.limits.maxRetriesPerStage;
-        const noRetry =
-          verifyFailSnippet === "missing_verify" || (verifyFailSnippet?.startsWith("stale_fence") ?? false);
+        const noRetry = stageDeathNoRetry({
+          ...(verifyFailSnippet ? { verifyFailSnippet } : {}),
+          reason,
+          stage: item.stage,
+          planWorker: ticket.planWorker,
+        });
         if (retriesRemain && (item.stage === "PLAN" || item.stage === "IMPL" || isPlanGateStage(item.stage)) && !noRetry) {
           const rearm = item.stage === "PLAN" ? "REVISING" : isPlanGateStage(item.stage) ? "PLAN_REVIEW" : "APPROVED";
           assertTicketTransition(ticket.status, rearm, false);

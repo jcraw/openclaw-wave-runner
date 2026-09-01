@@ -136,6 +136,7 @@ export async function executeApplyCloseout(
 
 /** Apply-mode: copy the impl worktree into primary after retries are exhausted. Never DONE. */
 export async function applyOnExhaustedImpl(ctrl: ControllerContext, item: LaunchOutbox): Promise<void> {
+  if (item.stage !== "IMPL") return;
   const wave = requireWave(ctrl, item.waveId);
   const ticket = requireTicket(ctrl, item.waveId, item.ticketId);
   if (ticket.status !== "FAILED" || !ticket.implWorktree) return;

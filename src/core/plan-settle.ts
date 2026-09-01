@@ -1,6 +1,7 @@
 import type { TicketRun, WaveRecord } from "../domain/types.js";
 import type { ControllerContext } from "./controller-context.js";
 import { checkPlanArtifact } from "./plan-artifact.js";
+import { liveNeedsUx } from "./ux-review-skip.js";
 import { TICKET_NEXT, TICKET_OWNERS, WAVE_NEXT, WAVE_OWNERS } from "./state-machine.js";
 
 function putTicketStatus(
@@ -95,7 +96,10 @@ export function applyPlanSuccess(
     setWaveStatus(ctrl, wave, "WAITING_APPROVAL", now);
     return;
   }
-  if (ticket.planReviewSkip === true && ticket.needsUx !== true) {
+  if (liveNeedsUx(ticket, wave.manifestJson) && ticket.needsUx !== true) {
+    ticket.needsUx = true;
+  }
+  if (ticket.planReviewSkip === true && !liveNeedsUx(ticket, wave.manifestJson)) {
     putTicketStatus(ctrl, ticket, "APPROVED");
     recordAuto(ctrl, wave, ticket, now, "agent");
     return;

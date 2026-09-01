@@ -2,7 +2,7 @@ import type { FrozenTicket } from "../domain/types.js";
 import { deriveWriterScope } from "../domain/writer-scope.js";
 import type { AdmitBlocker } from "./admit-overlap.js";
 import { hopsExceedBlockers } from "./launch-hops.js";
-import { planWorkerBlockers } from "./plan-worker.js";
+import { codexPlanBlockers, planWorkerBlockers } from "./plan-worker.js";
 
 function verifyMissing(ticket: FrozenTicket): boolean {
   return !ticket.verifyCommand?.trim();
@@ -30,6 +30,7 @@ export function collectAdmitBlockers(
     }
   }
   blockers.push(...planWorkerBlockers(tickets));
+  blockers.push(...codexPlanBlockers(tickets));
   const byScope = new Map<string, string[]>();
   for (const ticket of tickets) {
     const scope = ticket.writerScope || deriveWriterScope(ticket);

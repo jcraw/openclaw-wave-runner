@@ -4,6 +4,7 @@ import type { ControllerContext } from "./controller-context.js";
 import { queueStageOrBudget } from "./launch-hops.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { checkPlanReview, checkPlanStamp, resolveCrawmakForge } from "./plan-review.js";
+import { liveNeedsUx } from "./ux-review-skip.js";
 import {
   admitUxReviewTicket,
   hasHopLaunch,
@@ -146,6 +147,12 @@ export async function queueMissingPlanReviews(ctrl: ControllerContext, waveId: s
 export function admitPlanReviewTicket(ctrl: ControllerContext, waveId: string, ticketId: string): boolean {
   const ticket = requireTicket(ctrl, waveId, ticketId);
   if (ticket.status !== "PLAN_REVIEW") return false;
+  const wave = requireWave(ctrl, waveId);
+  if (liveNeedsUx(ticket, wave.manifestJson) && ticket.needsUx !== true) {
+    ticket.needsUx = true;
+    ctrl.db.putTicket(ticket);
+  }
+  const wantsUx = liveNeedsUx(ticket, wave.manifestJson);
   const forge = forgeForWave(ctrl, waveId);
   const now = ctrl.clock.now();
   const launched = hasLaunch(ctrl, waveId, ticketId);
@@ -170,7 +177,6 @@ export function admitPlanReviewTicket(ctrl: ControllerContext, waveId: string, t
       createdAt: now,
     });
     const live = requireTicket(ctrl, waveId, ticketId);
-    const wave = requireWave(ctrl, waveId);
     assertTicketTransition(live.status, "REVISING", wave.cancelRequested);
     live.status = "REVISING";
     live.owner = TICKET_OWNERS.REVISING;
@@ -190,7 +196,7 @@ export function admitPlanReviewTicket(ctrl: ControllerContext, waveId: string, t
   }
 
   if (review.ok && (review.verdict === "approve" || review.verdict === "approve-with-conditions")) {
-    if (ticket.needsUx === true) return false;
+    if (wantsUx) return false;
     putTicketStatus(ctrl, ticket, "APPROVED");
     setWaveRunning(ctrl, waveId, now);
     ctrl.db.insertEvent({
@@ -203,7 +209,7 @@ export function admitPlanReviewTicket(ctrl: ControllerContext, waveId: string, t
     return true;
   }
 
-  if (!launched && stamped && ticket.needsUx !== true) {
+  if (!launched && stamped && !wantsUx) {
     putTicketStatus(ctrl, ticket, "APPROVED");
     setWaveRunning(ctrl, waveId, now);
     ctrl.db.insertEvent({

@@ -46,6 +46,23 @@ export function resolveUxReviewReviseCap(data: Record<string, unknown> | undefin
   return Number.isInteger(n) && n > 0 ? n : undefined;
 }
 
+/** Freeze manifest wins if the live row dropped needsUx (SP2 remain tick-20). */
+export function liveNeedsUx(
+  ticket: { ticketId: string; needsUx?: boolean },
+  manifestJson?: string,
+): boolean {
+  if (ticket.needsUx === true) return true;
+  if (!manifestJson) return false;
+  try {
+    const manifest = JSON.parse(manifestJson) as {
+      tickets?: Array<{ ticketId?: string; needsUx?: boolean }>;
+    };
+    return manifest.tickets?.some((row) => row.ticketId === ticket.ticketId && row.needsUx === true) === true;
+  } catch {
+    return false;
+  }
+}
+
 export function freezeUxFields(data: Record<string, unknown> | undefined): {
   needsUx?: true;
   uxSpecPath?: string;

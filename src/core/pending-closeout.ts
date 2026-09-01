@@ -52,6 +52,7 @@ export async function advancePendingCloseouts(ctrl: ControllerContext, waveId: s
     if ((ticket.result ?? "").includes("applied")) continue;
     if (closeoutModeForWaveTicket(wave.manifestJson, ticket.ticketId) !== "apply") continue;
     const settled = latestSettledImpl(ctrl, waveId, ticket.ticketId);
-    await applyOnExhaustedImpl(ctrl, syntheticOutbox(ticket, settled));
+    if (!settled) continue;
+    await applyOnExhaustedImpl(ctrl, settled);
   }
 }

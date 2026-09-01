@@ -71,6 +71,18 @@ export function planWorkerBlockers(tickets: FrozenTicket[]): AdmitBlocker[] {
     }));
 }
 
+/** Drain/overnight refuse. wave-cli create still honors WR-035 hybrid. */
+export function codexPlanBlockers(tickets: FrozenTicket[]): AdmitBlocker[] {
+  return tickets
+    .filter((ticket) => ticket.planWorker === "codex")
+    .map((ticket) => ({
+      ticketId: ticket.ticketId,
+      code: "codex_plan_unsafe",
+      message:
+        "plan_worker=codex is not overnight-safe (ACP_TURN_FAILED). Stamp plan_worker: grok or set WAVE_ALLOW_CODEX_PLAN=1",
+    }));
+}
+
 export function assertKnownPlanWorkers(tickets: FrozenTicket[]): void {
   const bad = tickets.filter((ticket) => unknownPlanWorker(ticket.planWorker)).map((ticket) => ticket.ticketId);
   if (bad.length) {

@@ -237,7 +237,12 @@ Before `create` / `start`:
    Idle `max_launches` becomes `BUDGET_STOPPED`; it must not throw out of `tick`.
 
 Same-scope IMPL is serial (`repoConcurrency=1`). Multi-ticket same-game waves are allowed
-when hops fit the cap. `plan_worker: codex` is not overnight-safe until ACP_TURN_FAILED is gone.
+when hops fit the cap. `plan_worker: codex` / `worker: hybrid` is **not overnight-safe**:
+Codex ACP PLAN dies `ACP_TURN_FAILED: Internal error` and WR used to retry it three times
+then apply-stamp the ticket done (SP2-063 false land). `run-backlog-wave.sh` preflight-fails
+`codex_plan_unsafe` unless `WAVE_ALLOW_CODEX_PLAN=1`. Stamp `plan_worker: grok` before the
+wave. Do not set `MAX_LAUNCHES=10` on overnight wrappers — leave it unset (48).
+Apply-on-exhausted is IMPL-only; a PLAN fail must not copy the worktree or mark BOARD done.
 
 Do not late-edit ticket frontmatter after freeze — cancel and recreate.
 

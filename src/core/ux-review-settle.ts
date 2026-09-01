@@ -18,6 +18,7 @@ import {
   resolveExistingUxSpec,
   resolveMonaWorkspace,
 } from "./ux-review.js";
+import { liveNeedsUx } from "./ux-review-skip.js";
 
 function putTicketStatus(
   ctrl: ControllerContext,
@@ -165,7 +166,11 @@ export async function queueMissingUxReviews(ctrl: ControllerContext, waveId: str
     .filter((item) => item.state !== "SETTLED" && item.state !== "FAILED");
   let queued = 0;
   for (const ticket of ctrl.db.listTickets(waveId)) {
-    if (ticket.status !== "PLAN_REVIEW" || ticket.needsUx !== true) continue;
+    if (ticket.status !== "PLAN_REVIEW" || !liveNeedsUx(ticket, wave.manifestJson)) continue;
+    if (ticket.needsUx !== true) {
+      ticket.needsUx = true;
+      ctrl.db.putTicket(ticket);
+    }
     if (openStageOutbox(ctrl, waveId, ticket.ticketId, "UX_REVIEW")) continue;
     if (stageBusy(ctrl, waveId, ticket.ticketId, "UX_REVIEW")) continue;
     const planAttempt = latestPlanAttempt(ctrl, waveId, ticket.ticketId);
@@ -204,7 +209,12 @@ export async function queueMissingUxReviews(ctrl: ControllerContext, waveId: str
 
 export function admitUxReviewTicket(ctrl: ControllerContext, waveId: string, ticketId: string): boolean {
   const ticket = requireTicket(ctrl, waveId, ticketId);
-  if (ticket.status !== "PLAN_REVIEW" || ticket.needsUx !== true) return false;
+  const waveForUx = requireWave(ctrl, waveId);
+  if (liveNeedsUx(ticket, waveForUx.manifestJson) && ticket.needsUx !== true) {
+    ticket.needsUx = true;
+    ctrl.db.putTicket(ticket);
+  }
+  if (ticket.status !== "PLAN_REVIEW" || !liveNeedsUx(ticket, waveForUx.manifestJson)) return false;
   const planAttempt = latestPlanAttempt(ctrl, waveId, ticketId);
   if (!crawmakSatisfiedForHop(ctrl, ticket, planAttempt)) return false;
   const mona = resolveMonaWorkspace({ explicit: ctrl.monaRoot });
@@ -260,8 +270,9 @@ export function admitUxReviewTicket(ctrl: ControllerContext, waveId: string, tic
 }
 
 export function needsUxReviewLaunch(ctrl: ControllerContext, waveId: string): boolean {
+  const wave = requireWave(ctrl, waveId);
   return ctrl.db.listTickets(waveId).some((ticket) => {
-    if (ticket.status !== "PLAN_REVIEW" || ticket.needsUx !== true) return false;
+    if (ticket.status !== "PLAN_REVIEW" || !liveNeedsUx(ticket, wave.manifestJson)) return false;
     const planAttempt = latestPlanAttempt(ctrl, waveId, ticket.ticketId);
     if (!crawmakSatisfiedForHop(ctrl, ticket, planAttempt)) return false;
     return !ctrl.db
