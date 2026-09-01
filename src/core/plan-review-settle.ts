@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 
-import { queueStage } from "./admission.js";
 import type { ControllerContext } from "./controller-context.js";
+import { queueStageOrBudget } from "./launch-hops.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { checkPlanReview, checkPlanStamp, resolveCrawmakForge } from "./plan-review.js";
 import {
@@ -105,6 +105,10 @@ export async function queueMissingPlanReviews(ctrl: ControllerContext, waveId: s
   const wave = requireWave(ctrl, waveId);
   if (wave.status !== "AWAITING_PLAN_GATE") return;
   const forge = forgeForWave(ctrl, waveId);
+  const open = ctrl.db
+    .listOutbox(waveId)
+    .filter((item) => item.state !== "SETTLED" && item.state !== "FAILED");
+  let queued = 0;
   for (const ticket of ctrl.db.listTickets(waveId)) {
     if (ticket.status !== "PLAN_REVIEW") continue;
     if (ticket.planReviewSkip === true) continue;
@@ -117,6 +121,15 @@ export async function queueMissingPlanReviews(ctrl: ControllerContext, waveId: s
       if (ticket.result !== "missing_forge") putTicketStatus(ctrl, ticket, "PLAN_REVIEW", "missing_forge");
       continue;
     }
+    const admitted = await queueStageOrBudget(
+      ctrl,
+      waveId,
+      ticket.ticketId,
+      "REVIEW",
+      queued === 0 && open.length === 0,
+    );
+    if (admitted === "stopped") return;
+    if (admitted === "deferred") break;
     ctrl.db.insertEvent({
       eventId: `${waveId}:plan-review-launch:${ticket.ticketId}:${ticket.revision}`,
       waveId,
@@ -125,7 +138,7 @@ export async function queueMissingPlanReviews(ctrl: ControllerContext, waveId: s
       createdAt: ctrl.clock.now(),
       revisionApplied: wave.revision,
     });
-    await queueStage(ctrl, waveId, ticket.ticketId, "REVIEW");
+    queued += 1;
   }
   await queueMissingUxReviews(ctrl, waveId);
 }

@@ -90,7 +90,7 @@ run_lane() {
       export REPO
       export OUT_DIR="$wave_out"
       export TICKETS="$ticket"
-      export MAX_LAUNCHES="${MAX_LAUNCHES:-10}"
+      export MAX_LAUNCHES="${MAX_LAUNCHES:-48}"
       export MAX_TOKENS="${MAX_TOKENS:-500000}"
       export MAX_WALL_MS="${MAX_WALL_MS:-0}"
       export TICK_SLEEP=20

@@ -114,8 +114,9 @@ test("INDETERMINATE fail-closed usage keeps full reservation", async () => {
     maxLaunches: 2,
   });
   await controller.start("wave-indet");
-  await assert.rejects(() => controller.runUntilIdle("wave-indet"), /Admission denied|token ceiling/);
+  await controller.runUntilIdle("wave-indet");
   const waiting = controller.inspect("wave-indet");
+  assert.equal(waiting.wave.status, "BUDGET_STOPPED");
   assert.notEqual(waiting.wave.status, "AWAITING_PLAN_GATE");
   const budget = waiting.budgets[0];
   assert.ok(budget);
@@ -132,15 +133,14 @@ test("budget admission refuses the next candidate atomically", async () => {
     maxLaunches: 1,
   });
   await controller.start("wave-budget");
-  await assert.rejects(
-    () => controller.runUntilIdle("wave-budget"),
-    /Admission denied|max_launches|token ceiling/,
-  );
+  await controller.runUntilIdle("wave-budget");
   const view = controller.inspect("wave-budget");
   assert.ok(view.outbox.length >= 1, "first stage must be admitted");
   assert.ok(view.wave.counters.launches >= 1);
-  await assert.rejects(() => controller.tick("wave-budget"), /Admission denied|max_launches|token ceiling/);
+  await controller.tick("wave-budget");
   const after = controller.inspect("wave-budget");
+  assert.equal(after.wave.status, "BUDGET_STOPPED");
+  assert.match(String(after.tickets[0]?.result ?? after.wave.nextAction), /max_launches|token ceiling/);
   assert.equal(after.wave.counters.launches, view.wave.counters.launches);
 });
 

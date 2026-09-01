@@ -211,7 +211,7 @@ nohup env REPO=/path/to/game_jam bash scripts/drain-eligible.sh \
   > /tmp/drain.log 2>&1 &
 ```
 
-Standing defaults (WR-012): `maxTokens=500000`, `maxLaunches=10`, `maxRetriesPerStage=2`,
+Standing defaults (WR-039): `maxTokens=500000`, `maxLaunches=48` (supervised; 8 tickets × PLAN+REVIEW+UX+IMPL plus retry spare). `maxRetriesPerStage=2`,
 `maxWallTimeMs=0`, lease TTL 2h, ACP concurrent sessions 5 (OpenClaw config).
 Land-on-done (WR-013 / WR-017): verified IMPL lands to `main` before ticket DONE.
 Land commits use the primary repo `user.name` / `user.email` (or both `WAVE_LAND_NAME` and
@@ -230,11 +230,14 @@ Before `create` / `start`:
 1. Every ticket has `verify` / `verify_command` in frontmatter (explicit `"true"` is a fixture only).
 2. `agent_eligible` is set when the ticket should auto-continue after PLAN.
 3. No stale writer lease on the same `writerScope` / game.
-4. Caps are set (`MAX_LAUNCHES`, `MAX_TOKENS`, optional `MAX_WALL_MS`).
+4. Caps are set (`MAX_LAUNCHES`, `MAX_TOKENS`, optional `MAX_WALL_MS`). Happy-path hops
+   are PLAN + Crawmak REVIEW (unless `plan_review: skip`) + Mona UX (if `needs_ux`) + IMPL.
+   `dry-run` emits `hops_exceed_max_launches` when that sum is above `maxLaunches`;
+   `run-backlog-wave.sh` preflight-fails. Leave `MAX_LAUNCHES` unset (48) for overnight.
+   Idle `max_launches` becomes `BUDGET_STOPPED`; it must not throw out of `tick`.
 
-Until a live two-ticket same-scope smoke is green: **one ticket per wave** when tickets
-share `writerScope` or the same game. Same-game multi-ticket work is **serial waves**,
-not one multi-ticket wave.
+Same-scope IMPL is serial (`repoConcurrency=1`). Multi-ticket same-game waves are allowed
+when hops fit the cap. `plan_worker: codex` is not overnight-safe until ACP_TURN_FAILED is gone.
 
 Do not late-edit ticket frontmatter after freeze — cancel and recreate.
 

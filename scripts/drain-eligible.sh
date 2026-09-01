@@ -39,7 +39,7 @@ if [[ ! -f "$PLUGIN_DIR/dist/src/core/land-closeout.js" ]]; then
   exit 2
 fi
 export WR
-export MAX_LAUNCHES="${MAX_LAUNCHES:-10}"
+export MAX_LAUNCHES="${MAX_LAUNCHES:-48}"
 export MAX_TOKENS="${MAX_TOKENS:-500000}"
 export MAX_WALL_MS="${MAX_WALL_MS:-0}"
 export TICK_SLEEP="${TICK_SLEEP:-20}"

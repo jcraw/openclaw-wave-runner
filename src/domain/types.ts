@@ -370,7 +370,7 @@ export const DEFAULT_LIMITS: WaveLimits = {
 export const SUPERVISED_PILOT_LIMITS: Readonly<WaveLimits> = Object.freeze({
   maxTokens: 500_000,
   maxCostMicros: 0,
-  maxLaunches: 10,
+  maxLaunches: 48,
   maxRetriesPerStage: 2,
   maxWallTimeMs: 0,
   // repoConcurrency stays 1 = one writer *per scope* (see writerLeaseKey).

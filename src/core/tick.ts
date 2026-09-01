@@ -1,8 +1,9 @@
 import type { SupervisedStartOptions, TicketRun, WaveRecord, WaveView } from "../domain/types.js";
-import { queueStage } from "./admission.js";
 import { assertBudgetStatesForTerminal, markIndeterminate } from "./budget.js";
+import { stopForBudget } from "./budget-stop.js";
 import type { ControllerContext } from "./controller-context.js";
 import { inspect, refreshCounters, requireWave } from "./controller-context.js";
+import { queueStageOrBudget } from "./launch-hops.js";
 import {
   dispatchPending,
   observeLaunched,
@@ -47,33 +48,7 @@ export function deadlineExceeded(ctrl: ControllerContext, wave: WaveRecord): boo
   return false;
 }
 
-export function stopForBudget(ctrl: ControllerContext, waveId: string, reason: string): void {
-  ctrl.db.transaction(() => {
-    const wave = requireWave(ctrl, waveId);
-    if (isTerminalWave(wave.status)) return;
-    wave.status = "BUDGET_STOPPED";
-    wave.owner = WAVE_OWNERS.BUDGET_STOPPED;
-    wave.nextAction = WAVE_NEXT.BUDGET_STOPPED;
-    wave.revision += 1;
-    wave.updatedAt = ctrl.clock.now();
-    ctrl.db.putWave(wave);
-    for (const ticket of ctrl.db.listTickets(waveId)) {
-      if (!isTerminalTicket(ticket.status)) {
-        ticket.status = "BUDGET_STOPPED";
-        ticket.result = reason;
-        ticket.revision += 1;
-        ctrl.db.putTicket(ticket);
-      }
-    }
-    for (const budget of ctrl.db.listBudgets(waveId)) {
-      if (budget.state === "RESERVED") {
-        ctrl.db.putBudget(markIndeterminate(budget, ctrl.clock.now()));
-      }
-    }
-    refreshCounters(ctrl, waveId);
-    releaseInactiveWriterLeases(ctrl, waveId);
-  });
-}
+export { stopForBudget };
 
 export function nextEligibleTicket(ctrl: ControllerContext, waveId: string): TicketRun | undefined {
   const tickets = ctrl.db.listTickets(waveId);
@@ -153,15 +128,17 @@ export async function advanceReadyTickets(ctrl: ControllerContext, waveId: strin
     if (busyImplScopes.has(scope)) continue;
     if (writerLeaseBlocksImpl(ctrl, wave, ticket)) continue;
     if (await failClosedIfPrimaryDirty(ctrl, waveId, ticket.ticketId)) continue;
-    try {
-      await queueStage(ctrl, waveId, ticket.ticketId, "IMPL");
-      busyImplScopes.add(scope);
-      queued += 1;
-    } catch (err) {
-      // Preserve fail-closed admission errors when nothing is in flight.
-      if (queued === 0 && open.length === 0) throw err;
-      break;
-    }
+    const admitted = await queueStageOrBudget(
+      ctrl,
+      waveId,
+      ticket.ticketId,
+      "IMPL",
+      queued === 0 && open.length === 0,
+    );
+    if (admitted === "stopped") return;
+    if (admitted === "deferred") break;
+    busyImplScopes.add(scope);
+    queued += 1;
   }
 
   // 2) Queue PLAN for eligible tickets while under provider fan-out.
@@ -177,13 +154,16 @@ export async function advanceReadyTickets(ctrl: ControllerContext, waveId: strin
     // Skip if this ticket already has open outbox work.
     if (open.some((item) => item.ticketId === ticket.ticketId)) continue;
     if (await failClosedIfPrimaryDirty(ctrl, waveId, ticket.ticketId)) continue;
-    try {
-      await queueStage(ctrl, waveId, ticket.ticketId, "PLAN");
-      queued += 1;
-    } catch (err) {
-      if (queued === 0 && open.length === 0) throw err;
-      break;
-    }
+    const admitted = await queueStageOrBudget(
+      ctrl,
+      waveId,
+      ticket.ticketId,
+      "PLAN",
+      queued === 0 && open.length === 0,
+    );
+    if (admitted === "stopped") return;
+    if (admitted === "deferred") break;
+    queued += 1;
   }
 }
 

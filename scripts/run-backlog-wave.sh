@@ -30,7 +30,7 @@ if [[ ! -f "$PLUGIN_DIR/dist/src/core/land-closeout.js" ]]; then
 fi
 export WR="${WR:-$PLUGIN_DIR}"
 export WAVE_ID REPO OUT_DIR TICKETS
-export MAX_LAUNCHES="${MAX_LAUNCHES:-10}"
+export MAX_LAUNCHES="${MAX_LAUNCHES:-48}"
 export MAX_TOKENS="${MAX_TOKENS:-500000}"
 export MAX_WALL_MS="${MAX_WALL_MS:-0}"
 export TICK_SLEEP="${TICK_SLEEP:-20}"
@@ -179,6 +179,19 @@ if ! bash "$SCRIPT_DIR/wave-operator.sh" dry-run >/dev/null; then
   fi
   echo "PREFLIGHT_FAIL $reason" >&2
   write_skip SKIPPED "$reason"
+  exit 1
+fi
+if ! python3 - "$OUT_DIR/cli/dry-run.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+hits = [b for b in (d.get("admitBlockers") or []) if b.get("code") == "hops_exceed_max_launches"]
+if hits:
+    msg = hits[0].get("message") or "hops_exceed_max_launches"
+    print("PREFLIGHT_FAIL " + msg, file=sys.stderr)
+    sys.exit(1)
+PY
+then
+  write_skip SKIPPED "hops_exceed_max_launches $TICKETS"
   exit 1
 fi
 if [[ "${WAVE_PRIMARY_DIRTY:-}" != "allow" && "${WAVE_LAND_MODE:-}" != "apply" ]]; then

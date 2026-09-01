@@ -89,12 +89,9 @@ test("Phase 3: synthetic MUD-034 plus fourteen children stops at budget/manifest
     },
   });
   await controller.start("wave-mud");
-  try {
-    await controller.runUntilIdle("wave-mud");
-  } catch (err) {
-    assert.match(String(err), /Admission denied|max_launches|token ceiling/);
-  }
+  await controller.runUntilIdle("wave-mud");
   const view = controller.inspect("wave-mud");
+  assert.equal(view.wave.status, "BUDGET_STOPPED");
   assert.ok(view.wave.counters.launches <= 2);
   assert.ok(
     view.wave.counters.committedTokens +
@@ -103,8 +100,7 @@ test("Phase 3: synthetic MUD-034 plus fourteen children stops at budget/manifest
       16_000,
   );
   assert.equal(view.manifest.tickets.length, 15);
-  const unfinished = view.tickets.filter((t) => t.status === "PENDING");
-  assert.ok(unfinished.length >= 14);
+  assert.ok(view.tickets.filter((t) => t.status === "DONE").length <= 1);
 });
 
 test("Phase 3: watchdog intervals never call an LLM", async () => {

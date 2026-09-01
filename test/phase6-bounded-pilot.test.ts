@@ -87,7 +87,7 @@ test("Phase 6: supervised real-worker pilot admits only explicit bounded ticket 
     ticketIds: ["FX-001", "FX-002"],
     operatorAction: true,
     isolatedWorktree: true,
-    limits: { ...pilotLimits, maxLaunches: 11 },
+    limits: { ...pilotLimits, maxLaunches: SAFETY.supervisedMaxLaunches + 1 },
   }), /maxLaunches/);
   assert.doesNotThrow(() => assertSupervisedBoundedLaunch({
     ticketIds: ["FX-001", "FX-002"],
@@ -172,8 +172,9 @@ test("Phase 6: fixture simulation hard cap stops before a seventh launch", async
     operatorAction: true,
   });
   await controller.start("pilot-three-capped", undefined, undefined, operator);
-  await assert.rejects(() => controller.runUntilIdle("pilot-three-capped", 64, operator), /max_launches would be exceeded/);
+  await controller.runUntilIdle("pilot-three-capped", 64, operator);
   const view = controller.inspect("pilot-three-capped");
+  assert.equal(view.wave.status, "BUDGET_STOPPED");
   assert.equal(worker.launches, 5);
   assert.equal(view.wave.counters.launches, 5);
   assert.ok(view.wave.counters.committedTokens + view.wave.counters.reservedTokens + view.wave.counters.indeterminateTokens <= pilotLimits.maxTokens);

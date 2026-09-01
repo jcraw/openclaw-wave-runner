@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 
 import type { StageName, TicketRun } from "../domain/types.js";
-import { queueStage } from "./admission.js";
 import type { ControllerContext } from "./controller-context.js";
+import { queueStageOrBudget } from "./launch-hops.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { checkPlanReview, resolveCrawmakForge } from "./plan-review.js";
 import {
@@ -160,6 +160,10 @@ function persistSpec(ctrl: ControllerContext, ticket: TicketRun): string | undef
 export async function queueMissingUxReviews(ctrl: ControllerContext, waveId: string): Promise<void> {
   const wave = requireWave(ctrl, waveId);
   if (wave.status !== "AWAITING_PLAN_GATE") return;
+  const open = ctrl.db
+    .listOutbox(waveId)
+    .filter((item) => item.state !== "SETTLED" && item.state !== "FAILED");
+  let queued = 0;
   for (const ticket of ctrl.db.listTickets(waveId)) {
     if (ticket.status !== "PLAN_REVIEW" || ticket.needsUx !== true) continue;
     if (openStageOutbox(ctrl, waveId, ticket.ticketId, "UX_REVIEW")) continue;
@@ -177,6 +181,15 @@ export async function queueMissingUxReviews(ctrl: ControllerContext, waveId: str
       if (ticket.result !== "missing_ux_spec") putTicketStatus(ctrl, ticket, "PLAN_REVIEW", "missing_ux_spec");
       continue;
     }
+    const admitted = await queueStageOrBudget(
+      ctrl,
+      waveId,
+      ticket.ticketId,
+      "UX_REVIEW",
+      queued === 0 && open.length === 0,
+    );
+    if (admitted === "stopped") return;
+    if (admitted === "deferred") break;
     ctrl.db.insertEvent({
       eventId: `${waveId}:ux-review-launch:${ticket.ticketId}:${ticket.revision}`,
       waveId,
@@ -185,7 +198,7 @@ export async function queueMissingUxReviews(ctrl: ControllerContext, waveId: str
       createdAt: ctrl.clock.now(),
       revisionApplied: wave.revision,
     });
-    await queueStage(ctrl, waveId, ticket.ticketId, "UX_REVIEW");
+    queued += 1;
   }
 }
 

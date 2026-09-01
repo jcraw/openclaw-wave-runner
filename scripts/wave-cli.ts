@@ -116,7 +116,7 @@ const command: OperatorCommand = (() => {
             ? {
                 ...SUPERVISED_PILOT_LIMITS,
                 maxTokens: positiveInt("max-tokens", SUPERVISED_PILOT_LIMITS.maxTokens),
-                maxLaunches: positiveInt("max-launches", Math.min(6, ticketIds.length * 2)),
+                maxLaunches: positiveInt("max-launches", SUPERVISED_PILOT_LIMITS.maxLaunches),
                 maxWallTimeMs: nonNegativeInt("max-wall-ms", SUPERVISED_PILOT_LIMITS.maxWallTimeMs),
               }
             : DEFAULT_LIMITS,

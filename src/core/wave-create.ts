@@ -18,8 +18,9 @@ import { countersFromBudgets, failClosedWithoutRates } from "./budget.js";
 import type { ControllerContext } from "./controller-context.js";
 import { inspect, recordEvent } from "./controller-context.js";
 import { hashManifest, topologicalOrder, validateManifest } from "./manifest.js";
+import { collectAdmitBlockers } from "./admit-blockers.js";
 import { collectDirtyOverlapBlockers, type AdmitBlocker } from "./admit-overlap.js";
-import { assertKnownPlanWorkers, planWorkerBlockers } from "./plan-worker.js";
+import { assertKnownPlanWorkers } from "./plan-worker.js";
 import { canonicalRepoIdentity } from "./repo-identity.js";
 import { TICKET_NEXT, TICKET_OWNERS, WAVE_NEXT, WAVE_OWNERS } from "./state-machine.js";
 
@@ -95,44 +96,7 @@ function verifyMissing(ticket: FrozenTicket): boolean {
   return !ticket.verifyCommand?.trim();
 }
 
-export function collectAdmitBlockers(tickets: FrozenTicket[]): AdmitBlocker[] {
-  const blockers: AdmitBlocker[] = [];
-  for (const ticket of tickets) {
-    if (verifyMissing(ticket)) {
-      blockers.push({
-        ticketId: ticket.ticketId,
-        code: "missing_verify",
-        message: "verifyCommand is empty or missing",
-      });
-    }
-    if (ticket.humanHold) {
-      blockers.push({
-        ticketId: ticket.ticketId,
-        code: "human_hold",
-        message: ticket.humanHoldReason ?? "human hold",
-      });
-    }
-  }
-  blockers.push(...planWorkerBlockers(tickets));
-  const byScope = new Map<string, string[]>();
-  for (const ticket of tickets) {
-    const scope = ticket.writerScope || deriveWriterScope(ticket);
-    const ids = byScope.get(scope) ?? [];
-    ids.push(ticket.ticketId);
-    byScope.set(scope, ids);
-  }
-  for (const [scope, ids] of byScope) {
-    if (ids.length < 2) continue;
-    for (const ticketId of ids) {
-      blockers.push({
-        ticketId,
-        code: "shared_writer_scope",
-        message: `shares writer scope ${scope} with ${ids.filter((id) => id !== ticketId).join(", ")}`,
-      });
-    }
-  }
-  return blockers;
-}
+export { collectAdmitBlockers };
 
 export function assertTicketsHaveVerify(tickets: FrozenTicket[]): void {
   const missing = tickets.filter(verifyMissing).map((ticket) => ticket.ticketId);
@@ -189,7 +153,7 @@ export async function dryRun(ctrl: ControllerContext, input: CreateWaveInput) {
     repoPath,
   });
   const admitBlockers = [
-    ...collectAdmitBlockers(tickets),
+    ...collectAdmitBlockers(tickets, input.limits.maxLaunches),
     ...(await collectDirtyOverlapBlockers(ctrl.workspace, repoPath, tickets)),
   ];
   assertTicketsHaveVerify(tickets);

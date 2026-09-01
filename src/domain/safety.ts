@@ -26,7 +26,8 @@ export const SAFETY = Object.freeze({
   allowActiveGatewayConfigMutation: false,
   supervisedBoundedLaunchAllowed: true,
   supervisedMaxTickets: 8,
-  supervisedMaxLaunches: 10,
+  /** 8 tickets × (PLAN+REVIEW+UX+IMPL) = 32; 16 spare for WR-010 retries. */
+  supervisedMaxLaunches: 48,
   supervisedMaxTokens: 500_000,
   /** 0 = no elapsed-time deadline by default (WR-012). */
   supervisedMaxWallTimeMs: 0,
