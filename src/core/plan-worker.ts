@@ -79,7 +79,7 @@ export function codexPlanBlockers(tickets: FrozenTicket[]): AdmitBlocker[] {
       ticketId: ticket.ticketId,
       code: "codex_plan_unsafe",
       message:
-        "Codex PLAN uses ACP adapter @zed-industries/codex-acp (not PATH codex). gpt-5.6-sol 400s on 0.16.0; WR pins gpt-5.5. Not a Grok fallback.",
+        "Codex PLAN is ACP (gpt-5.6-sol, thinking high). Host must use @agentclientprotocol/codex-acp, not archived zed 0.16.0.",
     }));
 }
 

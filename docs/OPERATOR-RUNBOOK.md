@@ -237,11 +237,12 @@ Before `create` / `start`:
    Idle `max_launches` becomes `BUDGET_STOPPED`; it must not throw out of `tick`.
 
 Same-scope IMPL is serial (`repoConcurrency=1`). Multi-ticket same-game waves are allowed
-when hops fit the cap. Hybrid is Codex ACP PLAN + Grok IMPL. The 01:30
-`ACP_TURN_FAILED: Internal error` was **@zed-industries/codex-acp 0.16.0** rejecting
-`gpt-5.6-sol` (embedded client, not PATH `codex`). WR spawn pins `gpt-5.5` +
-`thinking=off`. Do not stamp tickets grok to “fix” that. `codex_plan_unsafe` on
-dry-run is a warning, not a drain skip. `WAVE_CODEX_MODEL` overrides the pin.
+when hops fit the cap. Hybrid is Codex ACP PLAN + Grok IMPL. Spawn is
+`gpt-5.6-sol` + `thinking=high` (house Codex). Do not pin thinking=off and do
+not substitute gpt-5.5. Archived `@zed-industries/codex-acp` 0.16.0 400s Sol;
+host command is `scripts/codex-acp-compat.mjs` wrapping `@agentclientprotocol/codex-acp` (Codex 0.152+). OpenClaw glues thinking onto `--model` as `gpt-5.6-sol/high`; the wrapper advertises that id and maps thinking to `reasoning_effort`.
+`WAVE_CODEX_MODEL` / `WAVE_CODEX_THINKING` override. `codex_plan_unsafe` on
+dry-run is a warning, not a drain skip.
 Do not set `MAX_LAUNCHES=10` on kick wrappers — leave it unset (48).
 Apply-on-exhausted is IMPL-only; a PLAN fail must not copy the worktree or mark BOARD done.
 

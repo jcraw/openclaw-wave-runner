@@ -123,11 +123,9 @@ export class OpenClawGatewayAcpSpawn implements AcpSpawn {
     const label = recoveryLabel(input.sourceId);
     // Mona/Kawazaki/Robin are OpenClaw config agents → native subagent.
     // Grok builders stay on ACP harness (agentId "grok").
-    // Codex ACP is @zed-industries/codex-acp 0.16.0 (embedded client, not PATH
-    // `codex`). gpt-5.6-sol 400s: "requires a newer version of Codex".
-    // Pin a model that adapter knows (gpt-5.5) + thinking off so OpenClaw does
-    // not inherit medium → "model/medium". WAVE_CODEX_MODEL overrides.
-    // This is still Codex ACP PLAN, not a Grok fallback.
+    // Codex ACP PLAN: house model Sol + thinking high (matches ~/.codex
+    // model_reasoning_effort). Do not pin thinking=off. Do not substitute gpt-5.5.
+    // WAVE_CODEX_MODEL / WAVE_CODEX_THINKING override. Never leak Grok into model.
     const args: Record<string, unknown> = {
       task: input.task,
       runtime: input.agentId === "mona" ? "subagent" : "acp",
@@ -144,9 +142,9 @@ export class OpenClawGatewayAcpSpawn implements AcpSpawn {
       let bare = rawModel;
       if (bare.toLowerCase().startsWith("openai/")) bare = bare.slice(7);
       bare = bare.split("/")[0]?.trim() ?? "";
-      const fallback = (process.env.WAVE_CODEX_MODEL ?? "gpt-5.5").trim() || "gpt-5.5";
-      args.model = bare && !/grok/i.test(bare) && !/^gpt-5\.6-sol$/i.test(bare) ? bare : fallback;
-      args.thinking = "off";
+      const fallback = (process.env.WAVE_CODEX_MODEL ?? "gpt-5.6-sol").trim() || "gpt-5.6-sol";
+      args.model = bare && !/grok/i.test(bare) ? bare : fallback;
+      args.thinking = (process.env.WAVE_CODEX_THINKING ?? "high").trim() || "high";
     } else if (input.model?.trim()) {
       args.model = input.model.trim();
     }

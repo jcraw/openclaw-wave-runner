@@ -25,13 +25,13 @@ plan_review: skip
 
 # WR-041 — Codex ACP Sol CLI
 
-SP2-063 Codex PLAN spawn succeeded; turn 400: `The 'gpt-5.6-sol' model requires a newer version of Codex.` That is **@zed-industries/codex-acp 0.16.0** (embedded client), not PATH `codex`. CLI 0.152.1 can run Sol via `codex exec`; ACP 0.16.0 cannot. WR spawn pins **gpt-5.5** (adapter-known) + thinking off. Still Codex ACP PLAN, not Grok. Isolated `config.toml` Sol is overridden by spawn args. WR-040 drain-refuse of Codex was a workaround — undone here.
+SP2-063 Codex PLAN spawn succeeded; turn 400: `The 'gpt-5.6-sol' model requires a newer version of Codex.` That is **@zed-industries/codex-acp 0.16.0** (embedded client), not PATH `codex`. CLI 0.152.1 can run Sol via `codex exec`; ACP 0.16.0 cannot. gpt-5.5 + thinking off was a spawn workaround — **not house**. House is `gpt-5.6-sol` + thinking high via `@agentclientprotocol/codex-acp` and `scripts/codex-acp-compat.mjs` (OpenClaw concatenates `--model gpt-5.6-sol/high`; wrapper advertises it and maps thinking → `reasoning_effort`). Isolated `config.toml` Sol/high. WR-040 drain-refuse of Codex was a workaround — undone here.
 
 ## Acceptance
 
 - [x] Drain does **not** `PREFLIGHT_FAIL` hybrid / `plan_worker: codex`.
-- [x] Codex ACP spawn model is `gpt-5.5` unless `WAVE_CODEX_MODEL` (Sol is rewritten; it 400s on 0.16.0).
-- [x] Live ACP smoke wrote PLAN.md; wrapper log had no Sol 400.
+- [x] Codex ACP spawn model is `gpt-5.6-sol` + thinking `high` unless `WAVE_CODEX_MODEL` / `WAVE_CODEX_THINKING`.
+- [x] Live ACP smoke wrote PLAN.md with Sol; wrapper log had no Sol 400 and spawn was not `ACP_MODEL_UNSUPPORTED` for `gpt-5.6-sol/high`.
 - [x] Failed Codex turn result includes the wrapper 400 body when logs are present.
 - [x] Apply-IMPL-only and freeze `needsUx` stay (WR-040).
 - [x] `npm test` green.
