@@ -25,12 +25,13 @@ plan_review: skip
 
 # WR-041 — Codex ACP Sol CLI
 
-SP2-063 Codex PLAN spawn succeeded; turn 400: `The 'gpt-5.6-sol' model requires a newer version of Codex.` CLI was 0.147.0; 0.152+ required. OpenClaw mapped that to `ACP_TURN_FAILED: Internal error`. WR-040 drain-refuse of Codex was a workaround — undone here.
+SP2-063 Codex PLAN spawn succeeded; turn 400: `The 'gpt-5.6-sol' model requires a newer version of Codex.` That is **@zed-industries/codex-acp 0.16.0** (embedded client), not PATH `codex`. CLI 0.152.1 can run Sol via `codex exec`; ACP 0.16.0 cannot. WR spawn pins **gpt-5.5** (adapter-known) + thinking off. Still Codex ACP PLAN, not Grok. Isolated `config.toml` Sol is overridden by spawn args. WR-040 drain-refuse of Codex was a workaround — undone here.
 
 ## Acceptance
 
-- [x] Host Codex on the acpx PATH is ≥ 0.152 (`~/.local/bin/codex` → nvm 24.18.1; wrapper prepends that bin).
 - [x] Drain does **not** `PREFLIGHT_FAIL` hybrid / `plan_worker: codex`.
+- [x] Codex ACP spawn model is `gpt-5.5` unless `WAVE_CODEX_MODEL` (Sol is rewritten; it 400s on 0.16.0).
+- [x] Live ACP smoke wrote PLAN.md; wrapper log had no Sol 400.
 - [x] Failed Codex turn result includes the wrapper 400 body when logs are present.
 - [x] Apply-IMPL-only and freeze `needsUx` stay (WR-040).
 - [x] `npm test` green.

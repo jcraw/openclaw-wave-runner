@@ -237,11 +237,11 @@ Before `create` / `start`:
    Idle `max_launches` becomes `BUDGET_STOPPED`; it must not throw out of `tick`.
 
 Same-scope IMPL is serial (`repoConcurrency=1`). Multi-ticket same-game waves are allowed
-when hops fit the cap. Hybrid is Codex ACP PLAN + Grok IMPL at any hour. The 01:30
-`ACP_TURN_FAILED: Internal error` was Codex CLI **0.147.0** rejecting `gpt-5.6-sol`
-(needs ≥ 0.152). Do not stamp tickets grok to “fix” that. Preflight: wrapper-invoked
-`codex --version` ≥ 0.152; PATH must not prefer `~/.local/bin/codex` 0.147.
-`codex_plan_unsafe` on dry-run is a CLI-version warning, not a drain skip.
+when hops fit the cap. Hybrid is Codex ACP PLAN + Grok IMPL. The 01:30
+`ACP_TURN_FAILED: Internal error` was **@zed-industries/codex-acp 0.16.0** rejecting
+`gpt-5.6-sol` (embedded client, not PATH `codex`). WR spawn pins `gpt-5.5` +
+`thinking=off`. Do not stamp tickets grok to “fix” that. `codex_plan_unsafe` on
+dry-run is a warning, not a drain skip. `WAVE_CODEX_MODEL` overrides the pin.
 Do not set `MAX_LAUNCHES=10` on kick wrappers — leave it unset (48).
 Apply-on-exhausted is IMPL-only; a PLAN fail must not copy the worktree or mark BOARD done.
 

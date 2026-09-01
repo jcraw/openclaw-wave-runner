@@ -202,6 +202,8 @@ if hits:
     ids = ",".join(h.get("ticketId") or "?" for h in hits)
     print("warning: Codex PLAN [" + ids + "] — CLI must support gpt-5.6-sol (not a Grok fallback)", file=sys.stderr)
 PY
+# Codex PLAN is acpx @zed-industries/codex-acp (embedded), not PATH `codex`.
+# gpt-5.6-sol 400s on adapter 0.16.0; WR spawn pins gpt-5.5. Warning only.
 if [[ "${WAVE_PRIMARY_DIRTY:-}" != "allow" && "${WAVE_LAND_MODE:-}" != "apply" ]]; then
   if ! python3 - "$OUT_DIR/cli/dry-run.json" <<'PY'
 import json, sys

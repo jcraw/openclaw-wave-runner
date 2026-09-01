@@ -225,7 +225,7 @@ test("Gateway ACP adapter spawns Codex PLAN as ACP with agentId codex and no tim
   const args = calls[0]?.params?.args as Record<string, unknown>;
   assert.equal(args.runtime, "acp");
   assert.equal(args.agentId, "codex");
-  assert.equal(args.model, "gpt-5.6-sol");
+  assert.equal(args.model, "gpt-5.5");
   assert.equal(args.thinking, "off");
   assert.equal(Object.prototype.hasOwnProperty.call(args, "timeoutSeconds"), false);
 });

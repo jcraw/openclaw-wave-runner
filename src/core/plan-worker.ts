@@ -79,7 +79,7 @@ export function codexPlanBlockers(tickets: FrozenTicket[]): AdmitBlocker[] {
       ticketId: ticket.ticketId,
       code: "codex_plan_unsafe",
       message:
-        "Codex PLAN: host CLI must support gpt-5.6-sol (codex ≥ 0.152). This is not a Grok fallback.",
+        "Codex PLAN uses ACP adapter @zed-industries/codex-acp (not PATH codex). gpt-5.6-sol 400s on 0.16.0; WR pins gpt-5.5. Not a Grok fallback.",
     }));
 }
 
