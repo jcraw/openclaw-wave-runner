@@ -28,6 +28,13 @@ node dist/scripts/wave-cli.js emergency-stop
 node dist/scripts/wave-cli.js backup --dest /path/to/backup.sqlite
 ```
 
+**Live run vs slice (WR-042):** a wave is still a frozen ticket batch. Kicking more tickets
+must **enqueue** a new slice onto the live supervisor (`$WR_SCRATCH/supervisor.pid`), not
+start a second `run-backlog-wave.sh` tick loop. ACP occupancy is global (default 4, env
+`WAVE_ACP_SLOTS`) across every ledger in `$WR_SCRATCH/ledgers`. `WAVE_JOIN_SUPERVISOR=0`
+keeps the old solo tick loop. `wave-cli enqueue` / `tick-all` are the join seams.
+Do not cap PLAN/IMPL worker tokens; this is an orchestration slot, not a spend ceiling.
+
 `--simulate` is mock-only and is not a truthful real-worker receipt.
 `--supervised` (CLI) / `supervised: true` (Gateway) launches real workers under hard caps.
 Land push requires explicit `WAVE_LAND_PUSH=1`; repo path never implies push.

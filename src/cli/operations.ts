@@ -18,6 +18,8 @@ export type OperatorCommand =
   | { op: "emergency-stop"; reason?: string }
   | { op: "backup"; destPath: string }
   | { op: "land-retry"; waveId: string; ticketId: string }
+  | { op: "enqueue"; input: CreateWaveInput }
+  | { op: "tick-all"; supervised?: boolean }
   | { op: "capabilities" };
 
 export async function runOperator(controller: WaveController, command: OperatorCommand): Promise<unknown> {
@@ -66,6 +68,13 @@ export async function runOperator(controller: WaveController, command: OperatorC
       return controller.backup(command.destPath);
     case "land-retry":
       return controller.retryLand(command.waveId, command.ticketId);
+    case "enqueue":
+      return controller.enqueue(command.input);
+    case "tick-all":
+      return controller.tickLive({
+        supervisedBoundedPilot: command.supervised === true,
+        operatorAction: command.supervised === true,
+      });
     case "capabilities":
       return controller.capabilities();
   }

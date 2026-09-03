@@ -27,6 +27,7 @@ import {
   startWave,
 } from "./wave-commands.js";
 import { retryImplLand } from "./land-closeout.js";
+import { enqueueSlice, tickLiveWaves } from "./run-supervisor.js";
 import { createWave, defaultCreateInput, dryRun } from "./wave-create.js";
 import { capabilities, project } from "./wave-projection.js";
 
@@ -58,7 +59,8 @@ export class WaveController {
   readonly disableSourceMirror;
   watchdogFires = 0;
   grokReadFileHung;
-
+  countLiveProvider;
+  acpSlotsMax;
   constructor(opts: ControllerOptions) {
     this.db = opts.db;
     this.clock = opts.clock;
@@ -83,6 +85,8 @@ export class WaveController {
     this.launchMode = opts.launchMode ?? "mock";
     this.disableSourceMirror = opts.disableSourceMirror ?? false;
     this.grokReadFileHung = opts.grokReadFileHung;
+    this.countLiveProvider = opts.countLiveProvider;
+    this.acpSlotsMax = opts.acpSlotsMax;
   }
 
   capabilities() {
@@ -173,5 +177,13 @@ export class WaveController {
 
   async retryLand(waveId: string, ticketId: string) {
     return retryImplLand(this, waveId, ticketId);
+  }
+
+  async enqueue(input: CreateWaveInput, eventId = nextEventId()): Promise<WaveView> {
+    return enqueueSlice(this, input, eventId);
+  }
+
+  async tickLive(options: SupervisedStartOptions = {}) {
+    return tickLiveWaves(this, options);
   }
 }

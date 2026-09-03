@@ -7,6 +7,7 @@ import { claimantFields } from "./authority.js";
 import { admitReservation, reservationCeiling } from "./budget.js";
 import { CrashInjectedError, type ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
+import { acpSlotCap, countOpenProvider, DEFAULT_ACP_SLOTS } from "./acp-slots.js";
 import { acquireLease } from "./lease.js";
 import { assertTicketTransition, TICKET_NEXT, TICKET_OWNERS } from "./state-machine.js";
 
@@ -36,12 +37,13 @@ export async function queueStage(
     throw new WaveError("max_retries_per_stage exceeded.", "admission_denied");
   }
   const provider = ticket.provider ?? "mock";
-  const activeProvider = ctrl.db
-    .listOutbox(waveId)
-    .filter((item) => item.state !== "SETTLED" && item.state !== "FAILED")
-    .filter((item) => requireTicket(ctrl, waveId, item.ticketId).provider === provider).length;
-  if (activeProvider >= wave.limits.perProviderConcurrency) {
-    throw new WaveError("per-provider launch cap reached.", "admission_denied");
+  const liveProvider = ctrl.countLiveProvider
+    ? ctrl.countLiveProvider(provider)
+    : countOpenProvider(ctrl.db, provider);
+  const cap = acpSlotCap(wave.limits.perProviderConcurrency, ctrl.acpSlotsMax ?? DEFAULT_ACP_SLOTS);
+  if (liveProvider >= cap) {
+    // Other slices own the ACP pool. Defer; do not fail this slice.
+    return;
   }
   const ceiling = reservationCeiling(wave.limits);
   const idempotencyKey = `${waveId}:${ticketId}:${stage}:${attempt}`;

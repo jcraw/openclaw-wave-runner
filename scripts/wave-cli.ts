@@ -6,6 +6,7 @@ import { runOperator, type OperatorCommand } from "../src/cli/operations.js";
 import { resolveCliTicketSource } from "../src/cli/ticket-source.js";
 import { DEFAULT_LIMITS, SUPERVISED_PILOT_LIMITS } from "../src/domain/types.js";
 import { SafetyGateError } from "../src/domain/errors.js";
+import { countLiveForAdmitPath, parseAcpSlotsMax } from "../src/core/acp-slots.js";
 import { resolveCliOperatorIdentity, resolveSupervisedWaveDb } from "../src/core/repo-identity.js";
 import { cliControllerAcpFields, openCliController } from "../src/runtime.js";
 
@@ -50,9 +51,9 @@ const disableAcp =
   process.argv.includes("--no-acp") || process.argv.includes("--disable-acp");
 // Supervised bounded launch is the intentional real-worker path (restored 2026-08-15).
 // Unrestricted drain / unprompted re-drain remain disabled inside SAFETY + assertSupervisedBoundedLaunch.
-if ((op === "start" || op === "tick") && !supervised && !simulate) {
+if ((op === "start" || op === "tick" || op === "tick-all" || op === "enqueue") && !supervised && !simulate) {
   throw new SafetyGateError(
-    "CLI start/tick require --supervised (real worker) or --simulate (mock only).",
+    "CLI start/tick/enqueue require --supervised (real worker) or --simulate (mock only).",
   );
 }
 const ticketsJsonFlag = optional("tickets-json");
@@ -63,6 +64,7 @@ const ticketSource = resolveCliTicketSource({
   repoPath,
   jsonText,
 });
+const ledgerDir = process.env.WR_SCRATCH ? `${process.env.WR_SCRATCH.replace(/\/$/, "")}/ledgers` : undefined;
 const controller = openCliController({
   dbPath,
   repoPath,
@@ -82,6 +84,10 @@ const controller = openCliController({
     acpAgentId: optional("acp-agent-id"),
   }),
 });
+controller.acpSlotsMax = parseAcpSlotsMax(process.env.WAVE_ACP_SLOTS);
+if (ledgerDir) {
+  controller.countLiveProvider = (provider) => countLiveForAdmitPath(dbPath, ledgerDir, provider);
+}
 
 function positiveInt(name: string, fallback: number): number {
   const raw = optional(name);
@@ -150,6 +156,31 @@ const command: OperatorCommand = (() => {
       return { op, destPath: arg("dest") };
     case "land-retry":
       return { op, waveId: arg("wave"), ticketId: arg("ticket") };
+    case "enqueue": {
+      const ticketIds =
+        ticketSource.ticketIds ?? arg("tickets").split(",").map((id) => id.trim()).filter(Boolean);
+      return {
+        op,
+        input: {
+          waveId: waveIdFlag ?? arg("wave"),
+          repoPath,
+          ticketIds,
+          limits: supervised
+            ? {
+                ...SUPERVISED_PILOT_LIMITS,
+                maxTokens: positiveInt("max-tokens", SUPERVISED_PILOT_LIMITS.maxTokens),
+                maxLaunches: positiveInt("max-launches", SUPERVISED_PILOT_LIMITS.maxLaunches),
+                maxWallTimeMs: nonNegativeInt("max-wall-ms", SUPERVISED_PILOT_LIMITS.maxWallTimeMs),
+              }
+            : DEFAULT_LIMITS,
+          supervisedBoundedPilot: supervised,
+          isolatedWorktreeRoot: optional("worktree-root"),
+          operatorAction: supervised,
+        },
+      };
+    }
+    case "tick-all":
+      return { op, supervised };
     default:
       return { op: "capabilities" };
   }

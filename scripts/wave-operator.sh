@@ -213,6 +213,10 @@ run_cli() {
       err_file="$OUT_DIR/cli/approve-${ticket}.err"
       ;;
     inspect|start|cancel|pause|resume) ;;
+    tick-all)
+      args=(node "$CLI_JS" tick-all --db "$WAVE_DB" --repo "$REPO" --supervised
+        --worktree-root "$OUT_DIR/worktrees" --artifact-root "$OUT_DIR/artifacts")
+      ;;
     *)
       echo "error: unknown op $op" >&2
       exit 2
@@ -257,6 +261,9 @@ case "$PHASE" in
     ;;
   tick)
     run_cli tick "${2:-}"
+    ;;
+  tick-all)
+    run_cli tick-all
     ;;
   approve)
     run_cli approve "${2:-}" "${3:-}"

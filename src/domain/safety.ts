@@ -34,6 +34,8 @@ export const SAFETY = Object.freeze({
   supervisedOneTicketLaunchAllowed: true,
   /** Default lease TTL for live supervised workers (2h). */
   supervisedLeaseTtlMs: 2 * 60 * 60_000,
+  /** Global ACP sessions (OpenClaw cap is 5; leave one interactive). */
+  supervisedAcpSlots: 4,
 });
 
 export function assertBoundedWaveRequest(input: {

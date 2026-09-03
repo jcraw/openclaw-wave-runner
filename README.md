@@ -56,7 +56,7 @@ They are **not** the transactional runtime. The reusable product is **freeze / b
 
 ### Invariants (the product)
 
-1. Tickets added after freeze **never** enter that wave  
+1. Tickets added after freeze **never** enter that wave (enqueue a **new slice** onto the live run instead — WR-042)  
 2. No expensive launch without a **committed reservation**  
 3. One fenced **writer lease** per `{repo, writer scope}` (disjoint scopes may IMPL in parallel)  
 4. One launch per `{wave, ticket, stage, attempt}` idempotency key  

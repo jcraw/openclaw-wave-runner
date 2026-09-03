@@ -58,6 +58,8 @@ export type ControllerOptions = {
   launchMode?: LaunchMode;
   disableSourceMirror?: boolean;
   grokReadFileHung?: (receipt: LaunchReceipt, nowMs: number, hangMs: number) => boolean;
+  countLiveProvider?: (provider: string) => number;
+  acpSlotsMax?: number;
 };
 
 export type ControllerContext = {
@@ -85,6 +87,8 @@ export type ControllerContext = {
   readonly disableSourceMirror: boolean;
   watchdogFires: number;
   grokReadFileHung?: (receipt: LaunchReceipt, nowMs: number, hangMs: number) => boolean;
+  countLiveProvider?: (provider: string) => number;
+  readonly acpSlotsMax?: number;
 };
 
 export function eventId(kind = "evt"): string {

@@ -218,6 +218,32 @@ PY
     exit 1
   fi
 fi
+SUPERVISOR_PIDFILE="${WAVE_SUPERVISOR_PIDFILE:-$WR_SCRATCH/supervisor.pid}"
+supervisor_alive() {
+  [[ -f "$SUPERVISOR_PIDFILE" ]] || return 1
+  local pid
+  pid="$(tr -d '[:space:]' <"$SUPERVISOR_PIDFILE" 2>/dev/null || true)"
+  [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
+}
+ensure_supervisor() {
+  if supervisor_alive; then
+    echo "join existing supervisor pid=$(tr -d '[:space:]' <"$SUPERVISOR_PIDFILE")"
+    return 0
+  fi
+  echo "spawn supervisor $SCRIPT_DIR/wave-supervisor.sh"
+  nohup env WR="$WR" PLUGIN_DIR="$PLUGIN_DIR" WR_SCRATCH="$WR_SCRATCH" \
+    TICK_SLEEP="$TICK_SLEEP" WAVE_IDLE_EXIT_S="${WAVE_IDLE_EXIT_S:-1800}" \
+    WAVE_SUPERVISOR_PIDFILE="$SUPERVISOR_PIDFILE" \
+    bash "$SCRIPT_DIR/wave-supervisor.sh" \
+    >>"$WR_SCRATCH/supervisor.log" 2>&1 &
+  echo $! >"$SUPERVISOR_PIDFILE"
+  sleep 0.3
+}
+
+JOIN="${WAVE_JOIN_SUPERVISOR:-1}"
+if [[ "$JOIN" == "1" ]]; then
+  ensure_supervisor
+fi
 bash "$SCRIPT_DIR/wave-operator.sh" create
 bash "$SCRIPT_DIR/wave-operator.sh" start
 
@@ -243,7 +269,11 @@ while true; do
     exit 1
   fi
   tick_rc=0
-  bash "$SCRIPT_DIR/wave-operator.sh" tick "$nn" || tick_rc=$?
+  if [[ "$JOIN" == "1" ]]; then
+    bash "$SCRIPT_DIR/wave-operator.sh" inspect >/dev/null || tick_rc=$?
+  else
+    bash "$SCRIPT_DIR/wave-operator.sh" tick "$nn" || tick_rc=$?
+  fi
   if [[ "$tick_rc" -ne 0 ]]; then
     TICK_FAIL_N=$((TICK_FAIL_N + 1))
     echo "TICK_FAILED $nn rc=$tick_rc streak=$TICK_FAIL_N" >&2
@@ -257,7 +287,7 @@ while true; do
   fi
   st=""
   fp_json=""
-  if [[ -s "$OUT_DIR/cli/tick-${nn}.json" ]]; then
+  if [[ "$JOIN" != "1" && -s "$OUT_DIR/cli/tick-${nn}.json" ]]; then
     st="$(status_of "$OUT_DIR/cli/tick-${nn}.json" 2>/dev/null || true)"
     fp_json="$OUT_DIR/cli/tick-${nn}.json"
   fi
