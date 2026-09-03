@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import type { LaunchOutbox } from "../domain/types.js";
+import { isTerminalWave } from "./state-machine.js";
 import { WaveDatabase } from "../store/database.js";
 
 /** Global Grok/Codex/Crawmak ACP sessions. Leave one OpenClaw slot for interactive. */
@@ -34,8 +35,14 @@ export function countLiveProviderSessions(input: {
 }
 
 export function countOpenProvider(db: WaveDatabase, provider: string): number {
+  const liveWaveIds = new Set(
+    db
+      .listWaves()
+      .filter((wave) => !isTerminalWave(wave.status))
+      .map((wave) => wave.waveId),
+  );
   return countLiveProviderSessions({
-    items: db.listOpenOutbox(),
+    items: db.listOpenOutbox().filter((item) => liveWaveIds.has(item.waveId)),
     providerOf: (waveId, ticketId) => db.getTicket(waveId, ticketId)?.provider ?? "mock",
     provider,
   });

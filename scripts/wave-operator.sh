@@ -232,7 +232,7 @@ run_cli() {
     cat "$err_file" >&2 || true
     return "$rc"
   fi
-  if [[ "$op" == "inspect" ]]; then
+  if [[ "$op" == "inspect" && "$out_json" != "$OUT_DIR/cli/inspect.json" ]]; then
     cp -f "$out_json" "$OUT_DIR/cli/inspect.json"
   fi
   cat "$out_json"

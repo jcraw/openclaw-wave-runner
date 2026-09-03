@@ -1,8 +1,9 @@
 import type { LeaseRecord, TicketRun, TicketStatus, WaveRecord } from "../domain/types.js";
 import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import type { ControllerContext } from "./controller-context.js";
-import { refreshCounters, requireWave } from "./controller-context.js";
-import { isLeaseStale, pidIsDead, releaseLease } from "./lease.js";
+import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
+import { acquireLease, isLeaseStale, pidIsDead, releaseLease } from "./lease.js";
+import { claimantFields } from "./authority.js";
 import { isTerminalTicket, TICKET_NEXT, TICKET_OWNERS } from "./state-machine.js";
 
 const IMPL_ACTIVE: ReadonlySet<TicketStatus> = new Set(["IMPLEMENTING", "VERIFYING", "APPROVED"]);
@@ -18,6 +19,36 @@ const ACTIVE_WORK: ReadonlySet<TicketStatus> = new Set([
 
 export function isImplActive(status: TicketStatus): boolean {
   return IMPL_ACTIVE.has(status);
+}
+
+export function reacquireWriterLease(ctrl: ControllerContext, waveId: string, ticketId: string): number {
+  const wave = requireWave(ctrl, waveId);
+  const ticket = requireTicket(ctrl, waveId, ticketId);
+  const scope = ticket.writerScope || deriveWriterScope(ticket);
+  const resourceKey = writerLeaseKey(wave.repoPath, scope);
+  const lease = acquireLease({
+    current: ctrl.db.getLease(resourceKey),
+    resourceKey,
+    now: ctrl.clock.now(),
+    ttlMs: ctrl.leaseTtlMs,
+    claimant: ctrl.process,
+    waveId,
+    ticketId,
+  });
+  const auth = ctrl.authority.tryAcquire({
+    repoPath: wave.repoPath,
+    kind: "writer",
+    scope,
+    resourceKey,
+    waveId,
+    ticketId,
+    now: ctrl.clock.now(),
+    ttlMs: ctrl.leaseTtlMs,
+    ...claimantFields(ctrl.process),
+  });
+  if (!auth.ok) throw new Error(auth.reason);
+  ctrl.db.putLease(lease);
+  return lease.generation;
 }
 
 function weHold(ctrl: ControllerContext, lease: LeaseRecord): boolean {
@@ -89,8 +120,19 @@ export function releaseWriterLeaseIfHeld(ctrl: ControllerContext, wave: WaveReco
 export function expireStaleLeases(ctrl: ControllerContext): number {
   ctrl.watchdogFires += 1;
   let expired = 0;
+  const now = ctrl.clock.now();
   for (const lease of ctrl.db.listLeases()) {
-    if (!isLeaseStale(lease, ctrl.clock.now()) && !pidIsDead(lease.pid)) continue;
+    if (!isLeaseStale(lease, now) && !pidIsDead(lease.pid)) continue;
+    const ticket = holderTicket(ctrl, lease, lease.waveId ?? "");
+    if (ticket && isImplActive(ticket.status) && weHold(ctrl, lease)) {
+      ctrl.db.putLease({
+        ...lease,
+        pid: ctrl.process.pid,
+        pidStartTime: ctrl.process.pidStartTime,
+        expiresAt: now + ctrl.leaseTtlMs,
+      });
+      continue;
+    }
     releaseAuthorityForLease(ctrl, lease);
     ctrl.db.deleteLease(lease.resourceKey);
     expired += 1;

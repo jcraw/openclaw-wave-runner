@@ -27,7 +27,12 @@ export function refreshHeldLeases(ctrl: ControllerContext, waveId: string): void
     }
     const ticket = lease.ticketId ? ctrl.db.getTicket(waveId, lease.ticketId) : undefined;
     if (!ticket || !isImplActive(ticket.status)) continue;
-    ctrl.db.putLease({ ...lease, expiresAt: now + ctrl.leaseTtlMs });
+    ctrl.db.putLease({
+      ...lease,
+      expiresAt: now + ctrl.leaseTtlMs,
+      pid: ctrl.process.pid,
+      pidStartTime: ctrl.process.pidStartTime,
+    });
     if (!wave || !lease.resourceKey.startsWith("writer:")) continue;
     const scope = ticket.writerScope || deriveWriterScope(ticket);
     ctrl.authority.tryAcquire({

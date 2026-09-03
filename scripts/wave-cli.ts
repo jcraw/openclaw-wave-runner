@@ -6,8 +6,11 @@ import { runOperator, type OperatorCommand } from "../src/cli/operations.js";
 import { resolveCliTicketSource } from "../src/cli/ticket-source.js";
 import { DEFAULT_LIMITS, SUPERVISED_PILOT_LIMITS } from "../src/domain/types.js";
 import { SafetyGateError } from "../src/domain/errors.js";
+import { DatabaseSync } from "node:sqlite";
+
 import { countLiveForAdmitPath, parseAcpSlotsMax } from "../src/core/acp-slots.js";
 import { resolveCliOperatorIdentity, resolveSupervisedWaveDb } from "../src/core/repo-identity.js";
+import { collectLiveStatus } from "../src/core/run-status.js";
 import { cliControllerAcpFields, openCliController } from "../src/runtime.js";
 
 function arg(name: string, fallback?: string): string {
@@ -35,6 +38,39 @@ if (op === "resolve-ledger") {
     process.stdout.write(`${resolved.dbPath}\n`);
   }
   process.exit(0);
+}
+if (op === "list-live") {
+  const dbFile = optional("db");
+  if (!dbFile) throw new Error("missing --db");
+  const dead = new Set(["COMPLETED", "FAILED", "CANCELLED", "BUDGET_STOPPED", "BLOCKED"]);
+  const db = new DatabaseSync(dbFile, { readOnly: true });
+  const rows = db.prepare("SELECT repo_path, status FROM waves").all() as Array<{
+    repo_path?: string;
+    status?: string;
+  }>;
+  const live = rows.find((r) => !dead.has(String(r.status)));
+  if (live?.repo_path) process.stdout.write(String(live.repo_path));
+  process.exit(0);
+}
+if (op === "status") {
+  const scratch = process.env.WR_SCRATCH?.trim();
+  if (!scratch) throw new Error("status requires WR_SCRATCH");
+  const report = collectLiveStatus(scratch);
+  if (process.argv.includes("--json")) {
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  } else if (!report.alive) {
+    process.stdout.write("SUPERVISOR_DEAD\n");
+    for (const t of report.tickets) {
+      process.stdout.write(`${t.waveId} ${t.ticketId} ${t.stage} ${t.status} ${t.nextAction}\n`);
+    }
+  } else {
+    const age = report.heartbeat ? Math.round(Date.now() / 1000 - report.heartbeat.ts) : -1;
+    process.stdout.write(`SUPERVISOR_OK pid=${report.heartbeat?.pid ?? "?"} heartbeat_s=${age} err=${report.heartbeat?.lastError || ""}\n`);
+    for (const t of report.tickets) {
+      process.stdout.write(`${t.waveId} ${t.ticketId} ${t.stage} ${t.status} ${t.nextAction}\n`);
+    }
+  }
+  process.exit(report.alive ? 0 : 1);
 }
 const explicitDb = optional("db");
 const dbPath = resolve(

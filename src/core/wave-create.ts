@@ -12,6 +12,7 @@ import type {
   TicketRun,
   WaveView,
 } from "../domain/types.js";
+import { freezeLandMode } from "../domain/closeout-mode.js";
 import { DEFAULT_LIMITS } from "../domain/types.js";
 import { deriveWriterScope } from "../domain/writer-scope.js";
 import { countersFromBudgets, failClosedWithoutRates } from "./budget.js";
@@ -148,10 +149,12 @@ export async function dryRun(ctrl: ControllerContext, input: CreateWaveInput) {
     });
   }
   const repoPath = canonicalRepoIdentity(input.repoPath);
-  const tickets = await ctrl.tracker.snapshot({
-    ticketIds: input.ticketIds,
-    repoPath,
-  });
+  const tickets = freezeLandMode(
+    await ctrl.tracker.snapshot({
+      ticketIds: input.ticketIds,
+      repoPath,
+    }),
+  );
   const admitBlockers = [
     ...collectAdmitBlockers(tickets, input.limits.maxLaunches),
     ...(await collectDirtyOverlapBlockers(ctrl.workspace, repoPath, tickets)),
@@ -208,10 +211,12 @@ export async function createWave(
     }
     return inspect(ctrl, input.waveId);
   }
-  const tickets = await ctrl.tracker.snapshot({
-    ticketIds: input.ticketIds,
-    repoPath,
-  });
+  const tickets = freezeLandMode(
+    await ctrl.tracker.snapshot({
+      ticketIds: input.ticketIds,
+      repoPath,
+    }),
+  );
   assertTicketsHaveVerify(tickets);
   const baseSha = await ctrl.workspace.currentHead(repoPath);
   const manifest = buildManifest(ctrl, { ...input, repoPath }, tickets, baseSha);

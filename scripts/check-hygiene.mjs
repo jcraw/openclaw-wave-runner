@@ -55,7 +55,10 @@ const ALLOW_FILES = new Set([
   "scripts/run-backlog-parallel.sh",
   "scripts/run-backlog-wave.sh",
   "scripts/wave-operator.sh",
+  "scripts/wave-supervisor.sh",
   "scripts/cleanup-scratch.sh",
+  // WR-041 Codex wrapper pins nvm node; not a secret.
+  "scripts/codex-acp-compat.mjs",
 ]);
 
 function walk(dir, out = []) {

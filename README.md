@@ -58,7 +58,7 @@ They are **not** the transactional runtime. The reusable product is **freeze / b
 
 1. Tickets added after freeze **never** enter that wave (enqueue a **new slice** onto the live run instead — WR-042)  
 2. No expensive launch without a **committed reservation**  
-3. One fenced **writer lease** per `{repo, writer scope}` (disjoint scopes may IMPL in parallel)  
+3. One fenced **writer lease** per `{repo, writer scope}` (disjoint scopes may IMPL in parallel). The live run ticker refreshes/adopts that lease across process restarts; a dead create pid is not a lost closeout.  
 4. One launch per `{wave, ticket, stage, attempt}` idempotency key  
 5. Plan session ≠ impl session (handoff = **approved plan artifact**)  
 6. Missing usage → fail closed / retain reservation as `INDETERMINATE`  

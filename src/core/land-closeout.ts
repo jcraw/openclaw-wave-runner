@@ -11,7 +11,7 @@ import type { ControllerContext } from "./controller-context.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
 import { acquireExclusiveLandLock, releaseExclusiveLandLock } from "./land-lock.js";
 import { closeoutDebtReason } from "./land-recovery.js";
-import { releaseWriterLeaseIfHeld } from "./lease-release.js";
+import { reacquireWriterLease, releaseWriterLeaseIfHeld } from "./lease-release.js";
 import type { LandResult } from "./ports.js";
 import { TICKET_NEXT, TICKET_OWNERS } from "./state-machine.js";
 
@@ -245,6 +245,12 @@ export async function retryImplLand(
   if (ticket.status !== "FAILED" || !ticket.implWorktree || !ctrl.workspace.landToMain) {
     return missing;
   }
+  let fencingGeneration = 1;
+  try {
+    fencingGeneration = reacquireWriterLease(ctrl, waveId, ticketId);
+  } catch (err) {
+    return { ok: false, proof: "", error: (err as Error).message };
+  }
   const item: LaunchOutbox = {
     outboxId: `${waveId}:obx:land-retry:${ticketId}`,
     waveId,
@@ -253,7 +259,7 @@ export async function retryImplLand(
     attempt: 1,
     idempotencyKey: `${waveId}:${ticketId}:LAND_RETRY:1`,
     state: "SETTLED",
-    fencingGeneration: 1,
+    fencingGeneration,
     createdAt: ctrl.clock.now(),
     updatedAt: ctrl.clock.now(),
   };

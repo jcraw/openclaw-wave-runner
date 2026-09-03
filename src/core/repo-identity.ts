@@ -95,7 +95,10 @@ export function resolveSupervisedWaveDb(input: {
   return { dbPath: sharedLedgerPath(scratch, identity), identity, scratch };
 }
 
-const OPERATOR_ID_RE = /^[A-Za-z0-9._:-]+$/;
+/** Join-mode supervisor + enqueue share this id (WR-046). Path-free; never inherit `/`. */
+export const RUN_OPERATOR_ID = "supervisor-wave-runner";
+
+export const OPERATOR_ID_RE = /^[A-Za-z0-9._:-]+$/;
 
 export function assertSafeOperatorId(value: string): string {
   const trimmed = value.trim();

@@ -144,7 +144,14 @@ test("stale fence: expired lease does not land", async () => {
   }
   const before = controller.inspect("wave-fence");
   assert.ok(before.outbox.some((item) => item.stage === "IMPL"));
-  sim.clock.advance(120_000);
+  const held = before.leases.find((lease) => lease.ticketId === "FX-001");
+  assert.ok(held);
+  controller.db.putLease({
+    ...held,
+    holder: "other",
+    processIdentity: "other-op",
+    expiresAt: sim.clock.now() - 1,
+  });
   controller.expireStaleLeases();
   sim.worker.completeOnInspect = true;
   await controller.runUntilIdle("wave-fence");

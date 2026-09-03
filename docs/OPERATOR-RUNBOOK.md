@@ -28,20 +28,28 @@ node dist/scripts/wave-cli.js emergency-stop
 node dist/scripts/wave-cli.js backup --dest /path/to/backup.sqlite
 ```
 
-**Live run vs slice (WR-042):** a wave is still a frozen ticket batch. Kicking more tickets
-must **enqueue** a new slice onto the live supervisor (`$WR_SCRATCH/supervisor.pid`), not
-start a second `run-backlog-wave.sh` tick loop. ACP occupancy is global (default 4, env
-`WAVE_ACP_SLOTS`) across every ledger in `$WR_SCRATCH/ledgers`. `WAVE_JOIN_SUPERVISOR=0`
-keeps the old solo tick loop. `wave-cli enqueue` / `tick-all` are the join seams.
+**Live run vs slice (WR-042 / WR-046):** a wave is still a frozen ticket batch. Kicking more
+tickets **enqueues** a new slice onto the live supervisor and **exits**. Do not start a second
+tick loop. Alive means `$WR_SCRATCH/supervisor.pid` **and** a fresh
+`$WR_SCRATCH/supervisor.heartbeat` (age `< 3 * TICK_SLEEP`). A live pid that cannot tick is
+dead; the next kick respawns. Join-mode identity is `supervisor-wave-runner` (never a path).
+`WAVE_JOIN_SUPERVISOR=0` keeps the old per-wave `cli-wave:<WAVE_ID>` tick loop.
+ACP occupancy is global (default 4, env `WAVE_ACP_SLOTS`) across live waves only — leftover
+`LAUNCHED` rows on CANCELLED/FAILED waves do not fill the cap. `wave-cli status` prints
+`SUPERVISOR_OK` or `SUPERVISOR_DEAD`. Supervisor `tick-all` fail-streak 5 or frozen RUNNING
+with no live outbox (`STUCK_TICKS`) exits and drops the pidfile.
 Do not cap PLAN/IMPL worker tokens; this is an orchestration slot, not a spend ceiling.
 
 `--simulate` is mock-only and is not a truthful real-worker receipt.
 `--supervised` (CLI) / `supervised: true` (Gateway) launches real workers under hard caps.
 Land push requires explicit `WAVE_LAND_PUSH=1`; repo path never implies push.
 
-Closeout mode is `apply` or `commit`. Ticket `land:` / `land_mode:` wins, then `WAVE_LAND_MODE`,
-then `commit`. Jam drain (`drain-eligible.sh` / `run-backlog-wave.sh`) exports `WAVE_LAND_MODE=apply`
-when unset. Kick **this repo** only. `PLUGIN_DIR` pointing at
+Closeout mode is `apply` or `commit`. Ticket `land:` / `land_mode:` wins, else `WAVE_LAND_MODE`
+is **frozen onto the ticket at create**, else `commit`. Jam drain exports `WAVE_LAND_MODE=apply`
+when unset, including the supervisor spawn, so later `tick-all` still apply-lands jam tickets.
+Writer leases: the live ticker **adopts** IMPL-active leases it owns (rewrite pid, refresh TTL)
+instead of deleting them because the create/start pid died. `land-retry` re-acquires the writer
+lease as the current ticker then closeout. Stranger dead-pid leases still expire (WR-032). Kick **this repo** only. `PLUGIN_DIR` pointing at
 `~/.openclaw/workspace/projects/agent-backlog-wave-runner` is refused (that copy
 marks IMPL `DONE "verified"` and never apply-lands). Workspace wrappers exec these
 scripts. `WAVE_RESULT` treats `DONE` without `applied`/`landed` in the result as

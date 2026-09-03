@@ -162,5 +162,6 @@ test("operator scripts: empty inspect does not tick; no approve on plan gate", (
   const backlog = readFileSync(join(root, "scripts/run-backlog-wave.sh"), "utf8");
   assert.match(op, /empty inspect/);
   assert.doesNotMatch(op, /RUNNING\|""\)/);
+  assert.match(backlog, /WAVE_JOINED/);
   assert.doesNotMatch(backlog, /wave-operator\.sh" approve/);
 });

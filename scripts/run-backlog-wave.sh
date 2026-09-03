@@ -219,12 +219,9 @@ PY
   fi
 fi
 SUPERVISOR_PIDFILE="${WAVE_SUPERVISOR_PIDFILE:-$WR_SCRATCH/supervisor.pid}"
-supervisor_alive() {
-  [[ -f "$SUPERVISOR_PIDFILE" ]] || return 1
-  local pid
-  pid="$(tr -d '[:space:]' <"$SUPERVISOR_PIDFILE" 2>/dev/null || true)"
-  [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
-}
+# shellcheck source=supervisor-health.sh
+source "$SCRIPT_DIR/supervisor-health.sh"
+export WAVE_SUPERVISOR_PIDFILE="$SUPERVISOR_PIDFILE"
 ensure_supervisor() {
   if supervisor_alive; then
     echo "join existing supervisor pid=$(tr -d '[:space:]' <"$SUPERVISOR_PIDFILE")"
@@ -234,6 +231,8 @@ ensure_supervisor() {
   nohup env WR="$WR" PLUGIN_DIR="$PLUGIN_DIR" WR_SCRATCH="$WR_SCRATCH" \
     TICK_SLEEP="$TICK_SLEEP" WAVE_IDLE_EXIT_S="${WAVE_IDLE_EXIT_S:-1800}" \
     WAVE_SUPERVISOR_PIDFILE="$SUPERVISOR_PIDFILE" \
+    WAVE_RUNNER_OPERATOR_ID="${WAVE_RUNNER_OPERATOR_ID:-supervisor-wave-runner}" \
+    WAVE_LAND_MODE="${WAVE_LAND_MODE:-apply}" \
     bash "$SCRIPT_DIR/wave-supervisor.sh" \
     >>"$WR_SCRATCH/supervisor.log" 2>&1 &
   echo $! >"$SUPERVISOR_PIDFILE"
@@ -242,10 +241,20 @@ ensure_supervisor() {
 
 JOIN="${WAVE_JOIN_SUPERVISOR:-1}"
 if [[ "$JOIN" == "1" ]]; then
+  if ! resolve_run_operator_id; then
+    exit 1
+  fi
+  export WAVE_LAND_MODE="${WAVE_LAND_MODE:-apply}"
   ensure_supervisor
 fi
 bash "$SCRIPT_DIR/wave-operator.sh" create
 bash "$SCRIPT_DIR/wave-operator.sh" start
+if [[ "$JOIN" == "1" ]]; then
+  node "${CLI_JS:-$PLUGIN_DIR/dist/scripts/wave-cli.js}" status \
+    --repo "$REPO" ${WAVE_DB:+--db "$WAVE_DB"} || true
+  echo "WAVE_JOINED wave=$WAVE_ID tickets=$TICKETS"
+  exit 0
+fi
 
 i=0
 started=$(date +%s)

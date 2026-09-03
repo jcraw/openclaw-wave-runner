@@ -1,4 +1,4 @@
-import type { FrozenManifest } from "./types.js";
+import type { FrozenManifest, FrozenTicket } from "./types.js";
 
 export type CloseoutMode = "apply" | "commit";
 
@@ -33,4 +33,11 @@ export function closeoutModeForWaveTicket(
   env: NodeJS.ProcessEnv = process.env,
 ): CloseoutMode {
   return resolveCloseoutMode({ ticketLand: ticketLandFromManifest(manifestJson, ticketId), env });
+}
+
+/** YAML `land` wins. Else copy `WAVE_LAND_MODE` onto the freeze so later tick-all does not need that env. */
+export function freezeLandMode(tickets: FrozenTicket[], env: NodeJS.ProcessEnv = process.env): FrozenTicket[] {
+  const fromEnv = parseCloseoutMode(env.WAVE_LAND_MODE);
+  if (!fromEnv) return tickets;
+  return tickets.map((ticket) => (ticket.landMode ? ticket : { ...ticket, landMode: fromEnv }));
 }
