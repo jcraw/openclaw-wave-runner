@@ -284,6 +284,8 @@ Then STOP.
 ${isolated}
 
 Fresh IMPL session. Execute the approved plan at ${plan}.
+Honor ${join(outDir, "IMPL_CONTRACT.md")} if that file is present (Crawmak conditions). Do not paste or re-open the review essay.
+Do not re-inventory. Open only the plan's named files. If a named file contradicts the plan or IMPL_CONTRACT.md, stop for revise.
 Write ${join(outDir, "IMPL_DONE.json")} and terminal.json.
 PLAN.md never completes IMPL.
 `;

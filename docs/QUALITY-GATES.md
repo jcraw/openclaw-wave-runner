@@ -71,3 +71,4 @@ Mutation surface stays on budget / lease / safety until a later ticket.
 ## DIGEST-032 / PLAN.md matrix
 
 See `test/quality-matrix.test.ts` plus the phase1–6 suites. Remaining product gaps (not quality-tooling): ACP cancel on emergency-stop, live usage DTO.
+WR-047 handoff is `test/wr-047-impl-handoff.test.ts` + `npm run probe:handoff` (no xAI). Quality green = `npm run quality` on **current HEAD** (WR-018).

@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type { LaunchReceipt } from "../domain/types.js";
 import type { ReadOnlyTasks } from "../contracts.js";
+import { IMPL_CONTRACT_FILE } from "../core/impl-contract.js";
 import { acpTimeoutSeconds } from "../core/stage-watchdog.js";
 import { enrichCodexTurnError } from "./codex-acp-error.js";
 import type { AcpSpawn, CancelResult, LaunchIntent, WorkerAdapter } from "./ports.js";
@@ -92,6 +93,11 @@ export class GrokAcpWorker implements WorkerAdapter {
     if (intent.uxSpecPath && existsSync(intent.uxSpecPath)) {
       const dest = join(outputDir, "UX_SPEC.md");
       if (!existsSync(dest)) copyFileSync(intent.uxSpecPath, dest);
+    }
+    const contract = join(outputDir, IMPL_CONTRACT_FILE);
+    if (intent.stage === "IMPL" && !existsSync(contract) && intent.outputDir) {
+      const src = join(intent.outputDir, IMPL_CONTRACT_FILE);
+      if (src !== contract && existsSync(src)) copyFileSync(src, contract);
     }
     const spawned = await this.opts.acp.spawn({
       agentId: intent.agentId ?? this.opts.agentId ?? "grok",

@@ -1,8 +1,7 @@
 import type { LaunchOutbox, LaunchReceipt } from "../domain/types.js";
 import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import { claimantFields } from "./authority.js";
-import { CrashInjectedError, type ControllerContext } from "./controller-context.js";
-import { requireTicket, requireWave } from "./controller-context.js";
+import { CrashInjectedError, type ControllerContext, requireTicket, requireWave } from "./controller-context.js";
 import { isImplActive, releaseAuthorityForLease } from "./lease-release.js";
 import {
   claimOutbox,
@@ -12,6 +11,7 @@ import {
 } from "./outbox.js";
 import { predecessorImplSha } from "./chain-worktree.js";
 import { buildStagePrompt, copyVerifyIntoAttempt } from "./fix-brief.js";
+import { failClosedImplHandoff } from "./impl-handoff.js";
 import type { LaunchIntent } from "./ports.js";
 import { settleOutbox } from "./settlement.js";
 import { isPlanGateStage, stageAttemptDir, stageSessionKey } from "./stage-paths.js";
@@ -192,11 +192,13 @@ export async function dispatchPending(ctrl: ControllerContext, waveId: string): 
         });
       }
     }
+    const intent = intentFromOutbox(ctrl, claimed);
+    if (failClosedImplHandoff(ctrl, waveId, claimed, intent)) continue;
     if (ctrl.crashAt === "after_launch" || ctrl.crashAt === "before_receipt_commit") {
-      await ctrl.worker.launch(intentFromOutbox(ctrl, claimed));
+      await ctrl.worker.launch(intent);
       throw new CrashInjectedError(ctrl.crashAt);
     }
-    const receipt = await ctrl.worker.launch(intentFromOutbox(ctrl, claimed));
+    const receipt = await ctrl.worker.launch(intent);
     if (requireWave(ctrl, waveId).flowId) {
       await ctrl.workflow.linkStageTask({
         flowId: requireWave(ctrl, waveId).flowId!,

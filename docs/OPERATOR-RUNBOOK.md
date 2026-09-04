@@ -174,6 +174,17 @@ mid-build is **revise**, not silent redesign. Tests bind the contract.
   After Crawmak `revise`, the next hop's REVIEW must settle before the forge
   file is read again; leftover `Verdict: revise` must not `plan_review_revise_cap`
   an in-flight re-review.
+  Review **does not edit** `planArtifact` (WR-038 class). After
+  `approve-with-conditions`, admit is blocked until `## Conditions or revise`
+  has a non-empty body that is not a none-token (`none` / `n/a` / `—`). Ticket
+  stays `PLAN_REVIEW`, `result=missing_impl_contract`. REVIEW hop is **not**
+  re-queued. Edit `crawmak/reviews/<ID>.md`; next tick admits. Over 8000 chars
+  → `impl_contract_too_large` (no silent clip). `approve`, `plan_review: skip`,
+  and leftover stamp with no Crawmak launch need no contract file. IMPL launch
+  freezes extract bytes to `<attempt>/IMPL_CONTRACT.md` (peer of
+  `APPROVED_PLAN.md`). Spawn task names that file; it does not inline Findings /
+  Cheat-mode / Learn. IMPL executes PLAN + contract. Do not re-derive inventory.
+  Named-file contradiction → revise, not a hunt.
 - **`needs_ux: true`** (alias `ux_review: required`): after Crawmak approve-class,
   launch Mona `UX_REVIEW` (Mona workspace cwd, `agentId: mona`). Ticket stays
   `PLAN_REVIEW` until Mona `reviews/<ID>-ux.md` Verdict is approve-class

@@ -3,7 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import type { ControllerContext } from "./controller-context.js";
 import { queueStageOrBudget } from "./launch-hops.js";
 import { refreshCounters, requireTicket, requireWave } from "./controller-context.js";
-import { checkPlanReview, checkPlanStamp, resolveCrawmakForge } from "./plan-review.js";
+import { extractImplContract, implContractRequired } from "./impl-contract.js";
+import { checkPlanReview, checkPlanStamp, resolveCrawmakForge, reviewFilePath } from "./plan-review.js";
 import { liveNeedsUx } from "./ux-review-skip.js";
 import {
   admitUxReviewTicket,
@@ -61,6 +62,17 @@ function planTextOf(ticket: { planArtifact?: string }): string {
   if (!ticket.planArtifact || !existsSync(ticket.planArtifact)) return "";
   try {
     return readFileSync(ticket.planArtifact, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function reviewTextOf(forgeRoot: string | undefined, ticketId: string): string {
+  if (!forgeRoot) return "";
+  const path = reviewFilePath(forgeRoot, ticketId);
+  if (!existsSync(path)) return "";
+  try {
+    return readFileSync(path, "utf8");
   } catch {
     return "";
   }
@@ -197,6 +209,15 @@ export function admitPlanReviewTicket(ctrl: ControllerContext, waveId: string, t
 
   if (review.ok && (review.verdict === "approve" || review.verdict === "approve-with-conditions")) {
     if (wantsUx) return false;
+    if (implContractRequired(review.verdict)) {
+      const extracted = extractImplContract(reviewTextOf(forge, ticketId));
+      if (!extracted.ok) {
+        if (ticket.result !== extracted.reason) {
+          putTicketStatus(ctrl, ticket, "PLAN_REVIEW", extracted.reason);
+        }
+        return false;
+      }
+    }
     putTicketStatus(ctrl, ticket, "APPROVED");
     setWaveRunning(ctrl, waveId, now);
     ctrl.db.insertEvent({

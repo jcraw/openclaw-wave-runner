@@ -75,12 +75,15 @@ STOP.
   }
   if (intent.stage === "IMPL") {
     const plan = intent.approvedPlanPath ?? "the approved PLAN artifact";
+    const contract = join(outputDir, "IMPL_CONTRACT.md");
     return `# ${intent.ticketId} IMPLEMENT
 
 ${isolated}
 
 Fresh ACP session. Do not resume the PLAN conversation.
 Execute the approved plan at ${plan}.
+Honor ${contract} if that file is present (Crawmak conditions). Do not paste or re-open the review essay.
+Do not re-inventory. Open only the plan's named files. If a named file contradicts the plan or IMPL_CONTRACT.md, stop for revise.
 Write ${join(outputDir, "IMPL_DONE.json")} and ${join(outputDir, "terminal.json")} for IMPL attempt ${attempt}.
 terminal.json must contain these identity fields (optional hash is allowed):
 ${terminal}
