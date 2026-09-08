@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { join } from "node:path";
 
 import type { LaunchReceipt, StageName, WorkerTruth } from "../domain/types.js";
+import { checkPlanReview, reviewFilePath } from "../core/plan-review.js";
 import { parseStageFromIdempotencyKey } from "../core/stage-paths.js";
 export type { StageAttemptRef } from "../core/stage-paths.js";
 export { parseStageFromIdempotencyKey, stageAttemptDir, stageSessionKey } from "../core/stage-paths.js";
@@ -147,11 +148,44 @@ export function inspectStageArtifacts(input: {
   };
 }
 
+export function inspectReviewHop(input: {
+  stage: StageName;
+  outputDir: string;
+  idempotencyKey: string;
+  waveId: string;
+  ticketId: string;
+  attempt: number;
+  live?: boolean;
+  forgeRoot?: string;
+}): WorkerTruth {
+  const artifacts = inspectStageArtifacts(input);
+  if (input.stage !== "REVIEW") return artifacts;
+  if (artifacts.status === "succeeded" || artifacts.status === "running") return artifacts;
+  if (input.live) return { status: "running", outputRef: input.outputDir };
+  if (!input.forgeRoot) return artifacts;
+  const review = checkPlanReview({ forgeRoot: input.forgeRoot, ticketId: input.ticketId });
+  if (review.ok) {
+    return {
+      status: "succeeded",
+      outputRef: reviewFilePath(input.forgeRoot, input.ticketId),
+      summary: review.verdict,
+    };
+  }
+  if (review.reason === "review_theater") {
+    return {
+      status: "failed",
+      error: "review_theater",
+      outputRef: reviewFilePath(input.forgeRoot, input.ticketId),
+    };
+  }
+  return artifacts;
+}
+
 export function inspectReceiptArtifacts(receipt: LaunchReceipt): WorkerTruth | undefined {
   if (!receipt.outputDir) return undefined;
   const sourceId = receipt.idempotencyKey;
   const parsed = parseStageFromIdempotencyKey(sourceId);
-  return inspectStageArtifacts({
+  return inspectReviewHop({
     stage: parsed.stage,
     outputDir: receipt.outputDir,
     idempotencyKey: sourceId,
@@ -159,5 +193,6 @@ export function inspectReceiptArtifacts(receipt: LaunchReceipt): WorkerTruth | u
     ticketId: parsed.ticketId,
     attempt: parsed.attempt,
     live: false,
+    ...(parsed.stage === "REVIEW" && receipt.cwd ? { forgeRoot: receipt.cwd } : {}),
   });
 }

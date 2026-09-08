@@ -4,7 +4,8 @@
 #   REPO=/path/to/repo TICKETS=A-001 OUT_DIR=/tmp/wave ./scripts/run-backlog-wave.sh
 #
 # Never bash-stamp APPROVED by Astra. Never approve just because the wave is gated.
-# Skip-bit tickets auto-IMPL in the controller (WR-023). Default tickets wait review+stamp (WR-028).
+# Skip-bit tickets auto-IMPL in the controller (WR-023). Default tickets wait Crawmak REVIEW (WR-028 / WR-052).
+# One ticket is a valid wave. Operator path is this script, not crawmak kick.sh.
 # Scratch defaults to the 7.3T data disk (not $HOME). Override with WR_SCRATCH / OUT_DIR.
 set -euo pipefail
 : "${REPO:?}"
@@ -222,6 +223,7 @@ fi
 SUPERVISOR_PIDFILE="${WAVE_SUPERVISOR_PIDFILE:-$WR_SCRATCH/supervisor.pid}"
 # shellcheck source=supervisor-health.sh
 source "$SCRIPT_DIR/supervisor-health.sh"
+resolve_grok_launcher
 export WAVE_SUPERVISOR_PIDFILE="$SUPERVISOR_PIDFILE"
 ensure_supervisor() {
   if supervisor_alive; then

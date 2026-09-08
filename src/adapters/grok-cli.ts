@@ -5,9 +5,10 @@ import { join } from "node:path";
 import type { LaunchReceipt } from "../domain/types.js";
 import { parseStageFromIdempotencyKey } from "../core/stage-paths.js";
 import type { LaunchIntent, WorkerAdapter } from "./ports.js";
+import { stageBrief } from "./stage-briefs.js";
 import {
   ensureStageAttemptDir,
-  inspectStageArtifacts,
+  inspectReviewHop,
   readJsonFile,
   stageAttemptDir,
   writeJsonAtomic,
@@ -113,11 +114,17 @@ export class GrokCliWorker implements WorkerAdapter {
       throw new Error(`grok CLI fallback rejected unexpected outputDir ${intent.outputDir}`);
     }
     ensureStageAttemptDir(outDir);
-    const phase = intent.stage === "IMPL" || intent.stage === "VERIFY" ? "implementing" : "planning";
-    const briefName = phase === "implementing" ? "IMPL_BRIEF.md" : "PLAN_BRIEF.md";
+    const reviewing = intent.stage === "REVIEW";
+    const implementing = intent.stage === "IMPL" || intent.stage === "VERIFY";
+    const phase = implementing ? "implementing" : reviewing ? "reviewing" : "planning";
+    const briefName = implementing ? "IMPL_BRIEF.md" : reviewing ? "REVIEW_BRIEF.md" : "PLAN_BRIEF.md";
     const briefPath = join(outDir, briefName);
     if (!existsSync(briefPath)) {
-      writeFileSync(briefPath, defaultBrief(intent, outDir, phase), "utf8");
+      writeFileSync(
+        briefPath,
+        reviewing ? stageBrief(intent, outDir) : defaultBrief(intent, outDir, implementing ? "implementing" : "planning"),
+        "utf8",
+      );
     }
     const args = [
       "--repo",
@@ -135,6 +142,7 @@ export class GrokCliWorker implements WorkerAdapter {
       "--launch-key",
       intent.idempotencyKey,
     ];
+    if (reviewing) args.push("--log-basename", "grok-review");
     let ticketMd = this.opts.ticketSourcePath;
     if (ticketMd && existsSync(ticketMd)) {
       const dest = join(outDir, "TICKET.md");
@@ -166,6 +174,7 @@ export class GrokCliWorker implements WorkerAdapter {
       provider: "grok-cli",
       model: this.opts.model ?? "grok-4.6",
       outputDir: outDir,
+      cwd,
     };
     this.receipts.set(intent.idempotencyKey, receipt);
     writeJsonAtomic(join(outDir, "wave-launch.json"), {
@@ -212,7 +221,7 @@ export class GrokCliWorker implements WorkerAdapter {
     }
     const pid = Number(receipt.runId);
     const live = Number.isInteger(pid) && pid > 0 && processAlive(pid);
-    return inspectStageArtifacts({
+    return inspectReviewHop({
       stage: parsed.stage,
       outputDir: outDir,
       idempotencyKey: receipt.idempotencyKey,
@@ -220,6 +229,7 @@ export class GrokCliWorker implements WorkerAdapter {
       ticketId: parsed.ticketId,
       attempt: parsed.attempt,
       live,
+      ...(parsed.stage === "REVIEW" && receipt.cwd ? { forgeRoot: receipt.cwd } : {}),
     });
   }
 

@@ -50,6 +50,8 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="${PLUGIN_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# shellcheck source=supervisor-health.sh
+source "$SCRIPT_DIR/supervisor-health.sh"
 if [[ "$PLUGIN_DIR" == *agent-backlog-wave-runner* ]]; then
   echo "error: refusing stale workspace plugin PLUGIN_DIR=$PLUGIN_DIR" >&2
   echo "use /run/media/j/M2MegaStore/Code/Ai/openclaw-wave-runner" >&2
@@ -226,6 +228,7 @@ run_cli() {
   if [[ "${WAVE_RUNNER_ACP:-1}" == "0" ]]; then
     args+=(--no-acp)
   fi
+  resolve_grok_launcher
   if [[ -n "${WAVE_RUNNER_LAUNCHER:-}" ]]; then
     args+=(--launcher "$WAVE_RUNNER_LAUNCHER")
   fi

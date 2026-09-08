@@ -64,6 +64,26 @@ raise SystemExit(0 if age < 3 * max(1.0, sleep_s) else 1)
 PY
 }
 
+resolve_grok_launcher() {
+  if [[ -n "${WAVE_RUNNER_LAUNCHER:-}" ]]; then
+    export WAVE_RUNNER_LAUNCHER
+    return 0
+  fi
+  if [[ -n "${DEFAULT_GROK_LAUNCHER:-}" && -x "${DEFAULT_GROK_LAUNCHER}" ]]; then
+    WAVE_RUNNER_LAUNCHER="$DEFAULT_GROK_LAUNCHER"
+    export WAVE_RUNNER_LAUNCHER
+    return 0
+  fi
+  local health_dir wr_root sibling
+  health_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  wr_root="$(cd "$health_dir/.." && pwd)"
+  sibling="$wr_root/../game_jam/tools/run_detached_builder.sh"
+  if [[ -x "$sibling" ]]; then
+    WAVE_RUNNER_LAUNCHER="$(cd "$(dirname "$sibling")" && pwd)/run_detached_builder.sh"
+    export WAVE_RUNNER_LAUNCHER
+  fi
+}
+
 supervisor_alive() {
   local pidfile="${WAVE_SUPERVISOR_PIDFILE:-${WR_SCRATCH%/}/supervisor.pid}"
   [[ -f "$pidfile" ]] || return 1

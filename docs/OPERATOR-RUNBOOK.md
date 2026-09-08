@@ -28,6 +28,11 @@ node dist/scripts/wave-cli.js emergency-stop
 node dist/scripts/wave-cli.js backup --dest /path/to/backup.sqlite
 ```
 
+**Operator kick is this walker, including one ticket.** Named id list (`TICKETS=MC-006` or
+`TICKETS=A,B`) via `run-backlog-wave.sh`. Do not use crawmak `kick.sh` as the product path —
+that is one hop and stalls at `plan_review`. Enqueue onto the live supervisor; do not start a
+second tick loop.
+
 **Live run vs slice (WR-042 / WR-046):** a wave is still a frozen ticket batch. Kicking more
 tickets **enqueues** a new slice onto the live supervisor and **exits**. Do not start a second
 tick loop. Alive means `$WR_SCRATCH/supervisor.pid` **and** a fresh
@@ -41,8 +46,10 @@ with no live outbox (`STUCK_TICKS`) exits and drops the pidfile. `PENDING` is li
 (same as `CLAIMED` / `LAUNCHED` / `RECONCILING`). One bad lane on a shared ledger is
 fail-closed; sibling waves keep ticking. Do not `sessions_spawn` OpenClaw agent `grok`
 unless `agents.list` (or `WAVE_GROK_ACP_AGENT_ID`) lists it — Grok PLAN/REVIEW/IMPL go
-to grok-cli when `--launcher` is set. `ensure_supervisor` waits for pid **and** a fresh
-heartbeat and unlinks a dead pidfile.
+to grok-cli. Empty `WAVE_RUNNER_LAUNCHER` defaults to sibling
+`../game_jam/tools/run_detached_builder.sh` when that file is executable. Grok REVIEW is `--phase reviewing` (forge cwd); inspect admits on
+`crawmak/reviews/<ID>.md` (matching `terminal.json` still counts). `ensure_supervisor` waits
+for pid **and** a fresh heartbeat and unlinks a dead pidfile.
 Do not cap PLAN/IMPL worker tokens; this is an orchestration slot, not a spend ceiling.
 
 `--simulate` is mock-only and is not a truthful real-worker receipt.
@@ -193,9 +200,11 @@ change-set (incl. spec patches when behavior/UX changes). Crawmak/Mona **review 
 mid-build is **revise**, not silent redesign. Tests bind the contract.
 
 - **Default after PLAN** (agent-eligible, no skip bit, no human hold): ticket
-  `PLAN_REVIEW`, wave `AWAITING_PLAN_GATE`, one Crawmak REVIEW worker (forge cwd).
+  `PLAN_REVIEW`, wave `AWAITING_PLAN_GATE`, one Crawmak REVIEW worker (forge cwd,
+  grok-cli `--phase reviewing` unless OpenClaw lists agent `grok`).
   Crawmak `reviews/<ID>.md` Verdict `approve` / `approve-with-conditions` **is**
-  ledger-approve (WR-033). Leftover `APPROVED by Astra|Jason` on the plan still
+  ledger-approve (WR-033) and is enough for inspect (WR-052; `terminal.json` optional).
+  Leftover `APPROVED by Astra|Jason` on the plan still
   admits only when **no** Crawmak launch happened. Do **not** bash-stamp Astra.
   After Crawmak `revise`, the next hop's REVIEW must settle before the forge
   file is read again; leftover `Verdict: revise` must not `plan_review_revise_cap`

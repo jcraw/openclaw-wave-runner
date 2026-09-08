@@ -7,7 +7,7 @@
     "src/store/database.ts": 5200,
     "src/index.ts": 2600,
     "src/controller.ts": 2500,
-    "src/adapters/grok-cli.ts": 2400,
+    "src/adapters/grok-cli.ts": 2500,
     "src/adapters/openclaw-acp.ts": 2580,
     "src/core/settlement.ts": 2680,
     "src/adapters/mocks.ts": 2320,

@@ -143,6 +143,7 @@ while true; do
     if [[ "${WAVE_RUNNER_ACP:-1}" == "0" ]]; then
       tick_args+=(--no-acp)
     fi
+    resolve_grok_launcher
     if [[ -n "${WAVE_RUNNER_LAUNCHER:-}" ]]; then
       tick_args+=(--launcher "$WAVE_RUNNER_LAUNCHER")
     fi
