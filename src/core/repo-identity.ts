@@ -126,7 +126,7 @@ export function resolveCliOperatorIdentity(input: {
   const fromEnv = env.WAVE_RUNNER_OPERATOR_ID?.trim();
   if (fromEnv) return assertSafeOperatorId(fromEnv);
   if (input.waveId?.trim()) return operatorIdentityFromWaveId(input.waveId);
-  throw new SafetyGateError("supervised CLI requires WAVE_RUNNER_OPERATOR_ID or --wave.");
+  return RUN_OPERATOR_ID;
 }
 
 /** Collision-resistant wrapper id (timestamp + uuid). Bash uses the same idea. */

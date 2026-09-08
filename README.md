@@ -65,6 +65,7 @@ They are **not** the transactional runtime. The reusable product is **freeze / b
 7. Cancellation is sticky across restarts  
 8. Every wave **terminates** (exhaustion, budget, deadline, cancel, or block)  
 9. No normal progress path that is “poll the LLM every N minutes”  
+10. One ticker per live run; one failing wave/lane must not freeze sibling waves on the same ledger (WR-051)  
 
 ---
 

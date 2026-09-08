@@ -450,7 +450,7 @@ test("no Grok substitute: refused Codex spawn leaves PLAN not succeeded and no g
     return orig(intent);
   };
   await controller.start("wave-nosub");
-  await assert.rejects(() => controller.runUntilIdle("wave-nosub"), /refused the ACP sessions_spawn/);
+  await controller.runUntilIdle("wave-nosub");
   const view = controller.inspect("wave-nosub");
   assert.ok(view.stages.every((s) => s.stage !== "PLAN" || s.status !== "SUCCEEDED"));
   assert.ok(!sim.worker.intents.some((i) => i.stage === "PLAN" && i.agentId === "grok"));

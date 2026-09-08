@@ -72,3 +72,17 @@ supervisor_alive() {
   [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null || return 1
   supervisor_heartbeat_fresh
 }
+
+# Do not treat parent $! as healthy. Wait for pid AND a fresh heartbeat.
+wait_supervisor_alive() {
+  local tries="${1:-50}"
+  local i=0
+  while (( i < tries )); do
+    if supervisor_alive; then
+      return 0
+    fi
+    sleep 0.1
+    i=$((i + 1))
+  done
+  return 1
+}

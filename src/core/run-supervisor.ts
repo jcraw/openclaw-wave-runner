@@ -1,5 +1,7 @@
+import { SafetyGateError } from "../domain/errors.js";
 import type { CreateWaveInput, SupervisedStartOptions, WaveView } from "../domain/types.js";
-import { eventId as nextEventId, inspect, type ControllerContext } from "./controller-context.js";
+import { CrashInjectedError, eventId as nextEventId, inspect, type ControllerContext } from "./controller-context.js";
+import { failLaunchWithoutReceipt } from "./fail-launch.js";
 import { isTerminalWave } from "./state-machine.js";
 import { tickWave } from "./tick.js";
 import { freezeWave, startWave } from "./wave-commands.js";
@@ -19,7 +21,18 @@ export async function tickLiveWaves(
   const waveIds = liveWaveIds(ctrl);
   const views: WaveView[] = [];
   for (const waveId of waveIds) {
-    views.push(await tickWave(ctrl, waveId, options));
+    try {
+      views.push(await tickWave(ctrl, waveId, options));
+    } catch (err) {
+      if (err instanceof CrashInjectedError || err instanceof SafetyGateError) throw err;
+      const reason = err instanceof Error ? err.message : String(err);
+      for (const item of ctrl.db.listOutbox(waveId)) {
+        if (item.state === "CLAIMED" || item.state === "RECONCILING") {
+          failLaunchWithoutReceipt(ctrl, item, reason);
+        }
+      }
+      views.push({ ...inspect(ctrl, waveId), isolatedError: reason });
+    }
   }
   return { waveIds, views };
 }

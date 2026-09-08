@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { WorkerTruth } from "../domain/types.js";
+import { listGatewayAgentIds, resolveAcpAgentId } from "./acp-grok-agent.js";
 import type {
   AcpSpawn,
   AcpSpawnRequest,
@@ -113,23 +114,26 @@ function mapTaskTruth(task: GatewayTask): WorkerTruth {
  * task without launching a duplicate.
  */
 export class OpenClawGatewayAcpSpawn implements AcpSpawn {
+  private agentIdCache?: string[];
+
   constructor(
     private readonly request: GatewayRequest,
     private readonly requesterSessionKey: string,
     private readonly requesterAgentId = "main",
   ) {}
 
+  async listAgentIds(): Promise<string[]> {
+    if (!this.agentIdCache) this.agentIdCache = await listGatewayAgentIds(this.request);
+    return this.agentIdCache;
+  }
+
   async spawn(input: AcpSpawnRequest): Promise<AcpSpawnResult> {
     const label = recoveryLabel(input.sourceId);
-    // Mona/Kawazaki/Robin are OpenClaw config agents → native subagent.
-    // Grok builders stay on ACP harness (agentId "grok").
-    // Codex ACP PLAN: house model Sol + thinking high (matches ~/.codex
-    // model_reasoning_effort). Do not pin thinking=off. Do not substitute gpt-5.5.
-    // WAVE_CODEX_MODEL / WAVE_CODEX_THINKING override. Never leak Grok into model.
+    const agentId = await resolveAcpAgentId(this.request, input.agentId);
     const args: Record<string, unknown> = {
       task: input.task,
       runtime: input.agentId === "mona" ? "subagent" : "acp",
-      agentId: input.agentId,
+      agentId,
       mode: input.mode,
       cleanup: "keep",
       cwd: input.cwd,

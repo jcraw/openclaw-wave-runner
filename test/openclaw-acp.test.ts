@@ -7,6 +7,9 @@ test("Gateway ACP adapter spawns through sessions_spawn and adopts the public ta
   const calls: Array<{ method: string; params?: Record<string, unknown> }> = [];
   const request = async <T>(method: string, params?: Record<string, unknown>): Promise<T> => {
     calls.push({ method, params });
+    if (method === "agents.list" || method === "agents_list") {
+      return { agents: [{ id: "grok" }, { id: "mona" }, { id: "codex" }] } as T;
+    }
     if (method === "tools.invoke") {
       return {
         ok: true,
@@ -55,8 +58,8 @@ test("Gateway ACP adapter spawns through sessions_spawn and adopts the public ta
     sessionId: "agent:main:acp:child-1",
     taskId: "task-1",
   });
-  const invoke = calls[0];
-  assert.equal(invoke.method, "tools.invoke");
+  const invoke = calls.find((c) => c.method === "tools.invoke");
+  assert.ok(invoke);
   assert.equal(invoke.params?.name, "sessions_spawn");
   assert.deepEqual((invoke.params?.args as Record<string, unknown>).runtime, "acp");
   assert.deepEqual((invoke.params?.args as Record<string, unknown>).agentId, "grok");
@@ -70,7 +73,8 @@ test("Gateway ACP adapter spawns through sessions_spawn and adopts the public ta
     sourceId: "W:T:UX_REVIEW:1",
     cwd: "/tmp/mona",
   });
-  const monaInvoke = calls[2];
+  const monaInvoke = calls.filter((c) => c.method === "tools.invoke")[1];
+  assert.ok(monaInvoke);
   assert.deepEqual((monaInvoke.params?.args as Record<string, unknown>).agentId, "mona");
   assert.deepEqual((monaInvoke.params?.args as Record<string, unknown>).cwd, "/tmp/mona");
   const args = invoke.params?.args as Record<string, unknown>;
@@ -80,6 +84,9 @@ test("Gateway ACP adapter spawns through sessions_spawn and adopts the public ta
 
 test("Gateway ACP adapter adopts the ACP row when a wrapper task shares the same runId", async () => {
   const request = async <T>(method: string): Promise<T> => {
+    if (method === "agents.list" || method === "agents_list") {
+      return { agents: [{ id: "grok" }, { id: "mona" }] } as T;
+    }
     if (method === "tools.invoke") {
       return {
         ok: true,

@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { GrokAcpWorker, MissingAcpSpawnWorker } from "../src/adapters/acp-worker.js";
 import { GrokCliWorker } from "../src/adapters/grok-cli.js";
+import { RoutedProductWorker } from "../src/adapters/routed-worker.js";
 import { OpenClawGatewayAcpSpawn } from "../src/adapters/openclaw-acp.js";
 import type { AcpSpawn } from "../src/adapters/ports.js";
 import { OWNER_SESSION_KEY } from "../src/controller.js";
@@ -148,7 +149,8 @@ test("Step 1: launcher is used only when explicitly provided and ACP is absent",
     launcherPath: "/bin/true",
     repoPath: "/tmp/repo",
   });
-  assert.ok(productWins instanceof GrokAcpWorker);
+  assert.ok(productWins instanceof RoutedProductWorker);
+  assert.equal(productWins.kind, "routed-product");
 
   const withLauncher = supervisedController({
     repoPath: "/tmp/repo",

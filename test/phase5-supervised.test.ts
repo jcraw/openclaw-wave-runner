@@ -389,11 +389,13 @@ test("Phase 5: grok CLI worker records a real launch receipt without mocking suc
   const isolated = mkdtempSync(join(tmpdir(), "wave-p5-grok-"));
   const outDir = stageAttemptDir({ root: isolated, waveId: "w", ticketId: "EX-002", stage: "PLAN", attempt: 1 });
   let launched = 0;
+  let launchArgs: string[] = [];
   const worker = new GrokCliWorker({
     repoPath: isolated,
     launcherPath: "/bin/true",
-    exec: async () => {
+    exec: async (input) => {
       launched += 1;
+      launchArgs = input.args;
       writeFileSync(join(outDir, "PLAN.md"), "# PLAN EX-002\n", "utf8");
       writeStageTerminal(outDir, {
         idempotencyKey: "w:EX-002:PLAN:1", waveId: "w", ticketId: "EX-002",
@@ -411,6 +413,8 @@ test("Phase 5: grok CLI worker records a real launch receipt without mocking suc
     sessionKey: "sess",
   });
   assert.equal(launched, 1);
+  assert.equal(launchArgs[launchArgs.indexOf("--out-dir") + 1], outDir);
+  assert.equal(launchArgs[launchArgs.indexOf("--launch-key") + 1], "w:EX-002:PLAN:1");
   assert.equal(receipt.provider, "grok-cli");
   assert.equal(receipt.model, "grok-4.6");
   const truth = await worker.inspect(receipt);

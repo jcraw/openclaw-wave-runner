@@ -2,6 +2,7 @@ import type { LaunchOutbox, LaunchReceipt } from "../domain/types.js";
 import { deriveWriterScope, writerLeaseKey } from "../domain/writer-scope.js";
 import { claimantFields } from "./authority.js";
 import { CrashInjectedError, type ControllerContext, requireTicket, requireWave } from "./controller-context.js";
+import { failLaunchWithoutReceipt, launchClaimed, lostSpawnReason } from "./fail-launch.js";
 import { isImplActive, releaseAuthorityForLease } from "./lease-release.js";
 import {
   claimOutbox,
@@ -109,10 +110,10 @@ export async function reconcile(ctrl: ControllerContext, waveId: string): Promis
     const latest = ctrl.db.getOutboxByIdempotency(item.idempotencyKey);
     if (!latest) continue;
     if (!latest.receiptJson) {
-      // Crash after spawn / before receipt commit must recover the existing
-      // worker identity. Never spawn again from a receipt-less row.
+      // Crash after spawn: recover existing worker; never spawn again.
       const recovered = await ctrl.worker.recover(intentFromOutbox(ctrl, latest));
       if (!recovered) {
+        failLaunchWithoutReceipt(ctrl, latest, lostSpawnReason(latest));
         continue;
       }
       ctrl.db.transaction(() => {
@@ -194,11 +195,8 @@ export async function dispatchPending(ctrl: ControllerContext, waveId: string): 
     }
     const intent = intentFromOutbox(ctrl, claimed);
     if (failClosedImplHandoff(ctrl, waveId, claimed, intent)) continue;
-    if (ctrl.crashAt === "after_launch" || ctrl.crashAt === "before_receipt_commit") {
-      await ctrl.worker.launch(intent);
-      throw new CrashInjectedError(ctrl.crashAt);
-    }
-    const receipt = await ctrl.worker.launch(intent);
+    const receipt = await launchClaimed(ctrl, claimed, intent);
+    if (!receipt) continue;
     if (requireWave(ctrl, waveId).flowId) {
       await ctrl.workflow.linkStageTask({
         flowId: requireWave(ctrl, waveId).flowId!,

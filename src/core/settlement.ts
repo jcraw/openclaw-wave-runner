@@ -45,7 +45,7 @@ export function stageDeathReason(input: {
   return clipReason(`${input.stage} attempt ${input.attempt}: ${kind}`);
 }
 
-/** Codex PLAN ACP_TURN_FAILED is a host/CLI mismatch, not a flaky turn; do not burn retries. */
+/** Host misconfig / Codex ACP_TURN_FAILED: do not burn hops. */
 export function stageDeathNoRetry(input: {
   verifyFailSnippet?: string;
   reason: string;
@@ -54,6 +54,7 @@ export function stageDeathNoRetry(input: {
 }): boolean {
   if (input.verifyFailSnippet === "missing_verify") return true;
   if (input.verifyFailSnippet?.startsWith("stale_fence")) return true;
+  if (/Unknown agent id|unknown_acp_agent|grok_agent_missing|grok CLI fallback refuses Codex PLAN/.test(input.reason)) return true;
   return (
     input.stage === "PLAN" &&
     input.planWorker === "codex" &&

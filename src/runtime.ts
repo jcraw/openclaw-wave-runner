@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
-import { GrokAcpWorker, MissingAcpSpawnWorker } from "./adapters/acp-worker.js";
+import { MissingAcpSpawnWorker } from "./adapters/acp-worker.js";
+import { buildProductWorker, type ProductWorkerInput } from "./adapters/routed-worker.js";
 import {
   createOpenClawCliGatewayRequest,
   gatewayRpcConfigured,
@@ -8,7 +9,6 @@ import {
   type GatewayRequest,
   type GatewayRpcConfig,
 } from "./adapters/gateway-rpc.js";
-import { GrokCliWorker } from "./adapters/grok-cli.js";
 import { MarkdownTracker } from "./adapters/markdown-tracker.js";
 import { MockUsage, MockWorker, MockWorkflow, SafePolicy } from "./adapters/mocks.js";
 import { OpenClawGatewayAcpSpawn } from "./adapters/openclaw-acp.js";
@@ -31,34 +31,12 @@ export function resolvePluginStorePath(stateDir: string): string {
   return join(stateDir, "wave-runner", "wave.sqlite");
 }
 
-export type ProductWorkerInput = {
-  acp?: AcpSpawn;
-  ports?: WaveRunnerPorts;
-  allowNativeProof?: boolean;
-  launcherPath?: string;
-  repoPath?: string;
-  ticketSourcePath?: string;
-};
+export type { ProductWorkerInput };
 
 export function resolveProductWorker(input: ProductWorkerInput): WorkerAdapter {
-  if (input.acp) {
-    return new GrokAcpWorker({
-      acp: input.acp,
-      tasks: input.ports?.tasks,
-      model: "grok-4.6",
-    });
-  }
-  if (input.allowNativeProof && input.ports) {
-    return new NativeSubagentWorker(input.ports.subagent);
-  }
-  if (input.launcherPath && input.repoPath) {
-    return new GrokCliWorker({
-      repoPath: input.repoPath,
-      launcherPath: input.launcherPath,
-      ticketSourcePath: input.ticketSourcePath,
-      model: "grok-4.6",
-    });
-  }
+  const built = buildProductWorker(input);
+  if (built) return built;
+  if (input.allowNativeProof && input.ports) return new NativeSubagentWorker(input.ports.subagent);
   return new MissingAcpSpawnWorker();
 }
 

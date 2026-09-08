@@ -68,12 +68,12 @@ export function progressFingerprint(view: ProgressView): string {
   });
 }
 
-export const LIVE_OUTBOX_STATES = ["CLAIMED", "LAUNCHED", "RECONCILING"] as const;
+export const LIVE_OUTBOX_STATES = ["PENDING", "CLAIMED", "LAUNCHED", "RECONCILING"] as const;
 
-/** True when any outbox is still in flight (healthy long IMPL is not stuck). */
+/** True when any outbox is still in flight (PENDING counts; WR-051). */
 export function hasLiveOutbox(view: ProgressView): boolean {
   return view.outbox.some((item) =>
-    item.state === "CLAIMED" || item.state === "LAUNCHED" || item.state === "RECONCILING",
+    (LIVE_OUTBOX_STATES as readonly string[]).includes(item.state),
   );
 }
 
@@ -88,7 +88,7 @@ export function hasLiveWork(view: ProgressView): boolean {
 
 /**
  * Increment only while RUNNING, fingerprint unchanged, and no live work.
- * Live CLAIMED/LAUNCHED/RECONCILING or VERIFYING closeout resets (WR-020 / WR-026).
+ * Live PENDING/CLAIMED/LAUNCHED/RECONCILING or VERIFYING closeout resets (WR-020 / WR-051).
  * Frozen RUNNING with no open outbox still stops (WR-019). threshold <= 0 disables.
  */
 export function nextStuckCount(

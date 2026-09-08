@@ -49,6 +49,11 @@ test("stageDeathNoRetry: Codex PLAN ACP_TURN_FAILED only", () => {
   );
   assert.equal(stageDeathNoRetry({ verifyFailSnippet: "missing_verify", reason: "x", stage: "PLAN" }), true);
   assert.equal(stageDeathNoRetry({ verifyFailSnippet: "stale_fence:1", reason: "x", stage: "IMPL" }), true);
+  assert.equal(stageDeathNoRetry({ reason: 'Unknown agent id "grok"', stage: "REVIEW" }), true);
+  assert.equal(
+    stageDeathNoRetry({ reason: "grok CLI fallback refuses Codex PLAN", stage: "PLAN", planWorker: "codex" }),
+    true,
+  );
 });
 
 test("enrichCodexTurnError pulls Sol 400 out of wrapper Internal error", () => {

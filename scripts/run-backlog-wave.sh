@@ -36,6 +36,7 @@ export MAX_WALL_MS="${MAX_WALL_MS:-0}"
 export TICK_SLEEP="${TICK_SLEEP:-20}"
 export STUCK_TICKS="${STUCK_TICKS:-20}"
 export WAVE_RUNNER_ACP="${WAVE_RUNNER_ACP:-1}"
+export WAVE_RUNNER_LAUNCHER="${WAVE_RUNNER_LAUNCHER:-}"
 AUTO_PLAN_GATE="${AUTO_PLAN_GATE:-1}"
 if [[ -z "${WAVE_LAND_MODE:-}" ]]; then
   export WAVE_LAND_MODE=apply
@@ -106,7 +107,7 @@ has_live_outbox() {
   python3 - "$1" <<'PY'
 import json,sys
 d=json.load(open(sys.argv[1]))
-live={"CLAIMED","LAUNCHED","RECONCILING"}
+live={"PENDING","CLAIMED","LAUNCHED","RECONCILING"}
 if any((o.get("state") or "") in live for o in (d.get("outbox") or [])):
     print("1")
 elif any((t.get("status") or "") == "VERIFYING" for t in (d.get("tickets") or [])):
@@ -232,11 +233,19 @@ ensure_supervisor() {
     TICK_SLEEP="$TICK_SLEEP" WAVE_IDLE_EXIT_S="${WAVE_IDLE_EXIT_S:-1800}" \
     WAVE_SUPERVISOR_PIDFILE="$SUPERVISOR_PIDFILE" \
     WAVE_RUNNER_OPERATOR_ID="${WAVE_RUNNER_OPERATOR_ID:-supervisor-wave-runner}" \
+    WAVE_RUNNER_ACP="${WAVE_RUNNER_ACP:-1}" \
+    WAVE_RUNNER_LAUNCHER="${WAVE_RUNNER_LAUNCHER:-}" \
+    WAVE_SUPERVISOR_WAVE_ID="${WAVE_SUPERVISOR_WAVE_ID:-}" \
+    WAVE_SUPERVISOR_REPO="${WAVE_SUPERVISOR_REPO:-}" \
     WAVE_LAND_MODE="${WAVE_LAND_MODE:-apply}" \
     bash "$SCRIPT_DIR/wave-supervisor.sh" \
     >>"$WR_SCRATCH/supervisor.log" 2>&1 &
   echo $! >"$SUPERVISOR_PIDFILE"
-  sleep 0.3
+  if ! wait_supervisor_alive 50; then
+    rm -f "$SUPERVISOR_PIDFILE"
+    echo "error: supervisor failed to become alive (no fresh heartbeat)" >&2
+    return 1
+  fi
 }
 
 JOIN="${WAVE_JOIN_SUPERVISOR:-1}"

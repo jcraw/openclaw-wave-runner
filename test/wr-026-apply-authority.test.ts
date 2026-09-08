@@ -33,6 +33,7 @@ import {
   canonicalRepoIdentity,
   newWaveId,
   operatorIdentityFromWaveId,
+  RUN_OPERATOR_ID,
   resolveCliOperatorIdentity,
   resolveSupervisedWaveDb,
 } from "../src/core/repo-identity.js";
@@ -439,7 +440,10 @@ test("wave ids and operator identities are distinct and stable", () => {
     resolveCliOperatorIdentity({ supervised: true, waveId: "W1" }),
     resolveCliOperatorIdentity({ supervised: true, waveId: "W2" }),
   );
-  assert.throws(() => resolveCliOperatorIdentity({ supervised: true }));
+  assert.equal(resolveCliOperatorIdentity({ supervised: true, env: {} }), RUN_OPERATOR_ID);
+  assert.throws(() =>
+    resolveCliOperatorIdentity({ supervised: true, env: { WAVE_RUNNER_OPERATOR_ID: "/unsafe/path" } }),
+  );
 });
 
 test("supervised wrappers use WAVE_DB and collision-resistant wave ids", () => {

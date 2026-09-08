@@ -37,7 +37,12 @@ dead; the next kick respawns. Join-mode identity is `supervisor-wave-runner` (ne
 ACP occupancy is global (default 4, env `WAVE_ACP_SLOTS`) across live waves only — leftover
 `LAUNCHED` rows on CANCELLED/FAILED waves do not fill the cap. `wave-cli status` prints
 `SUPERVISOR_OK` or `SUPERVISOR_DEAD`. Supervisor `tick-all` fail-streak 5 or frozen RUNNING
-with no live outbox (`STUCK_TICKS`) exits and drops the pidfile.
+with no live outbox (`STUCK_TICKS`) exits and drops the pidfile. `PENDING` is live work
+(same as `CLAIMED` / `LAUNCHED` / `RECONCILING`). One bad lane on a shared ledger is
+fail-closed; sibling waves keep ticking. Do not `sessions_spawn` OpenClaw agent `grok`
+unless `agents.list` (or `WAVE_GROK_ACP_AGENT_ID`) lists it — Grok PLAN/REVIEW/IMPL go
+to grok-cli when `--launcher` is set. `ensure_supervisor` waits for pid **and** a fresh
+heartbeat and unlinks a dead pidfile.
 Do not cap PLAN/IMPL worker tokens; this is an orchestration slot, not a spend ceiling.
 
 `--simulate` is mock-only and is not a truthful real-worker receipt.
@@ -97,9 +102,30 @@ IMPL with CLI drain on the same primary is still split-brain; do not do that.
 `scripts/cleanup-scratch.sh` prunes `$WR_SCRATCH` (dry-run default; `--apply` deletes).
 It never deletes `ledgers/` (shared CLI sqlite). Cross-host / NFS locks are out of scope.
 
+## Dead supervisor + mixed-lane (WR-051)
+
+If `wr_live_status.py` or `wave-cli status` shows RUNNING / PLANNING / AWAITING_PLAN_GATE and **no** operator/drain/supervisor procs (`SUPERVISOR_DEAD` or stale heartbeat):
+
+1. Do **not** `run-backlog-wave.sh` a second wave for the same tickets.
+2. Respawn OSS only:
+
+```bash
+# PLUGIN_DIR = OSS Wave Runner checkout (not the workspace plugin copy)
+# WR_SCRATCH = Wave Runner scratch on the 7.3T data disk
+export WAVE_RUNNER_OPERATOR_ID=supervisor-wave-runner WAVE_RUNNER_ACP=1 WAVE_LAND_MODE=apply
+# optional pin:
+# export WAVE_SUPERVISOR_WAVE_ID=<wave> WAVE_SUPERVISOR_REPO=<repo>
+nohup bash "$PLUGIN_DIR/scripts/wave-supervisor.sh" >>"$WR_SCRATCH/supervisor.log" 2>&1 &
+# wait until wave-cli status prints SUPERVISOR_OK
+```
+
+3. Workspace plugin path is still refused. Do not edit `openclaw.json` to invent agent `grok`.
+
+Empty `WAVE_RUNNER_OPERATOR_ID` on Node `tick-all --supervised` defaults `supervisor-wave-runner`. Unsafe non-empty ids still fail closed (no loop).
+
 ## Live failure bites (WR-020)
 
-- `OPERATOR_STOP stuck` while an outbox is `LAUNCHED` / `CLAIMED` / `RECONCILING` → those states are live work, not stuck. Do not default `STUCK_TICKS=0` to “fix” it.
+- `OPERATOR_STOP stuck` while an outbox is `PENDING` / `LAUNCHED` / `CLAIMED` / `RECONCILING` → those states are live work, not stuck. Do not default `STUCK_TICKS=0` to “fix” it.
 - `WAVE_VERIFY.json` that is only `Command failed: bash -lc …` dropped stdout/stderr. Keep the full record (`ok,command,stdout,stderr,exitCode,timedOut,durationMs`) and `WAVE_VERIFY_TIMEOUT_MS`.
 - `terminal.hash` stored as `sha256:<hex>` vs inspect comparing raw hex → observe never settles. Normalize the prefix.
 

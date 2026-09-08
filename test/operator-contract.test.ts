@@ -43,6 +43,17 @@ test("progressFingerprint + nextStuckCount: hash, revision, stuck, plan-gate", (
     stuck: false,
   });
   assert.equal(hasLiveOutbox(view), false);
+  const pendingView = {
+    ...view,
+    outbox: [{ outboxId: "obx-1", state: "PENDING" }],
+  };
+  assert.equal(hasLiveOutbox(pendingView), true);
+  assert.equal(hasLiveWork(pendingView), true);
+  const pfp = progressFingerprint(pendingView);
+  assert.deepEqual(nextStuckCount(pfp, pfp, 2, 3, "RUNNING", hasLiveWork(pendingView)), {
+    count: 0,
+    stuck: false,
+  });
   const verifying = {
     ...view,
     tickets: [{ ticketId: "FX-001", status: "VERIFYING", revision: 2, result: "" }],

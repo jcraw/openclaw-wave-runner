@@ -28,6 +28,8 @@ fi
 TICK_SLEEP="${TICK_SLEEP:-20}"
 IDLE_S="${WAVE_IDLE_EXIT_S:-1800}"
 STUCK_TICKS="${STUCK_TICKS:-20}"
+TARGET_WAVE="${WAVE_SUPERVISOR_WAVE_ID:-}"
+TARGET_REPO="${WAVE_SUPERVISOR_REPO:-}"
 PIDFILE="${WAVE_SUPERVISOR_PIDFILE:-$WR_SCRATCH/supervisor.pid}"
 echo $$ >"$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
@@ -35,11 +37,20 @@ idle_since="$(date +%s)"
 LEDGER_DIR="$WR_SCRATCH/ledgers"
 mkdir -p "$LEDGER_DIR" "$WR_SCRATCH/supervisor-worktrees" "$WR_SCRATCH/supervisor-artifacts"
 write_supervisor_heartbeat 0 "" ""
-TICK_FAIL_N=0
+ALL_FAIL_N=0
+declare -A TICK_FAIL_BY_SCOPE=()
 STUCK_N=0
 PREV_FP=""
 
 list_live_repo() {
+  if [[ -n "$TARGET_WAVE" && -n "$TARGET_REPO" ]]; then
+    status_json="$(node "$CLI_JS" inspect --db "$1" --repo "$TARGET_REPO" --wave "$TARGET_WAVE" 2>/dev/null || true)"
+    status="$(python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("wave") or {}).get("status") or "")' <<<"$status_json" 2>/dev/null || true)"
+    case "$status" in
+      COMPLETED|FAILED|CANCELLED|BUDGET_STOPPED|BLOCKED|"") return 0 ;;
+      *) printf '%s' "$TARGET_REPO"; return 0 ;;
+    esac
+  fi
   node "$CLI_JS" list-live --db "$1" 2>/dev/null || true
 }
 
@@ -79,7 +90,7 @@ has_live_work_views() {
   python3 - "$1" <<'PY'
 import json, sys
 d = json.loads(open(sys.argv[1], encoding="utf8").read() or "{}")
-live = {"CLAIMED", "LAUNCHED", "RECONCILING"}
+live = {"PENDING", "CLAIMED", "LAUNCHED", "RECONCILING"}
 for v in d.get("views") or []:
     if any((o.get("state") or "") in live for o in (v.get("outbox") or [])):
         print("1"); raise SystemExit
@@ -102,6 +113,9 @@ PY
 
 while true; do
   live=0
+  cycle_live=0
+  cycle_failed=0
+  cycle_succeeded=0
   live_ids=""
   last_rc=0
   last_err=""
@@ -114,27 +128,42 @@ while true; do
       continue
     fi
     live=1
+    cycle_live=$((cycle_live + 1))
     tick_json="$WR_SCRATCH/supervisor-last-tick.json"
     set +e
-    node "$CLI_JS" tick-all --db "$db" --repo "$repo" --supervised \
-      --worktree-root "$WR_SCRATCH/supervisor-worktrees" \
-      --artifact-root "$WR_SCRATCH/supervisor-artifacts" \
+    if [[ -n "$TARGET_WAVE" ]]; then
+      tick_args=(node "$CLI_JS" tick --wave "$TARGET_WAVE" --db "$db" --repo "$repo" --supervised \
+        --worktree-root "$WR_SCRATCH/supervisor-worktrees" \
+        --artifact-root "$WR_SCRATCH/supervisor-artifacts")
+    else
+      tick_args=(node "$CLI_JS" tick-all --db "$db" --repo "$repo" --supervised \
+        --worktree-root "$WR_SCRATCH/supervisor-worktrees" \
+        --artifact-root "$WR_SCRATCH/supervisor-artifacts")
+    fi
+    if [[ "${WAVE_RUNNER_ACP:-1}" == "0" ]]; then
+      tick_args+=(--no-acp)
+    fi
+    if [[ -n "${WAVE_RUNNER_LAUNCHER:-}" ]]; then
+      tick_args+=(--launcher "$WAVE_RUNNER_LAUNCHER")
+    fi
+    "${tick_args[@]}" \
       >"$tick_json" 2>"$WR_SCRATCH/supervisor-last-tick.err"
     rc=$?
     set -e
     if [[ "$rc" -ne 0 ]]; then
       last_rc="$rc"
       last_err="$(tr '\n' ' ' <"$WR_SCRATCH/supervisor-last-tick.err" | head -c 400)"
-      TICK_FAIL_N=$((TICK_FAIL_N + 1))
-      echo "TICK_FAIL streak=$TICK_FAIL_N rc=$rc err=$last_err" >&2
-      if [[ "$TICK_FAIL_N" -ge 5 ]]; then
-        write_supervisor_heartbeat "$rc" "$live_ids" "$last_err"
-        echo "OPERATOR_STOP repeated_tick_fail streak=$TICK_FAIL_N" >&2
-        exit 1
-      fi
+      cycle_failed=$((cycle_failed + 1))
+      TICK_FAIL_BY_SCOPE["$db"]=$(( ${TICK_FAIL_BY_SCOPE["$db"]:-0} + 1 ))
+      echo "TICK_FAIL scope=$db streak=${TICK_FAIL_BY_SCOPE[$db]} rc=$rc err=$last_err" >&2
     else
-      TICK_FAIL_N=0
-      ids="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(",".join(d.get("waveIds") or []))' "$tick_json" 2>/dev/null || true)"
+      cycle_succeeded=$((cycle_succeeded + 1))
+      TICK_FAIL_BY_SCOPE["$db"]=0
+      if [[ -n "$TARGET_WAVE" ]]; then
+        ids="$TARGET_WAVE"
+      else
+        ids="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(",".join(d.get("waveIds") or []))' "$tick_json" 2>/dev/null || true)"
+      fi
       live_ids="${live_ids:+$live_ids,}$ids"
       if [[ "$(all_running_views "$tick_json")" == "1" ]]; then
         fp="$(fingerprint_views "$tick_json" 2>/dev/null || true)"
@@ -159,7 +188,16 @@ while true; do
       fi
     fi
   done
+  if [[ "$cycle_live" -gt 0 && "$cycle_failed" -gt 0 && "$cycle_succeeded" -eq 0 ]]; then
+    ALL_FAIL_N=$((ALL_FAIL_N + 1))
+  else
+    ALL_FAIL_N=0
+  fi
   write_supervisor_heartbeat "$last_rc" "$live_ids" "$last_err"
+  if [[ "$ALL_FAIL_N" -ge 5 ]]; then
+    echo "OPERATOR_STOP repeated_tick_fail streak=$ALL_FAIL_N" >&2
+    exit 1
+  fi
   now="$(date +%s)"
   if [[ "$live" -eq 0 ]]; then
     if (( now - idle_since >= IDLE_S )); then

@@ -139,7 +139,7 @@ has_live_outbox() {
   python3 - "$1" <<'PY2'
 import json,sys
 d=json.load(open(sys.argv[1]))
-live={"CLAIMED","LAUNCHED","RECONCILING"}
+live={"PENDING","CLAIMED","LAUNCHED","RECONCILING"}
 if any((o.get("state") or "") in live for o in (d.get("outbox") or [])):
     print("1")
 elif any((t.get("status") or "") == "VERIFYING" for t in (d.get("tickets") or [])):
@@ -222,6 +222,13 @@ run_cli() {
       exit 2
       ;;
   esac
+
+  if [[ "${WAVE_RUNNER_ACP:-1}" == "0" ]]; then
+    args+=(--no-acp)
+  fi
+  if [[ -n "${WAVE_RUNNER_LAUNCHER:-}" ]]; then
+    args+=(--launcher "$WAVE_RUNNER_LAUNCHER")
+  fi
 
   set +e
   "${args[@]}" >"$out_json" 2>"$err_file"

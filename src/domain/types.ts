@@ -334,6 +334,8 @@ export type WaveView = {
   leases: LeaseRecord[];
   events: DomainEvent[];
   artifacts: ArtifactRecord[];
+  /** Isolated per-wave tick error; tick-all continues (WR-051). */
+  isolatedError?: string;
 };
 
 export const TERMINAL_WAVE: ReadonlySet<WaveStatus> = new Set([

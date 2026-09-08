@@ -31,7 +31,7 @@ test("live IMPL outbox is not stuck at threshold", () => {
     count: 0,
     stuck: false,
   });
-  for (const state of ["CLAIMED", "RECONCILING"] as const) {
+  for (const state of ["PENDING", "CLAIMED", "RECONCILING"] as const) {
     const view = { ...LIVE_VIEW, outbox: [{ outboxId: "obx-1", state }] };
     assert.equal(hasLiveOutbox(view), true);
     const next = progressFingerprint(view);

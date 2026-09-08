@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -297,6 +297,57 @@ process.stderr.write("boom\\n"); process.exit(1);
   assert.match(`${r.stderr}${r.stdout}`, /repeated_tick_fail/);
 });
 
+test('all-live supervisor does not let a failing lane terminate a healthy lane', async () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'wr046-isolated-failure-'));
+  const ledgers = join(scratch, 'ledgers');
+  mkdirSync(ledgers);
+  writeFileSync(join(ledgers, 'stale.sqlite'), '');
+  writeFileSync(join(ledgers, 'healthy.sqlite'), '');
+  const fake = join(scratch, 'fake-cli.mjs');
+  writeFileSync(fake, "const op=process.argv[2];const db=process.argv[process.argv.indexOf('--db')+1]||'';if(op==='list-live'){process.stdout.write(db.endsWith('stale.sqlite')?'/stale':'/healthy');process.exit(0)}if(op==='tick-all'){if(db.endsWith('stale.sqlite')){process.stderr.write('stale lane failed\\n');process.exit(1)}process.stdout.write(JSON.stringify({waveIds:['healthy'],views:[]}));process.exit(0)}process.exit(2);", 'utf8');
+  chmodSync(fake, 0o755);
+  const child = spawn('bash', [supervisorSh], {
+    env: { ...process.env, WR: root, PLUGIN_DIR: root, WR_SCRATCH: scratch, CLI_JS: fake, WAVE_SKIP_SCRATCH_UUID: '1', WAVE_RUNNER_OPERATOR_ID: RUN_OPERATOR_ID, WAVE_SUPERVISOR_PIDFILE: join(scratch, 'supervisor.pid'), TICK_SLEEP: '0', WAVE_IDLE_EXIT_S: '99999', STUCK_TICKS: '0', WAVE_SUPERVISOR_WAVE_ID: '', WAVE_SUPERVISOR_REPO: '' },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  assert.equal(child.exitCode, null, 'healthy lane must keep the all-live supervisor running');
+  child.kill('SIGTERM');
+  await new Promise((resolve) => child.once('close', resolve));
+});
+
+test('targeted supervisor filters waves and forwards the CLI fallback contract', async () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'wr046-targeted-'));
+  mkdirSync(join(scratch, 'ledgers'));
+  writeFileSync(join(scratch, 'ledgers', 'target.sqlite'), '');
+  const argsLog = join(scratch, 'args.log');
+  const fake = join(scratch, 'fake-cli.mjs');
+  writeFileSync(fake, "import fs from 'node:fs';const op=process.argv[2];fs.appendFileSync(process.env.ARGS_LOG,JSON.stringify(process.argv.slice(2))+'\\n');if(op==='inspect'){process.stdout.write(JSON.stringify({wave:{status:'RUNNING'}}));process.exit(0)}if(op==='tick'){process.stdout.write(JSON.stringify({waveIds:['target'],views:[]}));process.exit(0)}process.exit(2);", 'utf8');
+  chmodSync(fake, 0o755);
+  const child = spawn('bash', [supervisorSh], {
+    env: { ...process.env, WR: root, PLUGIN_DIR: root, WR_SCRATCH: scratch, CLI_JS: fake, ARGS_LOG: argsLog, WAVE_SKIP_SCRATCH_UUID: '1', WAVE_RUNNER_OPERATOR_ID: RUN_OPERATOR_ID, WAVE_RUNNER_ACP: '0', WAVE_RUNNER_LAUNCHER: '/tmp/run_detached_builder.sh', WAVE_SUPERVISOR_WAVE_ID: 'target', WAVE_SUPERVISOR_REPO: '/target-repo', WAVE_SUPERVISOR_PIDFILE: join(scratch, 'supervisor.pid'), TICK_SLEEP: '0', WAVE_IDLE_EXIT_S: '99999', STUCK_TICKS: '0' },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  assert.equal(child.exitCode, null);
+  child.kill('SIGTERM');
+  await new Promise((resolve) => child.once('close', resolve));
+  const calls = readFileSync(argsLog, 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  assert.ok(calls.length > 0);
+  const tickCalls = calls.filter((call) => call[0] === 'tick');
+  assert.ok(tickCalls.length > 0);
+  assert.ok(tickCalls.every((call) => call.includes('--no-acp') && call.includes('--launcher') && call.includes('/tmp/run_detached_builder.sh')));
+  assert.ok(calls.every((call) => !call.includes('tick-all')));
+});
+
+test('operator scripts preserve ACP and supervisor scope settings', () => {
+  const backlog = readFileSync(join(root, 'scripts', 'run-backlog-wave.sh'), 'utf8');
+  const operator = readFileSync(join(root, 'scripts', 'wave-operator.sh'), 'utf8');
+  assert.match(backlog, /WAVE_RUNNER_ACP=/);
+  assert.match(backlog, /WAVE_RUNNER_LAUNCHER=/);
+  assert.match(backlog, /WAVE_SUPERVISOR_WAVE_ID=/);
+  assert.match(backlog, /WAVE_SUPERVISOR_REPO=/);
+  assert.match(operator, /args\+=\(--no-acp\)/);
+  assert.match(operator, /args\+=\(--launcher/);
+});
 test("supervisor_alive is false when heartbeat is stale", () => {
   const scratch = mkdtempSync(join(tmpdir(), "wr046-hb-"));
   writeFileSync(join(scratch, "supervisor.pid"), `${process.pid}\n`);
